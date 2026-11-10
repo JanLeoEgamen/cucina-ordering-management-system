@@ -5,11 +5,24 @@ namespace App\Http\Controllers;
 use App\Models\Dish;
 use App\Models\DishType;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Validation\Rule;
 use Yajra\DataTables\Facades\DataTables;
 
-class DishTypeController extends Controller
+class DishTypeController extends Controller implements HasMiddleware
 {
+    // Each method only runs with the matching permission.
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('permission:view dish-types', only: ['index']),
+            new Middleware('permission:create dish-types', only: ['store']),
+            new Middleware('permission:edit dish-types', only: ['edit', 'update']),
+            new Middleware('permission:delete dish-types', only: ['destroy']),
+        ];
+    }
+
     // Display the page, and the table feed for its AJAX request.
     public function index(Request $request)
     {
@@ -24,25 +37,32 @@ class DishTypeController extends Controller
 
                     $buttons = '';
 
-                    // Read only: it loads the same record the edit drawer does.
-                    $buttons .= '<button type="button" data-row-action="view"'
-                        . ' data-id="' . $dishType->dish_type_id . '"'
-                        . ' data-loading-label="' . e(__('Loading...')) . '"'
-                        . ' data-load-error="' . e(__('Unable to load this dish type.')) . '"'
-                        . ' data-view-url="' . e(route('dish-types.edit', $dishType->dish_type_id)) . '"'
-                        . ' class="' . $view . '">' . e(__('View')) . '</button>';
+                    // A button only shows when the matching permission lets the click through.
+                    if (auth()->user()->can('view dish-types')) {
+                        // Read only: it loads the same record the edit drawer does.
+                        $buttons .= '<button type="button" data-row-action="view"'
+                            . ' data-id="' . $dishType->dish_type_id . '"'
+                            . ' data-loading-label="' . e(__('Loading...')) . '"'
+                            . ' data-load-error="' . e(__('Unable to load this dish type.')) . '"'
+                            . ' data-view-url="' . e(route('dish-types.edit', $dishType->dish_type_id)) . '"'
+                            . ' class="' . $view . '">' . e(__('View')) . '</button>';
+                    }
 
-                    $buttons .= '<button type="button" data-row-action="edit"'
-                        . ' data-id="' . $dishType->dish_type_id . '"'
-                        . ' data-loading-label="' . e(__('Loading...')) . '"'
-                        . ' data-edit-url="' . e(route('dish-types.edit', $dishType->dish_type_id)) . '"'
-                        . ' data-update-url="' . e(route('dish-types.update', $dishType->dish_type_id)) . '"'
-                        . ' class="' . $edit . '">' . e(__('Edit')) . '</button>';
+                    if (auth()->user()->can('edit dish-types')) {
+                        $buttons .= '<button type="button" data-row-action="edit"'
+                            . ' data-id="' . $dishType->dish_type_id . '"'
+                            . ' data-loading-label="' . e(__('Loading...')) . '"'
+                            . ' data-edit-url="' . e(route('dish-types.edit', $dishType->dish_type_id)) . '"'
+                            . ' data-update-url="' . e(route('dish-types.update', $dishType->dish_type_id)) . '"'
+                            . ' class="' . $edit . '">' . e(__('Edit')) . '</button>';
+                    }
 
-                    $buttons .= '<button type="button" data-row-action="delete"'
-                        . ' data-id="' . $dishType->dish_type_id . '"'
-                        . ' data-delete-url="' . e(route('dish-types.destroy', $dishType->dish_type_id)) . '"'
-                        . ' class="' . $delete . '">' . e(__('Delete')) . '</button>';
+                    if (auth()->user()->can('delete dish-types')) {
+                        $buttons .= '<button type="button" data-row-action="delete"'
+                            . ' data-id="' . $dishType->dish_type_id . '"'
+                            . ' data-delete-url="' . e(route('dish-types.destroy', $dishType->dish_type_id)) . '"'
+                            . ' class="' . $delete . '">' . e(__('Delete')) . '</button>';
+                    }
 
                     return $buttons;
                 })

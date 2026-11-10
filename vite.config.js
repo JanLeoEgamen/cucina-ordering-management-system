@@ -10,6 +10,8 @@ export default defineConfig({
                 // Page modules, referenced per view with @vite('resources/js/pages/...').
                 'resources/js/pages/dishes.js',
                 'resources/js/pages/dish-types.js',
+                'resources/js/pages/roles.js',
+                'resources/js/pages/users.js',
             ],
             refresh: true,
         }),

@@ -3,6 +3,8 @@
 use App\Http\Controllers\DishController;
 use App\Http\Controllers\DishTypeController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -37,6 +39,26 @@ Route::middleware('auth')->group(function () {
         ->whereNumber('id')->name('dishes.update');
     Route::delete('/dishes/{id}', [DishController::class, 'destroy'])
         ->whereNumber('id')->name('dishes.destroy');
+
+    // Roles: permissions (view roles, create roles, ...) are checked in the controller.
+    Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
+    Route::post('/roles', [RoleController::class, 'store'])->name('roles.store');
+    Route::get('/roles/{id}/edit', [RoleController::class, 'edit'])
+        ->whereNumber('id')->name('roles.edit');
+    Route::put('/roles/{id}', [RoleController::class, 'update'])
+        ->whereNumber('id')->name('roles.update');
+    Route::delete('/roles/{id}', [RoleController::class, 'destroy'])
+        ->whereNumber('id')->name('roles.destroy');
+
+    // Users
+    Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::post('/users', [UserController::class, 'store'])->name('users.store');
+    Route::get('/users/{id}/edit', [UserController::class, 'edit'])
+        ->whereNumber('id')->name('users.edit');
+    Route::put('/users/{id}', [UserController::class, 'update'])
+        ->whereNumber('id')->name('users.update');
+    Route::delete('/users/{id}', [UserController::class, 'destroy'])
+        ->whereNumber('id')->name('users.destroy');
 });
 
 require __DIR__.'/auth.php';

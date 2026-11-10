@@ -14,7 +14,8 @@ class DishTypeTest extends TestCase
 
     private function user(): User
     {
-        return User::factory()->create();
+        // The CRUD routes are permission gated (see DishTypeController::middleware()).
+        return $this->superAdmin();
     }
 
     /**

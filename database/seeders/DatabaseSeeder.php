@@ -19,6 +19,10 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Test User', 'password' => bcrypt('password')]
         );
 
+        // Permissions, and the Super Admin role on the account above: without
+        // it every gated page answers 403.
+        $this->call(PermissionSeeder::class);
+
         $dishTypes = DishType::factory()->count(5)->create();
 
         Dish::factory()->count(20)->create()->each(function (Dish $dish) use ($dishTypes) {

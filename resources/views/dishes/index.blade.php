@@ -9,13 +9,35 @@
         $th = 'border-b border-gray-200 bg-gray-100 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap dark:border-gray-700 dark:bg-gray-700/50 dark:text-gray-300';
         $cancelButton = 'rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:focus:ring-gray-700';
         $submitButton = 'rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-800';
+        // pr-10 keeps the @tailwindcss/forms chevron from sitting on the value.
+        $filter = 'block w-full rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-10 text-sm leading-5 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:w-auto dark:border-gray-600 dark:bg-gray-700 dark:text-white';
     @endphp
 
     <div class="container mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-            {{-- View switch: swaps the table for the card grid; wiring and card
-                 markup live in resources/js/pages/dishes.js. --}}
-            <div class="flex items-center justify-end border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+            {{-- Filters: they narrow the feed in the browser (no request); the
+                 table's own search box keeps working next to them. Both are read
+                 by resources/js/pages/dishes.js. --}}
+            <div class="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <select id="dish-status-filter" aria-label="{{ __('Status') }}" class="{{ $filter }}">
+                        <option value="">{{ __('All statuses') }}</option>
+                        <option value="active">{{ __('Active') }}</option>
+                        <option value="inactive">{{ __('Inactive') }}</option>
+                    </select>
+
+                    {{-- Every live dish type, not only the available ones: a dish
+                         can still be tagged with a type that was turned off. --}}
+                    <select id="dish-type-filter" aria-label="{{ __('Dish Type') }}" class="{{ $filter }}">
+                        <option value="">{{ __('All dish types') }}</option>
+                        @foreach ($dishTypeFilters as $dishTypeFilter)
+                            <option value="{{ $dishTypeFilter->dish_type_id }}">{{ $dishTypeFilter->type_name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                {{-- View switch: swaps the table for the card grid; wiring and card
+                     markup live in resources/js/pages/dishes.js. --}}
                 <div class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-gray-600 dark:bg-gray-700"
                      role="group" aria-label="{{ __('View mode') }}">
                     <button type="button"

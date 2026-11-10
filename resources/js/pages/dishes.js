@@ -138,6 +138,7 @@ const start = () => {
             infoEmpty: 'No rows to show',
             infoFiltered: '(filtered from _MAX_ rows)',
             emptyTable: 'No data available yet',
+            zeroRecords: 'No rows match the search and filters',
         },
         ajax: tableElement.dataset.endpoint,
         columns: [
@@ -168,6 +169,34 @@ const start = () => {
                 .map((index, position) => [index, position + 1]),
         );
     });
+
+    /* ---- filters --------------------------------------------------------- */
+
+    /*
+     * The two selects narrow the feed without a request: the rows are already in
+     * the browser, so this only decides which of them the table shows. It is a
+     * *named* search, so the table's own search box keeps working next to it.
+     */
+    const statusFilter = document.querySelector('#dish-status-filter');
+    const typeFilter = document.querySelector('#dish-type-filter');
+
+    table.search.fixed('filters', (searchData, rowData) => {
+        const status = statusFilter?.value ?? '';
+
+        // The server renders the badge, and it carries its state in data-status,
+        // so the filter reads the same value the cell shows.
+        if (status !== '' && ! String(rowData.is_active ?? '').includes('data-status="' + status + '"')) {
+            return false;
+        }
+
+        const type = typeFilter?.value ?? '';
+
+        return type === ''
+            || (rowData.dish_types ?? []).some((dishType) => String(dishType.dish_type_id) === type);
+    });
+
+    statusFilter?.addEventListener('change', () => table.draw());
+    typeFilter?.addEventListener('change', () => table.draw());
 
     /* ---- helpers --------------------------------------------------------- */
 
