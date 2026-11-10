@@ -41,7 +41,11 @@ return [
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
-            'url' => env('APP_URL').'/storage',
+            // Relative on purpose: the same file then loads from localhost,
+            // 127.0.0.1:8000, a LAN address or whatever host the app runs on.
+            // An absolute APP_URL here breaks every uploaded image as soon as
+            // the browser uses a different host or port.
+            'url' => '/storage',
             'visibility' => 'public',
             'throw' => false,
             'report' => false,

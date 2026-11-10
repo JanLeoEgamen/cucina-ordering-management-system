@@ -1,3 +1,287 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Alpine.js: keep x-cloak elements hidden until the component initialises. */
+[x-cloak] {
+    display: none !important;
+}
+
+/* ---------------------------------------------------------------------------
+   DataTables (server-side) controls.
+
+   Two things to know:
+
+   1. The bundled DataTables stylesheet is deliberately NOT imported. It would
+      load after Tailwind's utilities and override the table's Tailwind styling.
+   2. These rules are plain CSS, NOT inside `@layer components`. Tailwind
+      tree-shakes custom layer rules whose class names never appear in the
+      scanned templates, which would drop every `.dt-*` rule below.
+
+   Only the generated control markup (search, length, info, paging, processing
+   and the sort arrows) is styled here, using the same tokens as the rest of UI.
+
+   `appearance-none` is explicit on the text controls: the browser's native
+   `appearance` for input[type=search] would otherwise add its own clear button
+   and inner chrome, so the box is styled by these classes and nothing else.
+--------------------------------------------------------------------------- */
+
+.dt-container {
+    @apply relative text-sm text-gray-700 dark:text-gray-300;
+}
+
+.dt-container .dt-layout-row {
+    @apply flex flex-wrap items-center justify-between gap-3 px-4 py-3;
+}
+
+/* The row that wraps the <table> itself needs no padding. */
+.dt-container .dt-layout-row.dt-layout-table {
+    @apply block p-0;
+}
+
+.dt-container .dt-layout-row:first-child {
+    @apply border-b border-gray-200 dark:border-gray-700;
+}
+
+.dt-container .dt-layout-row:last-child {
+    @apply border-t border-gray-200 dark:border-gray-700;
+}
+
+.dt-container .dt-search,
+.dt-container .dt-length {
+    @apply flex items-center gap-2;
+}
+
+/* Footer summary: "Showing 1 to 7 of 7 entries" and the page length sit on one
+   line, split by a hairline rule, so they read as one sentence. */
+.dt-container .dt-layout-start {
+    @apply flex flex-wrap items-center gap-3;
+}
+
+.dt-container .dt-layout-start > * + * {
+    @apply border-l border-gray-200 pl-3 dark:border-gray-700;
+}
+
+.dt-container .dt-search label,
+.dt-container .dt-length label {
+    @apply text-sm text-gray-600 dark:text-gray-400;
+}
+
+.dt-container .dt-input {
+    @apply w-auto appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm leading-5 text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400;
+}
+
+.dt-container .dt-search .dt-input {
+    @apply min-w-[12rem];
+}
+
+/* The page-length select keeps the form plugin's chevron, which sits inside the
+   right edge. `px-3` from the rule above left only 12px there, so the selected
+   value ran underneath the arrow: reserve the space the plugin expects. */
+.dt-container select.dt-input {
+    @apply pr-10;
+}
+
+.dt-container .dt-info {
+    @apply text-sm text-gray-500 dark:text-gray-400;
+}
+
+.dt-container .dt-paging {
+    @apply flex items-center gap-1;
+}
+
+.dt-container .dt-paging button {
+    @apply rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:hover:bg-gray-800;
+}
+
+.dt-container .dt-paging button.current {
+    @apply border-transparent bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-700;
+}
+
+/* Unusable paging buttons: DataTables marks them with a `disabled` class and
+   aria-disabled, not the disabled attribute, so the `disabled:` variants in the
+   rule above never matched them and they looked clickable. */
+.dt-container .dt-paging button.disabled,
+.dt-container .dt-paging button[aria-disabled='true'] {
+    @apply cursor-not-allowed opacity-40 hover:bg-white dark:hover:bg-gray-800;
+}
+
+.dt-container .dt-processing {
+    @apply absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-lg border border-gray-200 bg-white/95 px-4 py-2 text-sm font-medium text-gray-700 shadow-lg backdrop-blur dark:border-gray-600 dark:bg-gray-800/95 dark:text-gray-200;
+}
+
+/* Body cells: the generated <td>s carry no padding of their own, so without
+   this the content sits flush left while the header labels are indented - the
+   columns then look misaligned. One rule keeps every column in step with its
+   header, and the hover lets the eye follow a row across the table. */
+.dt-container table.dataTable tbody td {
+    @apply px-4 py-2.5 align-middle;
+}
+
+/* Inactive rows are muted: the badge already carries the state, so the row
+   follows it instead of needing another column of its own. Declared before the
+   hover rule so a hovered row still lights up. */
+.dt-container table.dataTable tbody tr:has([data-status="inactive"]) {
+    @apply bg-red-50/50 dark:bg-red-900/10;
+}
+
+.dt-container table.dataTable tbody tr:hover {
+    @apply bg-gray-50 dark:bg-gray-700/40;
+}
+
+/* Narrow screens. The toolbar stacks, the search takes the full width and the
+   paging centres, so nothing is squeezed into one 375px row. Secondary columns
+   are dropped through columns[].className (see the page scripts), and if the
+   remaining columns still need room the table scrolls sideways instead of
+   crushing every cell into wrapped text. */
+@media (max-width: 639px) {
+    .dt-container .dt-layout-row {
+        @apply flex-col items-stretch gap-2;
+    }
+
+    .dt-container .dt-search,
+    .dt-container .dt-length {
+        @apply w-full justify-between;
+    }
+
+    /* Stacked on phones, so the divider would hang in the wrong place. */
+    .dt-container .dt-layout-start > * + * {
+        @apply border-0 pl-0;
+    }
+
+    .dt-container .dt-search .dt-input {
+        @apply w-full min-w-0;
+    }
+
+    .dt-container .dt-paging {
+        @apply justify-center;
+    }
+
+    .dt-container .dt-info {
+        @apply text-center;
+    }
+
+    .dt-container .dt-layout-row.dt-layout-table {
+        @apply overflow-x-auto;
+    }
+
+    /* Every pixel counts at 375px, so the cells breathe less on a phone. */
+    .dt-container table.dataTable thead th,
+    .dt-container table.dataTable tbody td {
+        @apply px-3;
+    }
+}
+
+/* Sort arrows: DataTables marks the <th> with the state classes. */
+.dt-container table.dataTable thead th.dt-orderable-asc,
+.dt-container table.dataTable thead th.dt-orderable-desc {
+    @apply cursor-pointer;
+}
+
+/* Non-orderable columns (status, actions) get an inert order element too - hide it. */
+.dt-container table.dataTable thead th.dt-orderable-none .dt-column-order {
+    display: none;
+}
+
+.dt-container table.dataTable thead th .dt-column-order {
+    @apply ml-1 inline-flex flex-col items-center align-middle text-gray-400 dark:text-gray-500;
+}
+
+.dt-container table.dataTable thead th .dt-column-order::before {
+    @apply text-[0.5rem] leading-none;
+    content: '\25B2';
+    opacity: 0.45;
+}
+
+.dt-container table.dataTable thead th .dt-column-order::after {
+    @apply text-[0.5rem] leading-none;
+    content: '\25BC';
+    opacity: 0.45;
+}
+
+.dt-container table.dataTable thead th.dt-ordering-asc .dt-column-order::before,
+.dt-container table.dataTable thead th.dt-ordering-desc .dt-column-order::after {
+    @apply text-indigo-600 dark:text-indigo-400;
+    opacity: 1;
+}
+
+/* ---------------------------------------------------------------------------
+   Busy buttons.
+
+   The page scripts disable a button for as long as its request runs and swap in
+   its `data-loading-label` ("Loading...", "Saving...", "Deleting..."). This is
+   what makes that state visible, in one place instead of in every class list.
+--------------------------------------------------------------------------- */
+
+[data-row-action][disabled],
+#save-modal-button[disabled],
+#delete-modal-button[disabled] {
+    @apply cursor-not-allowed opacity-50;
+}
+
+/* ---------------------------------------------------------------------------
+   Layer stack (z-index).
+
+   Every overlay is `position: fixed`, so within one stacking context they all
+   paint in z-index order. This ladder is the single source of truth: when an
+   overlay cannot be seen or cannot be clicked, compare its slot here first, and
+   if you add one, take the next free slot instead of reusing a number.
+
+       30  mobile top bar
+       40  mobile navigation backdrop
+       50  navigation surfaces (sidebar / mobile off-canvas)
+       60  drawer backdrop
+       70  drawer panel
+       80  modal backdrop
+       90  modal panel (including the legacy <x-modal> component)
+      100  toasts
+
+   Note the gap between 50 and 60: the navigation sits above its own backdrop
+   but BELOW every overlay, so an open drawer or modal also dims and blurs the
+   navigation instead of floating under a sharp sidebar.
+--------------------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------------------
+   Collapsible sidebar.
+
+   The collapsed state lives in a class on <html> (restored from localStorage by
+   the inline script in layouts/app.blade.php, before first paint) so a stored
+   collapsed state never flashes a wide sidebar on load.
+
+   These rules are plain CSS for the same reason the DataTables rules above are:
+   these selectors only exist here, and Tailwind tree-shakes anything it cannot
+   find in the scanned templates.
+
+   Desktop only (lg+): below lg the sidebar is an off-canvas drawer and always
+   shows its labels.
+--------------------------------------------------------------------------- */
+@media (min-width: 1024px) {
+    html.cucina-sidebar-collapsed #app-sidebar {
+        width: 5rem;
+    }
+
+    html.cucina-sidebar-collapsed .app-content {
+        padding-left: 5rem;
+    }
+
+    /* Icon rail: labels out, icons centred. Hover labels come from the `title`
+       attribute on each link. */
+    html.cucina-sidebar-collapsed .sidebar-label {
+        display: none;
+    }
+
+    html.cucina-sidebar-collapsed .sidebar-link {
+        justify-content: center;
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    html.cucina-sidebar-collapsed .sidebar-brand,
+    html.cucina-sidebar-collapsed .sidebar-user {
+        justify-content: center;
+    }
+
+    html.cucina-sidebar-collapsed #sidebar-toggle .sidebar-toggle-icon {
+        transform: rotate(180deg);
+    }
+}
