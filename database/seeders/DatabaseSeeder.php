@@ -2,8 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Dish;
-use App\Models\DishType;
+use App\Models\PaymentMethod;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -23,10 +22,26 @@ class DatabaseSeeder extends Seeder
         // it every gated page answers 403.
         $this->call(PermissionSeeder::class);
 
-        $dishTypes = DishType::factory()->count(5)->create();
+        // The methods the checkout offers. Without one there is nothing to pick
+        // at checkout, so an order cannot be placed. Cash on Pick up is the only
+        // cash method; it is locked by PaymentMethod::PROTECTED: it is only ever
+        // used, never edited or deleted.
+        $methods = [
+            ['method_name' => PaymentMethod::CASH_ON_PICKUP, 'account_name' => null, 'account_number' => null],
+            ['method_name' => 'GCash', 'account_name' => 'Cucina Kitchen', 'account_number' => '0917-000-0000'],
+            ['method_name' => 'Bank Transfer', 'account_name' => 'Cucina Kitchen', 'account_number' => '1234-5678-9012'],
+        ];
 
-        Dish::factory()->count(20)->create()->each(function (Dish $dish) use ($dishTypes) {
-            $dish->dishTypes()->attach($dishTypes->random()->dish_type_id);
-        });
+        foreach ($methods as $method) {
+            PaymentMethod::firstOrCreate(['method_name' => $method['method_name']], $method);
+        }
+
+        // The menu the app starts with: the types first, then the dishes that
+        // belong to them (DishSeeder runs DishTypeSeeder itself, so either can be
+        // seeded on its own).
+        $this->call([
+            DishTypeSeeder::class,
+            DishSeeder::class,
+        ]);
     }
 }

@@ -17,12 +17,28 @@ class Role extends SpatieRole
     public const PERMISSIONS = [
         'view dishes', 'create dishes', 'edit dishes', 'delete dishes',
         'view dish-types', 'create dish-types', 'edit dish-types', 'delete dish-types',
+        'view payment-methods', 'create payment-methods', 'edit payment-methods', 'delete payment-methods',
+        'view order-sessions', 'create order-sessions', 'edit order-sessions',
+        'delete order-sessions', 'end order-sessions',
+        'view menu', 'create orders', 'view my orders',
         'view roles', 'create roles', 'edit roles', 'delete roles',
         'view users', 'create users', 'edit users', 'delete users',
     ];
 
     // The seeded role that holds every permission.
     public const SUPER_ADMIN = 'Super Admin';
+
+    // The seeded role for the people ordering: the menu, their own orders, and
+    // placing one. Nothing behind the counter.
+    public const CUSTOMER = 'Customer';
+
+    // What the Customer role is seeded with. The roles page can change this
+    // afterwards; running the seeder again puts it back to this list.
+    public const CUSTOMER_PERMISSIONS = [
+        'view menu',
+        'create orders',
+        'view my orders',
+    ];
 
     // Protected roles: they cannot be edited or deleted from the app. Add a
     // name here to lock another role, and remove it to unlock the role again.
