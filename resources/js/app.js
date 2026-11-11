@@ -14,3 +14,9 @@ Alpine.start();
  * DataTables is imported by those page modules, so it is only downloaded on
  * pages that render a table.
  */
+
+/*
+ * The image viewer is the one other thing loaded on every page: it listens for
+ * clicks on anything marked `data-zoom` (see resources/js/ui/image-viewer.js).
+ */
+import './ui/image-viewer';

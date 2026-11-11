@@ -86,6 +86,8 @@
             @include('components.ui.notification')
         </div>
 
+        <x-ui.image-viewer />
+
         {{-- Page level scripts (the module views use @push('scripts')). --}}
         @stack('scripts')
     </body>

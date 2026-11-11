@@ -386,8 +386,8 @@
             <div id="view-dish-errors" class="mb-4 hidden rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300"></div>
 
             <div id="view-dish-image-wrapper" class="mb-3 hidden">
-                <img id="view-dish-image" src="" alt=""
-                     class="h-32 w-full rounded-lg bg-gray-50 object-contain ring-1 ring-gray-200 dark:bg-gray-900/40 dark:ring-gray-700">
+                <x-ui.zoomable-image id="view-dish-image" src="" alt=""
+                     class="h-32 w-full rounded-lg bg-gray-50 object-contain ring-1 ring-gray-200 dark:bg-gray-900/40 dark:ring-gray-700" />
             </div>
 
             <dl class="space-y-3.5">

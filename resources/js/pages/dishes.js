@@ -75,14 +75,14 @@ const start = () => {
 
     // Thumbnail with a placeholder underneath: no URL shows the icon alone,
     // and a broken image removes itself (onerror) so the icon shows through.
-    const thumbnailCell = (value, type) => {
+    const thumbnailCell = (value, type, row) => {
         if (type !== 'display') {
             return value ?? '';
         }
 
         const icon = '<svg class="h-5 w-5 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z" /></svg>';
         const image = value
-            ? '<img src="' + escapeHtml(value) + '" alt="" loading="lazy" class="absolute inset-0 h-full w-full object-cover" onerror="this.remove()">'
+            ? '<img src="' + escapeHtml(value) + '" alt="" data-zoom data-zoom-caption="' + escapeHtml(row?.dish_name ?? '') + '" loading="lazy" class="absolute inset-0 h-full w-full cursor-zoom-in object-cover" onerror="this.remove()">'
             : '';
 
         return '<span class="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-gray-100 ring-1 ring-inset ring-black/5 dark:bg-gray-700 dark:ring-white/10">' + icon + image + '</span>';
@@ -421,6 +421,7 @@ const start = () => {
 
         if (viewImage) {
             viewImage.src = record.image ?? '';
+            viewImage.dataset.zoomCaption = record.dish_name ?? '';
         }
 
         if (viewImageWrapper) {
@@ -591,7 +592,7 @@ const start = () => {
         <article class="flex flex-col justify-between overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
             <div class="relative flex h-32 w-full items-center justify-center overflow-hidden bg-gray-100 dark:bg-gray-700">
                 <svg class="h-8 w-8 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z" /></svg>
-                ${dish.image ? `<img src="${escapeHtml(dish.image)}" alt="" loading="lazy" class="absolute inset-0 h-full w-full object-cover" onerror="this.remove()">` : ''}
+                ${dish.image ? `<img src="${escapeHtml(dish.image)}" alt="" data-zoom data-zoom-caption="${escapeHtml(dish.dish_name)}" loading="lazy" class="absolute inset-0 h-full w-full cursor-zoom-in object-cover" onerror="this.remove()">` : ''}
             </div>
             <div class="flex flex-1 flex-col gap-1 p-4">
                 <div class="flex items-start justify-between gap-2">
