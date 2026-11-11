@@ -124,9 +124,7 @@ class UserController extends Controller implements HasMiddleware
         $user = User::findById((int) $id);
 
         if (! $user) {
-            return response()->json([
-                'message' => 'User not found.',
-            ], 404);
+            return $this->errorResponse('User not found.', 404);
         }
 
         return response()->json($user);
@@ -146,9 +144,7 @@ class UserController extends Controller implements HasMiddleware
     public function update(Request $request, $id)
     {
         if (! User::existsById((int) $id)) {
-            return response()->json([
-                'message' => 'User not found.',
-            ], 404);
+            return $this->errorResponse('User not found.', 404);
         }
 
         $validated = $this->validateUser($request);
@@ -162,17 +158,11 @@ class UserController extends Controller implements HasMiddleware
     public function destroy(Request $request, $id)
     {
         if (! User::existsById((int) $id)) {
-            return response()->json([
-                'status' => 'failed',
-                'message' => 'User not found.',
-            ], 404);
+            return $this->errorResponse('User not found.', 404);
         }
 
         if ((int) $id === (int) $request->user()->id) {
-            return response()->json([
-                'status' => 'failed',
-                'message' => 'You cannot delete your own account.',
-            ], 422);
+            return $this->errorResponse('You cannot delete your own account.', 422);
         }
 
         User::deleteUser((int) $id);

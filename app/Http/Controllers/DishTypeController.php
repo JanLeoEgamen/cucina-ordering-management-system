@@ -98,9 +98,7 @@ class DishTypeController extends Controller implements HasMiddleware
         $dishType = DishType::findById((int) $id);
 
         if (! $dishType) {
-            return response()->json([
-                'message' => 'Dish type not found.',
-            ], 404);
+            return $this->errorResponse('Dish type not found.', 404);
         }
 
         // The view drawer shows the same badge the table renders, so its markup
@@ -122,9 +120,7 @@ class DishTypeController extends Controller implements HasMiddleware
     public function update(Request $request, $id)
     {
         if (! DishType::existsById((int) $id)) {
-            return response()->json([
-                'message' => 'Dish type not found.',
-            ], 404);
+            return $this->errorResponse('Dish type not found.', 404);
         }
 
         DishType::updateDishType((int) $id, $this->validateDishType($request));
@@ -136,17 +132,11 @@ class DishTypeController extends Controller implements HasMiddleware
     public function destroy($id)
     {
         if (! DishType::existsById((int) $id)) {
-            return response()->json([
-                'status' => 'failed',
-                'message' => 'Dish type not found.',
-            ], 404);
+            return $this->errorResponse('Dish type not found.', 404);
         }
 
         if (Dish::existsForDishType((int) $id)) {
-            return response()->json([
-                'status' => 'failed',
-                'message' => 'Cannot delete this dish type because it has associated dishes.',
-            ], 422);
+            return $this->errorResponse('Cannot delete this dish type because it has associated dishes.', 422);
         }
 
         DishType::deleteDishType((int) $id);

@@ -100,9 +100,7 @@ class RoleController extends Controller implements HasMiddleware
         $role = Role::findOneById((int) $id);
 
         if (! $role) {
-            return response()->json([
-                'message' => 'Role not found.',
-            ], 404);
+            return $this->errorResponse('Role not found.', 404);
         }
 
         return response()->json($role);
@@ -122,16 +120,11 @@ class RoleController extends Controller implements HasMiddleware
     public function update(Request $request, $id)
     {
         if (! Role::existsById((int) $id)) {
-            return response()->json([
-                'message' => 'Role not found.',
-            ], 404);
+            return $this->errorResponse('Role not found.', 404);
         }
 
         if (Role::isProtected((int) $id)) {
-            return response()->json([
-                'status' => 'failed',
-                'message' => 'This role is protected and cannot be edited.',
-            ], 422);
+            return $this->errorResponse('This role is protected and cannot be edited.', 422);
         }
 
         $validated = $this->validateRole($request);
@@ -145,24 +138,15 @@ class RoleController extends Controller implements HasMiddleware
     public function destroy($id)
     {
         if (! Role::existsById((int) $id)) {
-            return response()->json([
-                'status' => 'failed',
-                'message' => 'Role not found.',
-            ], 404);
+            return $this->errorResponse('Role not found.', 404);
         }
 
         if (Role::isProtected((int) $id)) {
-            return response()->json([
-                'status' => 'failed',
-                'message' => 'This role is protected and cannot be deleted.',
-            ], 422);
+            return $this->errorResponse('This role is protected and cannot be deleted.', 422);
         }
 
         if (Role::isAssignedToUsers((int) $id)) {
-            return response()->json([
-                'status' => 'failed',
-                'message' => 'Cannot delete this role because it is still assigned to users.',
-            ], 422);
+            return $this->errorResponse('Cannot delete this role because it is still assigned to users.', 422);
         }
 
         Role::deleteRole((int) $id);

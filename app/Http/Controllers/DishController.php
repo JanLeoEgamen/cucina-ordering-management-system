@@ -86,9 +86,7 @@ class DishController extends Controller implements HasMiddleware
         $dish = Dish::findById((int) $id);
 
         if (! $dish) {
-            return response()->json([
-                'message' => 'Dish not found.',
-            ], 404);
+            return $this->errorResponse('Dish not found.', 404);
         }
 
         // Return the stored image as a public URL so the edit drawer can preview
@@ -124,9 +122,7 @@ class DishController extends Controller implements HasMiddleware
     public function update(Request $request, $id)
     {
         if (! Dish::existsById((int) $id)) {
-            return response()->json([
-                'message' => 'Dish not found.',
-            ], 404);
+            return $this->errorResponse('Dish not found.', 404);
         }
 
         $validated = $this->validateDish($request);
@@ -154,10 +150,7 @@ class DishController extends Controller implements HasMiddleware
     public function destroy($id)
     {
         if (! Dish::existsById((int) $id)) {
-            return response()->json([
-                'status' => 'failed',
-                'message' => 'Dish not found.',
-            ], 404);
+            return $this->errorResponse('Dish not found.', 404);
         }
 
         $image = Dish::findById((int) $id)->image ?? null;
