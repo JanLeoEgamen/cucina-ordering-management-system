@@ -20,3 +20,16 @@ Alpine.start();
  * clicks on anything marked `data-zoom` (see resources/js/ui/image-viewer.js).
  */
 import './ui/image-viewer';
+import './ui/theme';
+
+/*
+ * Every <select> gets the app's own dropdown (resources/js/ui/select-menu.js), the
+ * same panel as the toolbar's sort menu, instead of the browser's list.
+ */
+import { autoEnhanceSelects } from './ui/select-menu';
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', autoEnhanceSelects);
+} else {
+    autoEnhanceSelects();
+}

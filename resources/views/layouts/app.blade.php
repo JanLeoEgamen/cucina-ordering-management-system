@@ -34,6 +34,8 @@
             })();
         </script>
 
+        @include('layouts.theme-script')
+
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
@@ -44,7 +46,7 @@
             handlers inside an `x-data` tree, which is why the root lives here
             rather than inside the navigation partial.
         --}}
-        <div class="min-h-screen bg-gray-100 dark:bg-gray-900"
+        <div class="min-h-screen bg-gray-50 dark:bg-gray-900"
              x-data="{
                 open: false,
                 collapsed: document.documentElement.classList.contains('cucina-sidebar-collapsed'),
@@ -70,8 +72,9 @@
             <div class="app-content pt-16 transition-[padding] duration-300 ease-in-out lg:pt-0 lg:pl-64">
                 <!-- Page Heading -->
                 @isset($header)
-                    <header class="bg-white dark:bg-gray-800 shadow">
-                        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                    {{-- No bar: the title sits straight on the paper, like the pages it introduces. --}}
+                    <header>
+                        <div class="max-w-7xl mx-auto px-4 pb-1 pt-8 sm:px-6 lg:px-8">
                             {{ $header }}
                         </div>
                     </header>

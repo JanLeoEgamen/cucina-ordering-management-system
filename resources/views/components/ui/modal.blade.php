@@ -54,7 +54,7 @@ $widthClasses = [
             x-bind:aria-hidden="show ? 'false' : 'true'"
             role="dialog"
             aria-modal="true"
-            class="{{ $widthClasses }} pointer-events-none max-h-full w-full scale-95 overflow-y-auto rounded-lg border border-gray-200 bg-white opacity-0 shadow-xl transition duration-200 ease-out dark:border-gray-700 dark:bg-gray-800"
+            class="{{ $widthClasses }} pointer-events-none max-h-full w-full scale-95 overflow-y-auto rounded-2xl border border-gray-200 bg-white opacity-0 shadow-xl transition duration-200 ease-out dark:border-gray-700 dark:bg-gray-800"
         >
             {{ $slot }}
         </div>

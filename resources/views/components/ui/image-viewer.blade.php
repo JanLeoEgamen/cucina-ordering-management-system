@@ -15,7 +15,7 @@
     viewer, never the drawer or modal behind it). Above drawers, modals and toasts.
 --}}
 <div id="image-viewer"
-     class="fixed inset-0 z-[120] hidden items-center justify-center bg-gray-900/80 p-4 backdrop-blur-sm"
+     class="fixed inset-0 z-[120] hidden animate-fade-in items-center justify-center bg-gray-900/80 p-4 backdrop-blur-sm"
      role="dialog" aria-modal="true" aria-label="{{ __('Image preview') }}"
      data-save-label="{{ __('Save image') }}">
     <button type="button" data-viewer-close
@@ -26,7 +26,7 @@
         </svg>
     </button>
 
-    <figure class="flex max-h-full max-w-full flex-col items-center gap-3">
+    <figure class="flex max-h-full max-w-full animate-pop flex-col items-center gap-3">
         <img data-viewer-image src="" alt=""
              class="max-h-[78vh] max-w-full rounded-xl bg-white object-contain shadow-2xl">
 

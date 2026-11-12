@@ -53,7 +53,7 @@ $slide = $placement === 'right' ? 'translate-x-full' : '-translate-x-full';
         x-bind:class="{ 'opacity-100': show, 'opacity-0 pointer-events-none': ! show }"
         x-bind:aria-hidden="show ? 'false' : 'true'"
         x-on:click="show = false"
-        class="fixed inset-0 z-[60] bg-gray-900/60 opacity-0 backdrop-blur-sm transition-opacity duration-300 ease-out"
+        class="fixed inset-0 z-[60] bg-gray-900/40 opacity-0 backdrop-blur-sm transition-opacity duration-300 ease-out"
     ></div>
 
     {{-- Panel --}}
@@ -62,7 +62,7 @@ $slide = $placement === 'right' ? 'translate-x-full' : '-translate-x-full';
         x-bind:aria-hidden="show ? 'false' : 'true'"
         class="fixed inset-y-0 {{ $side }} z-[70] {{ $widthClasses }} transform {{ $slide }} transition-transform duration-300 ease-in-out"
     >
-        <div class="flex h-full flex-col bg-white shadow-2xl dark:bg-gray-800">
+        <div class="flex h-full flex-col overflow-hidden bg-white shadow-2xl dark:bg-gray-800 {{ $placement === 'right' ? 'sm:rounded-l-3xl' : 'sm:rounded-r-3xl' }}">
             {{ $slot }}
         </div>
     </div>

@@ -40,11 +40,11 @@
 }
 
 .dt-container .dt-layout-row:first-child {
-    @apply border-b border-gray-200 dark:border-gray-700;
+    @apply border-b border-gray-100 dark:border-gray-700;
 }
 
 .dt-container .dt-layout-row:last-child {
-    @apply border-t border-gray-200 dark:border-gray-700;
+    @apply border-t border-gray-100 dark:border-gray-700;
 }
 
 .dt-container .dt-search,
@@ -68,7 +68,7 @@
 }
 
 .dt-container .dt-input {
-    @apply w-auto appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm leading-5 text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400;
+    @apply w-auto appearance-none rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm leading-5 text-gray-900 placeholder-gray-400 transition focus:border-gray-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 dark:focus:border-gray-300 dark:focus:ring-gray-600;
 }
 
 .dt-container .dt-search .dt-input {
@@ -91,7 +91,7 @@
 }
 
 .dt-container .dt-paging button {
-    @apply rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:hover:bg-gray-800;
+    @apply min-w-[2.25rem] rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:focus:ring-gray-700 dark:disabled:hover:bg-gray-800;
 }
 
 .dt-container .dt-paging button.current {
@@ -115,14 +115,19 @@
    columns then look misaligned. One rule keeps every column in step with its
    header, and the hover lets the eye follow a row across the table. */
 .dt-container table.dataTable tbody td {
-    @apply px-4 py-2.5 align-middle;
+    @apply px-4 py-3 align-middle;
+}
+
+/* "No data available yet" / "No rows match": centred, roomy, muted. */
+.dt-container table.dataTable tbody td.dt-empty {
+    @apply py-14 text-center text-sm text-gray-500 dark:text-gray-400;
 }
 
 /* Inactive rows are muted: the badge already carries the state, so the row
    follows it instead of needing another column of its own. Declared before the
    hover rule so a hovered row still lights up. */
 .dt-container table.dataTable tbody tr:has([data-status="inactive"]) {
-    @apply bg-red-50/50 dark:bg-red-900/10;
+    @apply bg-gray-50/70 dark:bg-gray-900/30;
 }
 
 .dt-container table.dataTable tbody tr:hover {
@@ -206,6 +211,78 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Tables as cards (modelled on tokenharbor's model table).
+
+   Every row is its own rounded, hairline-bordered card, separated from the next
+   by a gap, under one soft header band. A table cannot round or border a <tr>,
+   so the first and last cell of a row carry the corners and the side borders
+   while every cell carries the top and bottom border (border-collapse is
+   `separate` for that, and `border-spacing` makes the gaps).
+
+   Same specificity as the rules above and declared after them, so it wins.
+--------------------------------------------------------------------------- */
+
+.dt-container .dt-layout-row.dt-layout-table {
+    padding: 0.25rem 0.75rem 0.5rem;
+}
+
+.dt-container table.dataTable {
+    border-collapse: separate;
+    border-spacing: 0 0.625rem;
+}
+
+/* The pages put a white background on <tbody>; the gaps must show the card behind. */
+.dt-container table.dataTable > tbody {
+    background: transparent !important;
+}
+
+.dt-container table.dataTable thead th {
+    @apply border-0 bg-gray-100/80 dark:bg-gray-700/40;
+}
+
+.dt-container table.dataTable thead th:first-child {
+    @apply rounded-l-xl;
+}
+
+.dt-container table.dataTable thead th:last-child {
+    @apply rounded-r-xl;
+}
+
+.dt-container table.dataTable tbody td {
+    @apply border-y border-gray-100 bg-white transition-colors dark:border-gray-700 dark:bg-gray-800;
+}
+
+.dt-container table.dataTable tbody td:first-child {
+    @apply rounded-l-2xl border-l;
+}
+
+.dt-container table.dataTable tbody td:last-child {
+    @apply rounded-r-2xl border-r;
+}
+
+/* Inactive rows are muted (declared before the hover so a hovered row still lights up). */
+.dt-container table.dataTable tbody tr:has([data-status='inactive']) td {
+    @apply bg-gray-50/80 dark:bg-gray-900/40;
+}
+
+.dt-container table.dataTable tbody tr:hover td {
+    @apply bg-gray-50 dark:bg-gray-700/60;
+}
+
+/* The search box: a pill with a magnifier inside, and no label beside it (the
+   placeholder is set in each page script). */
+.dt-container .dt-search label {
+    @apply sr-only;
+}
+
+.dt-container .dt-search .dt-input {
+    padding-left: 2.5rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239a9793' stroke-width='1.8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: 0.85rem center;
+    background-size: 1.1rem;
+}
+/* ---------------------------------------------------------------------------
    Busy buttons.
 
    The page scripts disable a button for as long as its request runs and swap in
@@ -270,6 +347,11 @@
         display: none;
     }
 
+    /* Group titles are labels, so they go with them; a thin rule stands in. */
+    html.cucina-sidebar-collapsed .sidebar-rule {
+        display: block;
+    }
+
     html.cucina-sidebar-collapsed .sidebar-link {
         justify-content: center;
         padding-left: 0;
@@ -284,4 +366,449 @@
     html.cucina-sidebar-collapsed #sidebar-toggle .sidebar-toggle-icon {
         transform: rotate(180deg);
     }
+
+}
+
+/* ---------------------------------------------------------------------------
+   Theme (a warm gray palette from tokenharbor.ai - see tailwind.config.js and
+   docs/frontend.md).
+
+   Light: a warm paper page, white cards, near-black "ink" for primary actions.
+   Dark (the sidebar switch; until it is used, the OS setting): the dark page, with `mist` (#e8e6e1) as ink's counterpart.
+   There is no colour accent: emphasis is the contrast between ink and paper.
+
+   The brand scale is mapped onto Tailwind's `indigo` name, where 600 is INK. An
+   ink button on the dark page would be invisible, so in dark mode every solid
+   brand button turns mist with ink text. Plain CSS (not @layer) for the same
+   tree-shaking reason as the rules above.
+--------------------------------------------------------------------------- */
+
+::selection {
+    background-color: #dcd9cf;
+    color: #17170f;
+}
+
+/* Native controls (scrollbars, date pickers, form fields) follow the theme too. */
+html {
+    color-scheme: light;
+}
+
+html.dark {
+    color-scheme: dark;
+}
+
+/* Dark mode is the `.dark` class on <html> (see tailwind.config.js `darkMode`). */
+html.dark ::selection {
+    background-color: #55544e;
+    color: #f7f6f2;
+}
+
+/* Solid brand buttons, badges and chips: mist with ink text. */
+html.dark .bg-indigo-600.text-white {
+    background-color: #e8e6e1;
+    color: #17170f;
+}
+
+html.dark .bg-indigo-600.hover\:bg-indigo-700:hover {
+    background-color: #ffffff;
+}
+
+/* The current page of the DataTables pager is styled through @apply above. */
+html.dark .dt-container .dt-paging button.current {
+    background-color: #e8e6e1;
+    color: #17170f;
+}
+
+html.dark .dt-container .dt-paging button.current:hover {
+    background-color: #ffffff;
+}
+
+/* Fills that have no text of their own. */
+html.dark #checkout-progress {
+    background-color: #e8e6e1;
+}
+
+/* The forms plugin paints the checked tick white: keep it on a dark enough fill. */
+html.dark input[type='checkbox'].text-indigo-600,
+html.dark input[type='radio'].text-indigo-600 {
+    color: #6b6a64;
+}
+
+html.dark .peer:checked ~ .peer-checked\:bg-indigo-600 {
+    background-color: #6b6a64;
+}
+
+/* While the switch is being used every colour eases over instead of snapping.
+   (The reduced-motion block at the end of this file shortens it to nothing.) */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, fill 0.3s ease, stroke 0.3s ease !important;
+}
+/* ---------------------------------------------------------------------------
+   Motion.
+
+   Soft and short: pages arrive, things answer a tap, the live badge breathes.
+   Keyframes come from tailwind.config.js (animate-fade-up, animate-pop ...);
+   `@apply` here is also what makes Tailwind emit them on pages that use none of
+   the utilities in their own markup.
+
+   Everything below is switched off by the reduced-motion block at the end of
+   the "Mobile friendliness" section.
+--------------------------------------------------------------------------- */
+
+/* Every page's content slides up a little as it arrives. */
+main {
+    @apply animate-fade-up;
+}
+
+/* A press is felt: buttons and links that carry the `transition` utility sink
+   slightly while held. */
+button.transition:not(:disabled):not([aria-disabled='true']):active,
+a.transition:active {
+    transform: scale(0.97);
+}
+
+/* Sidebar: the icon leans toward the label the pointer is on. */
+.sidebar-link svg {
+    transition: transform 0.2s ease;
+}
+
+.sidebar-link:hover svg {
+    transform: translateX(2px);
+}
+
+html.cucina-sidebar-collapsed .sidebar-link:hover svg {
+    transform: scale(1.1);
+}
+
+/* Table rows light up smoothly instead of snapping. */
+.dt-container table.dataTable tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+/* Status badges (Controller::badge) are one quiet gray pill; the STATE is the
+   small dot in front of the label. A new status is one line of colour here.
+   `live` also breathes. */
+span[data-status]::before {
+    content: '';
+    display: inline-block;
+    flex-shrink: 0;
+    width: 0.45rem;
+    height: 0.45rem;
+    margin-right: 0.4rem;
+    border-radius: 9999px;
+    background-color: var(--status-dot, #9a9793);
+}
+
+span[data-status='active'],
+span[data-status='live'],
+span[data-status='verified'],
+span[data-status='completed'] {
+    --status-dot: #3f9b6e;
+}
+
+span[data-status='pending'],
+span[data-status='scheduled'] {
+    --status-dot: #c9962b;
+}
+
+span[data-status='inactive'],
+span[data-status='rejected'],
+span[data-status='cancelled'] {
+    --status-dot: #c0504d;
+}
+
+span[data-status='ended'] {
+    --status-dot: #9a9793;
+}
+
+span[data-status='live']::before {
+    @apply animate-live-dot;
+}
+/* Toasts, drawers and modals already move; keep their easing consistent. */
+[role='dialog'] {
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---------------------------------------------------------------------------
+   Mobile friendliness (phones, below the `sm` breakpoint).
+
+   Three things that make a page feel built for a thumb:
+     1. Form controls are 16px. Below that, iOS Safari zooms the whole page in
+        when a field is focused and leaves it zoomed.
+     2. Buttons and links inside a card are at least 40px tall, so the small text
+        buttons the table rows use ("View", "Edit", "Delete") can be hit.
+     3. No grey flash when a control is tapped, and notched phones keep their
+        content out from under the home bar.
+--------------------------------------------------------------------------- */
+
+html {
+    -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 639px) {
+    input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']),
+    select,
+    textarea {
+        font-size: 16px;
+    }
+
+    article [data-row-action],
+    article a.rounded-lg {
+        display: inline-flex;
+        min-height: 2.5rem;
+        align-items: center;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+
+    /* Page content: a little less side padding, and room above the home bar. */
+    main {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+}
+
+/* Respect "reduce motion": the cards, drawers and toasts still work, they just
+   stop sliding and scaling. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* The toolbar above the table (x-ui.table-toolbar) replaced the DataTables search row,
+   so the row that wraps the <table> is now the first row of the container: it must not
+   draw the toolbar's divider under itself. An empty top row, if one is rendered, goes. */
+.dt-container .dt-layout-row.dt-layout-table {
+    border-width: 0;
+}
+
+.dt-container .dt-layout-row:empty {
+    display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Card lists on a phone: flat rows (modelled on the reference's mobile list).
+
+   Each page's card view (#dishes-cards, #payments-cards ...) is a grid of
+   boxed cards on larger screens. On a phone every box becomes a plain row
+   inside the page's white card, separated from the next by a hairline: less
+   chrome, more of the content on a small screen.
+--------------------------------------------------------------------------- */
+@media (max-width: 639px) {
+    [id$='-cards'] {
+        gap: 0;
+        padding: 0;
+    }
+
+    [id$='-cards'] > article {
+        border-width: 0 0 1px 0;
+        border-radius: 0;
+        box-shadow: none;
+        background: transparent;
+    }
+
+    [id$='-cards'] > article:last-child {
+        border-bottom-width: 0;
+    }
+
+    /* The boxed card had inner rules; a flat row does not need them. */
+    [id$='-cards'] > article > div {
+        border-color: transparent;
+    }
+
+    /* A card with a photo (a dish) or a QR (a payment method): a full-width banner above
+       every row would bury the text, so on a phone the picture is a small rounded
+       thumbnail on the left, the details sit beside it, and the actions run underneath. */
+    [id$='-cards'] > article:has(> [data-card-photo]) {
+        display: grid;
+        grid-template-columns: 4.5rem minmax(0, 1fr);
+        column-gap: 0.875rem;
+        align-items: start;
+        padding: 0.875rem 1rem;
+    }
+
+    [id$='-cards'] > article > [data-card-photo] {
+        grid-column: 1;
+        grid-row: 1;
+        width: 4.5rem;
+        height: 4.5rem;
+        border-radius: 0.75rem;
+    }
+
+    [id$='-cards'] > article > [data-card-photo] + div {
+        grid-column: 2;
+        grid-row: 1;
+        padding: 0;
+    }
+
+    [id$='-cards'] > article:has(> [data-card-photo]) > div:last-child {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        padding: 0.625rem 0 0;
+    }
+}
+/* A page with a floating Add button (x-page-header, `data-fab`, lower right) gets room
+   under its content, so the button never covers the last row or the pager when the page
+   is scrolled to the end. Only on a phone: from `sm` the button sits in the header. */
+@media (max-width: 639px) {
+    body:has([data-fab]) main {
+        padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   Action buttons: solid rounded rectangles with a small icon and a light label
+   (the Delete / Add / Edit look from the reference). The row actions are built in
+   the controllers and the card templates, so the look lives here, keyed on
+   data-row-action; the icon is a mask so it takes the text colour.
+   ------------------------------------------------------------------------- */
+html button[data-row-action] {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid transparent;
+    border-radius: 0.75rem;
+    padding: 0.4rem 0.85rem;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+    box-shadow: 0 2px 6px -1px rgb(0 0 0 / 0.25);
+    transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+html button[data-row-action]::before {
+    content: '';
+    width: 1rem;
+    height: 1rem;
+    background-color: currentColor;
+    -webkit-mask: var(--action-icon) center / contain no-repeat;
+    mask: var(--action-icon) center / contain no-repeat;
+}
+
+html button[data-row-action]:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 12px -4px rgb(0 0 0 / 0.35);
+}
+
+html button[data-row-action]:active {
+    transform: translateY(0);
+}
+
+/* Edit: the ink button. View: paper with a border. Delete: solid red. */
+html button[data-row-action='edit'] {
+    --action-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z'/%3E%3C/svg%3E");
+    background-color: theme('colors.gray.600');
+    color: #fff;
+}
+html button[data-row-action='edit']:hover { background-color: theme('colors.gray.500'); }
+
+html button[data-row-action='view'] {
+    --action-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+    background-color: #fff;
+    border-color: theme('colors.gray.300');
+    color: theme('colors.gray.800');
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.12);
+}
+html button[data-row-action='view']:hover { background-color: theme('colors.gray.50'); }
+
+html button[data-row-action='delete'] {
+    --action-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18'/%3E%3Cpath d='M8 6V4h8v2'/%3E%3Cpath d='M19 6l-1 14H6L5 6'/%3E%3Cpath d='M10 11v5M14 11v5'/%3E%3C/svg%3E");
+    background-color: theme('colors.red.500');
+    color: #fff;
+}
+html button[data-row-action='delete']:hover { background-color: theme('colors.red.400'); }
+
+html button[data-row-action='end'] {
+    --action-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='6' y='6' width='12' height='12' rx='2'/%3E%3C/svg%3E");
+    background-color: theme('colors.amber.600');
+    color: #fff;
+}
+
+/* Dark mode: the ink button turns to mist, the paper one to a dark surface. */
+html.dark button[data-row-action='edit'] { background-color: theme('colors.mist.DEFAULT'); color: theme('colors.ink'); }
+html.dark button[data-row-action='edit']:hover { background-color: #fff; }
+html.dark button[data-row-action='view'] { background-color: theme('colors.gray.700'); border-color: theme('colors.gray.500'); color: theme('colors.gray.100'); }
+html.dark button[data-row-action='view']:hover { background-color: theme('colors.gray.600'); }
+
+@media (prefers-reduced-motion: reduce) {
+    html button[data-row-action] { transition: none; }
+    html button[data-row-action]:hover { transform: none; }
+}
+
+/* Edit and Delete share View's light surface (white, bordered); only the text and
+   border tint differ, so the row reads as one calm set of buttons. */
+html button[data-row-action='edit'],
+html button[data-row-action='delete'],
+html button[data-row-action='end'] {
+    background-color: #fff;
+    border-color: theme('colors.gray.300');
+    color: theme('colors.gray.800');
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.12);
+}
+html button[data-row-action='delete'] { color: theme('colors.red.600'); border-color: theme('colors.red.200'); }
+html button[data-row-action='end'] { color: theme('colors.amber.700'); border-color: theme('colors.amber.200'); }
+html button[data-row-action='edit']:hover,
+html button[data-row-action='view']:hover,
+html button[data-row-action='end']:hover { background-color: theme('colors.gray.50'); }
+html button[data-row-action='delete']:hover { background-color: theme('colors.red.50'); }
+
+html.dark button[data-row-action='edit'],
+html.dark button[data-row-action='delete'],
+html.dark button[data-row-action='end'] {
+    background-color: theme('colors.gray.700');
+    border-color: theme('colors.gray.500');
+    color: theme('colors.gray.100');
+}
+html.dark button[data-row-action='delete'] { color: theme('colors.red.400'); border-color: theme('colors.red.900'); }
+html.dark button[data-row-action='end'] { color: theme('colors.amber.400'); border-color: theme('colors.amber.800'); }
+html.dark button[data-row-action='edit']:hover,
+html.dark button[data-row-action='delete']:hover,
+html.dark button[data-row-action='end']:hover { background-color: theme('colors.gray.600'); }
+
+/* Sort arrows, centred on the header text. DataTables positions the two triangles
+   absolutely inside a stretched box (so they sat at the bottom of the cell); here the
+   title and the arrows are one centred row, and the arrows are a plain stacked pair
+   of glyphs. `html` + `> tr >` only raise the specificity above the library's rules. */
+html .dt-container table.dataTable thead > tr > th .dt-column-header {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+html .dt-container table.dataTable thead > tr > th .dt-column-order {
+    position: static;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    width: auto;
+    height: auto;
+    margin: 0;
+    gap: 1px;
+}
+
+html .dt-container table.dataTable thead > tr > th .dt-column-order::before,
+html .dt-container table.dataTable thead > tr > th .dt-column-order::after {
+    position: static;
+    display: block;
+    width: auto;
+    height: auto;
+    border: 0;
+    font-size: 0.5rem;
+    line-height: 0.6rem;
+}
+
+/* In a card the three actions share one footer: no side margins, a little less padding,
+   and the row wraps (flex-wrap in the template) instead of clipping the first button. */
+html [id$='-cards'] button[data-row-action] {
+    margin: 0;
+    padding: 0.4rem 0.7rem;
 }
