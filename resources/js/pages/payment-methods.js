@@ -17,6 +17,7 @@
  *   confirm                       -> send the form, toast, reload; failures keep the drawer open
  */
 import DataTable from 'datatables.net-dt';
+import { initTableToolbar } from '../ui/table-toolbar';
 import { showToast } from '../ui/toast';
 
 const start = () => {
@@ -115,12 +116,15 @@ const start = () => {
             // `null`, not omitted: the layout object is merged over DataTables'
             // defaults, which place the page length in the top row as well.
             topStart: null,
-            topEnd: 'search',
+            // The toolbar above the table (resources/js/ui/table-toolbar.js) searches instead.
+            topEnd: null,
             bottomStart: ['info', 'pageLength'],
             bottomEnd: 'paging',
         },
         language: {
-            search: 'Search',
+            // No label next to the box: the placeholder says it (the label is hidden in app.css).
+            search: '',
+            searchPlaceholder: 'Search…',
             lengthMenu: '_MENU_ per page',
             infoEmpty: 'No rows to show',
             infoFiltered: '(filtered from _MAX_ rows)',
@@ -139,6 +143,9 @@ const start = () => {
             { data: 'action', orderable: false, searchable: false, className: 'whitespace-nowrap text-right' },
         ],
     });
+
+    // Search, sort and the filter dropdown above the table.
+    initTableToolbar(table);
 
     const reload = () => table.ajax.reload(null, false);
 
@@ -510,7 +517,7 @@ const start = () => {
 
     const cardTemplate = (method) => `
         <article class="flex flex-col justify-between overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <div class="relative flex h-32 w-full items-center justify-center overflow-hidden bg-gray-100 dark:bg-gray-700">
+            <div data-card-photo class="relative flex h-32 w-full items-center justify-center overflow-hidden bg-gray-100 dark:bg-gray-700">
                 <svg class="h-8 w-8 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.5h4.5v4.5h-4.5v-4.5Zm12 0h4.5v4.5h-4.5v-4.5Zm-12 12h4.5v4.5h-4.5v-4.5Zm12 3v1.5m0-6v2.25m-3.75.75h1.5m1.5 3h1.5m1.5-3h1.5m-6 0h.75M6 18h.75" /></svg>
                 ${method.qr_image ? `<img src="${escapeHtml(method.qr_image)}" alt="" data-zoom data-zoom-caption="${escapeHtml(method.method_name)}" loading="lazy" class="absolute inset-0 h-full w-full cursor-zoom-in bg-white object-contain p-2" onerror="this.remove()">` : ''}
             </div>
@@ -523,7 +530,7 @@ const start = () => {
                 <p class="text-sm text-gray-500 dark:text-gray-400">${escapeHtml(method.account_name ?? '—')}</p>
                 <p class="text-xs tabular-nums text-gray-500 dark:text-gray-400">${escapeHtml(method.account_number ?? '')}</p>
             </div>
-            <div class="flex justify-end gap-1 border-t border-gray-100 px-4 py-3 dark:border-gray-700/60">
+            <div class="flex flex-wrap justify-end gap-2 border-t border-gray-100 px-4 py-3 dark:border-gray-700/60">
                 ${method.action ?? ''}
             </div>
         </article>`;

@@ -75,7 +75,12 @@ const start = () => {
     const maxPriceInput = document.querySelector('#filter-max-price');
     const minCaloriesInput = document.querySelector('#filter-min-calories');
     const maxCaloriesInput = document.querySelector('#filter-max-calories');
-    const allFilterInputs = [searchInput, minPriceInput, maxPriceInput, minCaloriesInput, maxCaloriesInput];
+    const inStockInput = document.querySelector('#filter-in-stock');
+    const inCartInput = document.querySelector('#filter-in-cart');
+    const sortToggle = document.querySelector('#sort-toggle');
+    const sortPanel = document.querySelector('#sort-panel');
+    const sortLabel = document.querySelector('#sort-label');
+    const allFilterInputs = [searchInput, minPriceInput, maxPriceInput, minCaloriesInput, maxCaloriesInput, inStockInput, inCartInput];
 
     /* The kiosk's cart, round in the lower right corner. */
     const cartFab = document.querySelector('#cart-fab');
@@ -143,6 +148,27 @@ const start = () => {
 
         checkoutErrors.innerHTML = items.map((message) => '<div>' + escapeHtml(message) + '</div>').join('');
         checkoutErrors.classList.toggle('hidden', items.length === 0);
+
+        // The banner above sits at the top of a scrolling body, so a customer who has
+        // scrolled down to the button never saw it. A toast is on screen wherever
+        // they are; the banner (pinned, see the view) stays for reference.
+        items.slice(0, 3).forEach((message) => showToast(message, 'error'));
+    };
+
+    // Draw the eye to the field that is wrong: bring it to the middle of the
+    // scrolling body and give it a short shake and a red ring.
+    const flagField = (element) => {
+        if (!element) {
+            return;
+        }
+
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        element.classList.remove('animate-shake');
+        void element.offsetWidth;
+        element.classList.add('animate-shake', 'ring-2', 'ring-red-400');
+
+        setTimeout(() => element.classList.remove('animate-shake', 'ring-2', 'ring-red-400'), 1600);
     };
 
     const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.content ?? '';
@@ -168,12 +194,70 @@ const start = () => {
 
         cartBarCount.classList.add('scale-125');
         setTimeout(() => cartBarCount.classList.remove('scale-125'), 180);
+
+        // The whole round cart gives a small bounce too. Taking the class off and
+        // putting it back (after a reflow) lets it replay on every tap.
+        if (cartFab) {
+            cartFab.classList.remove('animate-cart-bump');
+            void cartFab.offsetWidth;
+            cartFab.classList.add('animate-cart-bump');
+        }
+    };
+
+    // A small round copy of the dish's photo flies from its card to the cart, so
+    // the tap is answered where the eye already is. Skipped for people who asked
+    // for less motion, and for anything that cannot be measured.
+    const flyToCart = (id) => {
+        if (! cartFab || ! ('animate' in Element.prototype) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return;
+        }
+
+        const card = document.querySelector('[data-dish-card="' + id + '"]');
+        const photo = card?.querySelector('img') ?? card?.querySelector('[data-dish-view]');
+        const target = cartFab.getBoundingClientRect();
+
+        if (! photo || target.width === 0) {
+            return;
+        }
+
+        const from = photo.getBoundingClientRect();
+
+        if (from.width === 0 || from.height === 0) {
+            return;
+        }
+
+        const size = 56;
+        const startX = from.left + from.width / 2 - size / 2;
+        const startY = from.top + from.height / 2 - size / 2;
+        const endX = target.left + target.width / 2 - size / 2;
+        const endY = target.top + target.height / 2 - size / 2;
+
+        const dot = document.createElement('div');
+
+        dot.setAttribute('aria-hidden', 'true');
+        dot.style.cssText = 'position:fixed;left:0;top:0;z-index:95;pointer-events:none;overflow:hidden;border-radius:9999px;'
+            + 'width:' + size + 'px;height:' + size + 'px;background:#d0ccc0 center/cover no-repeat;box-shadow:0 10px 28px rgb(23 23 15 / .28);';
+
+        if (photo.tagName === 'IMG' && photo.currentSrc) {
+            dot.style.backgroundImage = 'url("' + photo.currentSrc + '")';
+        }
+
+        document.body.append(dot);
+
+        const flight = dot.animate([
+            { transform: 'translate(' + startX + 'px,' + startY + 'px) scale(1)', opacity: 1 },
+            { transform: 'translate(' + ((startX + endX) / 2) + 'px,' + (Math.min(startY, endY) - 70) + 'px) scale(0.8)', opacity: 1, offset: 0.5 },
+            { transform: 'translate(' + endX + 'px,' + endY + 'px) scale(0.3)', opacity: 0.5 },
+        ], { duration: 650, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' });
+
+        flight.onfinish = () => dot.remove();
+        flight.oncancel = () => dot.remove();
     };
 
     /* ---- the cart lines -------------------------------------------------- */
 
     const lineTemplate = (line) => `
-        <div class="flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800" data-line-id="${line.id}">
+        <div class="flex items-center gap-4 rounded-2xl bg-gray-50 p-3 dark:bg-gray-700/40" data-line-id="${line.id}">
             <div class="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-700">
                 <svg class="h-6 w-6 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z" />
@@ -189,15 +273,15 @@ const start = () => {
             <div class="flex shrink-0 flex-col items-end gap-2">
                 <span class="text-base font-bold tabular-nums text-indigo-600 dark:text-indigo-400">${money(line.price * line.quantity)}</span>
 
-                <div class="flex items-center rounded-full border border-gray-200 dark:border-gray-600">
+                <div class="flex items-center rounded-full bg-white shadow-sm dark:bg-gray-800">
                     <button type="button" data-step="-1" aria-label="${escapeHtml(root.dataset.lessLabel ?? '')}"
-                            class="flex h-9 w-9 items-center justify-center rounded-full text-lg leading-none text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:hover:bg-gray-700 dark:hover:text-white">−</button>
+                            class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-lg leading-none text-gray-500 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:hover:bg-gray-700 dark:hover:text-white">−</button>
 
                     <input type="text" inputmode="numeric" data-qty value="${line.quantity}"
                            class="w-9 border-0 bg-transparent p-0 text-center text-sm font-medium tabular-nums text-gray-900 focus:outline-none focus:ring-0 dark:text-white">
 
                     <button type="button" data-step="1" aria-label="${escapeHtml(root.dataset.moreLabel ?? '')}"
-                            class="flex h-9 w-9 items-center justify-center rounded-full text-lg leading-none text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:hover:bg-gray-700 dark:hover:text-white">+</button>
+                            class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-lg leading-none text-gray-500 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:hover:bg-gray-700 dark:hover:text-white">+</button>
                 </div>
 
                 ${line.quantity > 1 ? `<span class="text-xs tabular-nums text-gray-500 dark:text-gray-400">× ${money(line.price)} ${escapeHtml(root.dataset.eachLabel ?? '')}</span>` : ''}
@@ -235,6 +319,11 @@ const start = () => {
 
         // The cards show what is in the cart (0 until something is added).
         syncCards();
+
+        // "In my cart" is a filter: the grid follows the cart as it changes.
+        if (filters.inCart) {
+            applyFilters();
+        }
     };
 
     // A quantity the customer typed, kept inside what the session still has.
@@ -305,7 +394,12 @@ const start = () => {
 
         if (label) {
             label.textContent = left > 0 ? left + ' ' + (root.dataset.stockLeft ?? '') : (root.dataset.stockNone ?? '');
+            // The dot in front of it: out / low / ok (menu card, data-level).
+            label.dataset.level = left < 1 ? 'out' : (left <= 3 ? 'low' : 'ok');
         }
+
+        // The photo goes grey and says "Sold out" (group-data-[sold-out=true] in the view).
+        card.dataset.soldOut = left < 1 ? 'true' : 'false';
     };
 
     /* ---- the quantity on a card is the dish's quantity in the cart -------- */
@@ -343,7 +437,8 @@ const start = () => {
             badge?.classList.toggle('hidden', ! inCart);
             badge?.classList.toggle('inline-flex', inCart);
             card.classList.toggle('ring-2', inCart);
-            card.classList.toggle('ring-indigo-500', inCart);
+            card.classList.toggle('ring-gray-900', inCart);
+            card.classList.toggle('dark:ring-gray-100', inCart);
         }
     }
 
@@ -410,6 +505,7 @@ const start = () => {
         // reads as answered.
         renderCart();
         bumpCartCount();
+        flyToCart(id);
     };
 
     /* ---- the dish modal -------------------------------------------------- */
@@ -503,7 +599,11 @@ const start = () => {
     const dishLabel = (count) => count + ' ' + (count === 1 ? (root.dataset.dishLabel ?? '') : (root.dataset.dishesLabel ?? ''));
 
     // What the kiosk is narrowed down to. An empty box reads as null: ignored.
-    const filters = { type: '', search: '', minPrice: null, maxPrice: null, minCalories: null, maxCalories: null };
+    // `types` are the ticked category chips (several can be on; none = every dish).
+    const filters = { types: [], search: '', minPrice: null, maxPrice: null, minCalories: null, maxCalories: null, inStock: false, inCart: false };
+
+    // How the cards are ordered: 'default' is the order the server sent them in.
+    let sortKey = 'default';
 
     const numberOrNull = (input) => {
         const value = String(input?.value ?? '').trim();
@@ -518,6 +618,8 @@ const start = () => {
         filters.maxPrice = numberOrNull(maxPriceInput);
         filters.minCalories = numberOrNull(minCaloriesInput);
         filters.maxCalories = numberOrNull(maxCaloriesInput);
+        filters.inStock = Boolean(inStockInput?.checked);
+        filters.inCart = Boolean(inCartInput?.checked);
     };
 
     // One dish against everything the customer narrowed down to.
@@ -528,7 +630,8 @@ const start = () => {
         // rows sharing a name stay one category.
         const types = (dish.dish_types ?? []).map((type) => String(type.type_name));
 
-        if (filters.type !== '' && ! types.includes(filters.type)) {
+        // A dish shows when it has ANY ticked category.
+        if (filters.types.length > 0 && ! filters.types.some((picked) => types.includes(picked))) {
             return false;
         }
 
@@ -552,12 +655,20 @@ const start = () => {
             return false;
         }
 
+        if (filters.inStock && Number(dish.available_stock ?? 0) < 1) {
+            return false;
+        }
+
+        if (filters.inCart && ! lines.has(Number(dish.session_dish_id))) {
+            return false;
+        }
+
         return true;
     };
 
     // How many filters are doing something, for the badge on the button.
-    const activeFilters = () => [filters.type, filters.search, filters.minPrice, filters.maxPrice, filters.minCalories, filters.maxCalories]
-        .filter((value) => value !== null && value !== '').length;
+    const activeFilters = () => [filters.minPrice, filters.maxPrice, filters.minCalories, filters.maxCalories]
+        .filter((value) => value !== null).length + (filters.inStock ? 1 : 0) + (filters.inCart ? 1 : 0);
 
     // The cards are hidden rather than taken out: the page already has them all,
     // so narrowing the menu is instant and costs nothing.
@@ -586,10 +697,113 @@ const start = () => {
         menuEmpty?.classList.toggle('hidden', showing > 0);
     };
 
+    // The cards keep the order the server gave them; remember it so "Default" can go back.
+    const gridCards = [...document.querySelectorAll('[data-dish-card]')];
+
+    gridCards.forEach((card, index) => {
+        card.dataset.order = String(index);
+    });
+
+    const SORTERS = {
+        default: (a, b) => Number(a.card.dataset.order) - Number(b.card.dataset.order),
+        'price-asc': (a, b) => Number(a.dish.price) - Number(b.dish.price),
+        'price-desc': (a, b) => Number(b.dish.price) - Number(a.dish.price),
+        name: (a, b) => String(a.dish.dish_name).localeCompare(String(b.dish.dish_name)),
+        // A dish with no calorie figure goes last.
+        calories: (a, b) => (Number(a.dish.calories) || Infinity) - (Number(b.dish.calories) || Infinity),
+        stock: (a, b) => Number(b.dish.available_stock ?? 0) - Number(a.dish.available_stock ?? 0),
+    };
+
+    // Put the cards back in the grid in the chosen order. Moving a node keeps it
+    // alive (the clicks are delegated), so nothing else has to be rewired.
+    const applySort = () => {
+        const host = gridCards[0]?.parentElement;
+
+        if (! host) {
+            return;
+        }
+
+        const rows = gridCards
+            .map((card) => ({ card, dish: dishesById.get(Number(card.dataset.dishCard)) ?? {} }))
+            .sort((a, b) => (SORTERS[sortKey] ?? SORTERS.default)(a, b) || SORTERS.default(a, b));
+
+        for (const row of rows) {
+            host.append(row.card);
+        }
+    };
+
+    /* ---- the Sort and Filter dropdowns ---------------------------------- */
+
+    const popovers = [...document.querySelectorAll('[data-popover]')];
+
+    const closePopovers = (except = null) => {
+        for (const panel of popovers) {
+            if (panel === except) {
+                continue;
+            }
+
+            panel.classList.add('hidden');
+            document.querySelector('[aria-controls="' + panel.id + '"]')?.setAttribute('aria-expanded', 'false');
+        }
+    };
+
+    for (const toggle of document.querySelectorAll('[aria-haspopup="true"][aria-controls]')) {
+        toggle.addEventListener('click', () => {
+            const panel = document.getElementById(toggle.getAttribute('aria-controls'));
+
+            if (! panel) {
+                return;
+            }
+
+            closePopovers(panel);
+
+            // toggle() answers whether the class went on, so it is now hidden.
+            const open = panel.classList.toggle('hidden') === false;
+
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+    }
+
+    // A click anywhere else (or Escape) puts the dropdowns away.
+    document.addEventListener('click', (event) => {
+        if (! event.target.closest('[data-popover], [aria-haspopup="true"][aria-controls]')) {
+            closePopovers();
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closePopovers();
+        }
+    });
+
+    sortPanel?.addEventListener('click', (event) => {
+        const option = event.target.closest('[data-sort]');
+
+        if (! option) {
+            return;
+        }
+
+        sortKey = option.dataset.sort;
+
+        for (const other of sortPanel.querySelectorAll('[data-sort]')) {
+            other.setAttribute('aria-checked', other === option ? 'true' : 'false');
+        }
+
+        if (sortLabel) {
+            sortLabel.textContent = option.textContent.trim();
+        }
+
+        applySort();
+        closePopovers();
+    });
+
     // The picked category is filled in, the rest stay outlined.
     const paintChips = () => {
         for (const chip of typeChips) {
-            const picked = (chip.dataset.filterType ?? '') === filters.type;
+            const name = chip.dataset.filterType ?? '';
+            // The first chip (no name) is "All": on while no category is ticked.
+            const picked = name === '' ? filters.types.length === 0 : filters.types.includes(name);
 
             chip.className = picked ? (typeHost?.dataset.chipOn ?? '') : (typeHost?.dataset.chipOff ?? '');
             chip.setAttribute('aria-pressed', picked ? 'true' : 'false');
@@ -598,7 +812,17 @@ const start = () => {
 
     for (const chip of typeChips) {
         chip.addEventListener('click', () => {
-            filters.type = chip.dataset.filterType ?? '';
+            const name = chip.dataset.filterType ?? '';
+
+            if (name === '') {
+                filters.types = [];
+            } else {
+                // Each category chip is a checkbox: click to add it, click again to drop it.
+                filters.types = filters.types.includes(name)
+                    ? filters.types.filter((picked) => picked !== name)
+                    : [...filters.types, name];
+            }
+
             paintChips();
             applyFilters();
         });
@@ -611,21 +835,16 @@ const start = () => {
         });
     }
 
-    filterToggle?.addEventListener('click', () => {
-        // toggle() answers whether the class went on, so it is now hidden.
-        const open = filterPanel?.classList.toggle('hidden') === false;
-
-        filterToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    });
-
     filterClear?.addEventListener('click', () => {
         for (const input of allFilterInputs) {
-            if (input) {
+            if (input?.type === 'checkbox') {
+                input.checked = false;
+            } else if (input) {
                 input.value = '';
             }
         }
 
-        filters.type = '';
+        filters.types = [];
         readFilters();
         paintChips();
         applyFilters();
@@ -739,13 +958,13 @@ const start = () => {
     const choicePanels = [...document.querySelectorAll('[data-pay-panel]')];
 
     const idleTile = 'border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/40 dark:border-gray-600 dark:bg-gray-700/40 dark:hover:border-indigo-500 dark:hover:bg-indigo-900/20';
-    const pickedTile = 'border-indigo-500 bg-indigo-50/60 ring-2 ring-indigo-200 dark:border-indigo-400 dark:bg-indigo-900/30 dark:ring-indigo-800';
+    const pickedTile = 'border-gray-900 bg-gray-50 ring-2 ring-gray-200 dark:border-gray-300 dark:bg-gray-700/60 dark:ring-gray-600';
 
     const renderChoice = () => {
         for (const button of choiceButtons) {
             const picked = button.dataset.payChoice === choice;
 
-            button.className = 'flex w-full items-start gap-3 rounded-xl border p-4 text-left transition focus:outline-none focus:ring-4 focus:ring-indigo-200 dark:focus:ring-indigo-900 ' + (picked ? pickedTile : idleTile);
+            button.className = 'flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition focus:outline-none focus:ring-4 focus:ring-indigo-200 dark:focus:ring-indigo-900 ' + (picked ? pickedTile : idleTile);
 
             // A bank / e-wallet method is open: cash steps out of the way too.
             button.classList.toggle('hidden', choice === 'bank');
@@ -793,7 +1012,7 @@ const start = () => {
 
         return `
             <button type="button" data-method-id="${method.method_id}" aria-expanded="${picked ? 'true' : 'false'}"
-                    class="flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition focus:outline-none focus:ring-4 focus:ring-indigo-200 dark:focus:ring-indigo-900 ${picked ? pickedTile + ' sm:col-span-2' : idleTile}${others ? ' hidden' : ''}">
+                    class="flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition focus:outline-none focus:ring-4 focus:ring-indigo-200 dark:focus:ring-indigo-900 ${picked ? pickedTile + ' sm:col-span-2' : idleTile}${others ? ' hidden' : ''}">
                 <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white ring-1 ring-gray-200 dark:bg-gray-700 dark:ring-gray-600">
                     ${method.qr_image
                         ? `<img src="${escapeHtml(method.qr_image)}" alt="" class="h-full w-full object-contain p-0.5" onerror="this.remove()">`
@@ -885,7 +1104,7 @@ const start = () => {
             </div>
             ${method.qr_image
                 ? `<a href="${escapeHtml(method.qr_image)}" download="${escapeHtml(qrFileName(method))}"
-                      class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                      class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14" /></svg>
                        ${escapeHtml(root.dataset.saveQrLabel ?? 'Save QR')}
                    </a>`
@@ -1018,7 +1237,7 @@ const start = () => {
         const reference = referenceInput?.value.trim() ?? '';
 
         return `
-            <div class="rounded-xl border border-gray-200 dark:border-gray-700">
+            <div class="rounded-2xl bg-gray-50 dark:bg-gray-700/40">
                 <h5 class="border-b border-gray-200 px-4 py-2 text-sm font-semibold text-gray-900 dark:border-gray-700 dark:text-white">${escapeHtml(root.dataset.methodLabel ?? '')}</h5>
                 <dl class="space-y-2 px-4 py-3 text-sm">
                     <div class="flex items-start justify-between gap-4">
@@ -1046,7 +1265,7 @@ const start = () => {
         const rows = [...lines.values()];
 
         confirmSummary.innerHTML = `
-            <div class="rounded-xl border border-gray-200 dark:border-gray-700">
+            <div class="rounded-2xl bg-gray-50 dark:bg-gray-700/40">
                 <h5 class="border-b border-gray-200 px-4 py-2 text-sm font-semibold text-gray-900 dark:border-gray-700 dark:text-white">
                     ${escapeHtml(root.dataset.linesLabel ?? '')}
                     <span class="ml-1 font-normal text-gray-500 dark:text-gray-400">${escapeHtml(countLabel(itemCount()))}</span>
@@ -1079,7 +1298,7 @@ const start = () => {
                 <h4 class="mt-3 text-lg font-semibold text-gray-900 dark:text-white">${escapeHtml(root.dataset.placedLabel ?? '')}</h4>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">${escapeHtml(countLabel(receipt.items))} · ${money(receipt.total)}</p>
 
-                <dl class="mx-auto mt-4 max-w-sm space-y-2 rounded-xl border border-gray-200 px-4 py-3 text-left text-sm dark:border-gray-700">
+                <dl class="mx-auto mt-4 max-w-sm space-y-2 rounded-2xl bg-gray-50 px-4 py-3 text-left text-sm dark:bg-gray-700/40">
                     <div class="flex items-center justify-between gap-4">
                         <dt class="text-gray-500 dark:text-gray-400">${escapeHtml(root.dataset.orderLabel ?? '')}</dt>
                         <dd class="font-medium tabular-nums text-gray-900 dark:text-white">${escapeHtml(receipt.number)}</dd>
@@ -1098,7 +1317,7 @@ const start = () => {
 
                 ${root.dataset.myOrdersUrl ? `
                     <a href="${escapeHtml(root.dataset.myOrdersUrl)}"
-                       class="mt-4 inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                       class="mt-4 inline-flex items-center justify-center rounded-full border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
                         ${escapeHtml(root.dataset.myOrdersLabel ?? '')}
                     </a>` : ''}
             </div>`;
@@ -1257,6 +1476,7 @@ const start = () => {
             // Anything but cash is paid first, so the proof is required.
             if (choice === 'bank' && ! proofFile) {
                 showErrors([root.dataset.proofRequired ?? '']);
+                flagField(document.querySelector('#proof-drop-zone'));
 
                 return;
             }

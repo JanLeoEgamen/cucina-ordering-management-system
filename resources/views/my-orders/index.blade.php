@@ -77,6 +77,13 @@
                                  data-zoom data-zoom-caption="{{ __('Proof of payment') }}"
                                  class="font-medium text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400">{{ __('View proof') }}</a>
                         @endif
+
+                        {{-- Why the payment was rejected, so the customer knows what to fix. --}}
+                        @if ($order->payment_state === 'rejected' && $order->rejection_reason)
+                            <p class="mt-2 rounded-lg bg-red-50 p-2 text-xs text-red-800 dark:bg-red-900/30 dark:text-red-200">
+                                <span class="font-semibold">{{ __('Payment rejected') }}:</span> {{ $order->rejection_reason }}
+                            </p>
+                        @endif
                     </div>
 
                     <p class="text-base font-semibold tabular-nums text-gray-900 dark:text-white">${{ number_format((float) $order->total_amount, 2) }}</p>

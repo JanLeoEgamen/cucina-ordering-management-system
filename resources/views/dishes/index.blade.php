@@ -1,73 +1,64 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="{{ __('Dishes') }}" action-label="{{ __('Add Dish') }}" action-id="create-dish" />
+        <x-page-header title="{{ __('Dish Masterlist') }}" action-label="{{ __('Add Dish') }}" action-id="create-dish">
+            {{-- Dish types are managed in a drawer here instead of on a page of their own. --}}
+            @can('view dish-types')
+                <button type="button" id="manage-dish-types"
+                        class="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:focus:ring-gray-700">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5a1.99 1.99 0 011.41.59l7 7a2 2 0 010 2.82l-5 5a2 2 0 01-2.82 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" /></svg>
+                    {{ __('Manage Types') }}
+                </button>
+            @endcan
+        </x-page-header>
     </x-slot>
 
     @php
         $label = 'block text-sm font-medium text-gray-700 dark:text-gray-300';
-        $input = 'block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm leading-5 text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400';
-        $th = 'border-b border-gray-200 bg-gray-100 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap dark:border-gray-700 dark:bg-gray-700/50 dark:text-gray-300';
-        $cancelButton = 'rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:focus:ring-gray-700';
-        $submitButton = 'rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-800';
+        $input = 'block w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm leading-5 text-gray-900 placeholder-gray-400 transition focus:border-gray-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700/60 dark:text-white dark:placeholder-gray-400 dark:focus:border-gray-300 dark:focus:bg-gray-700 dark:focus:ring-gray-600';
+        $th = 'border-b border-gray-100 bg-transparent px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap dark:border-gray-700 dark:text-gray-400';
+        $cancelButton = 'rounded-full border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:focus:ring-gray-700';
+        $submitButton = 'rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-gray-300 dark:focus:ring-gray-600';
         // pr-10 keeps the @tailwindcss/forms chevron from sitting on the value.
-        $filter = 'block w-full rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-10 text-sm leading-5 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:w-auto dark:border-gray-600 dark:bg-gray-700 dark:text-white';
+        $filter = 'block w-full rounded-full border border-gray-200 bg-white py-2.5 pl-4 pr-10 text-sm leading-5 text-gray-900 focus:border-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-200 sm:w-auto dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-gray-300 dark:focus:ring-gray-600';
     @endphp
 
     <div class="container mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-            {{-- Filters: they narrow the feed in the browser (no request); the
-                 table's own search box keeps working next to them. Both are read
-                 by resources/js/pages/dishes.js. --}}
-            <div class="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700">
-                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <select id="dish-status-filter" aria-label="{{ __('Status') }}" class="{{ $filter }}">
+        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
+            {{-- Search, sort, filters and the view tabs (resources/js/ui/table-toolbar.js). The filters
+                 narrow the feed in the browser (no request); they are read by resources/js/pages/dishes.js. --}}
+            <x-ui.table-toolbar :views="['table', 'card']" :sorts="[
+                [__('Name: A to Z'), 2, 'asc'],
+                [__('Name: Z to A'), 2, 'desc'],
+                [__('Price: low to high'), 4, 'asc'],
+                [__('Price: high to low'), 4, 'desc'],
+            ]">
+                <x-ui.filter-field :label="__('Status')">
+                    <select id="dish-status-filter" aria-label="{{ __('Status') }}" class="{{ $filter }} sm:!w-full">
                         <option value="">{{ __('All statuses') }}</option>
                         <option value="active">{{ __('Active') }}</option>
                         <option value="inactive">{{ __('Inactive') }}</option>
                     </select>
-
-                    {{-- Every live dish type, not only the available ones: a dish
-                         can still be tagged with a type that was turned off. --}}
-                    <select id="dish-type-filter" aria-label="{{ __('Dish Type') }}" class="{{ $filter }}">
-                        <option value="">{{ __('All dish types') }}</option>
+                </x-ui.filter-field>
+            
+                <x-ui.filter-field :label="__('Dish Type')">
+                    {{-- Every live dish type, not only the available ones: a dish can still be
+                         tagged with a type that was turned off. --}}
+                    <select id="dish-type-filter" multiple aria-label="{{ __('Dish Type') }}"
+                            data-placeholder="{{ __('All dish types') }}" data-count-label="{{ __('{n} dish types') }}"
+                            class="{{ $filter }} sm:!w-full">
                         @foreach ($dishTypeFilters as $dishTypeFilter)
                             <option value="{{ $dishTypeFilter->dish_type_id }}">{{ $dishTypeFilter->type_name }}</option>
                         @endforeach
                     </select>
-                </div>
-
-                {{-- View switch: swaps the table for the card grid; wiring and card
-                     markup live in resources/js/pages/dishes.js. --}}
-                <div class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-gray-600 dark:bg-gray-700"
-                     role="group" aria-label="{{ __('View mode') }}">
-                    <button type="button"
-                            data-view-mode="table"
-                            aria-pressed="true"
-                            class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-gray-500 transition hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:text-gray-400 dark:hover:text-gray-200 dark:focus:ring-indigo-800 aria-pressed:bg-white aria-pressed:text-indigo-600 aria-pressed:shadow-sm dark:aria-pressed:bg-gray-900 dark:aria-pressed:text-indigo-400">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" />
-                            <path stroke-linecap="round" d="M3 9.75h18M9.5 5v14" />
-                        </svg>
-                        {{ __('Table') }}
-                    </button>
-                    <button type="button"
-                            data-view-mode="card"
-                            aria-pressed="false"
-                            class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-gray-500 transition hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:text-gray-400 dark:hover:text-gray-200 dark:focus:ring-indigo-800 aria-pressed:bg-white aria-pressed:text-indigo-600 aria-pressed:shadow-sm dark:aria-pressed:bg-gray-900 dark:aria-pressed:text-indigo-400">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4h6.5v6.5H4V4Zm9.5 0H20v6.5h-6.5V4ZM4 13.5h6.5V20H4v-6.5Zm9.5 0H20V20h-6.5v-6.5Z" />
-                        </svg>
-                        {{ __('Card') }}
-                    </button>
-                </div>
-            </div>
+                </x-ui.filter-field>
+            </x-ui.table-toolbar>
 
             {{-- Rows come from this route's AJAX response (client side table);
                  `data-endpoint` is read by resources/js/pages/dishes.js. --}}
             <table id="dishes-table"
                    data-endpoint="{{ route('dishes.index') }}"
                    class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50 dark:bg-gray-700">
+                <thead class="bg-gray-50/70 dark:bg-gray-900/40">
                     <tr>
                         <th scope="col" class="{{ $th }} w-12">#</th>
                         <th scope="col" class="{{ $th }} w-20">{{ __('Image') }}</th>
@@ -78,7 +69,7 @@
                         <th scope="col" class="{{ $th }} text-right">{{ __('Actions') }}</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800"></tbody>
+                <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-700 dark:bg-gray-800"></tbody>
             </table>
 
             {{-- Card grid for the card view; populated by resources/js/pages/dishes.js --}}
@@ -90,10 +81,10 @@
 
     {{-- Create drawer --}}
     <x-ui.drawer name="create-dish-drawer" placement="right" size="lg">
-        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+        <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-700">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Create Dish') }}</h3>
             <button type="button"
-                    class="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                    class="rounded-full border border-gray-200 p-2.5 text-gray-500 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
                     x-on:click="show = false">
                 <span class="sr-only">{{ __('Close') }}</span>
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -229,10 +220,10 @@
 
     {{-- Edit drawer --}}
     <x-ui.drawer name="edit-dish-drawer" placement="right" size="lg">
-        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+        <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-700">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Edit Dish') }}</h3>
             <button type="button"
-                    class="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                    class="rounded-full border border-gray-200 p-2.5 text-gray-500 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
                     x-on:click="show = false">
                 <span class="sr-only">{{ __('Close') }}</span>
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -367,13 +358,13 @@
     {{-- View drawer: read only. resources/js/pages/dishes.js fills every value
          from the same endpoint the edit drawer loads. --}}
     <x-ui.drawer name="view-dish-drawer" placement="right" size="lg">
-        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+        <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-700">
             <h3 class="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
                 {{ __('Dish Details') }}
                 <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ __('View only') }}</span>
             </h3>
             <button type="button"
-                    class="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                    class="rounded-full border border-gray-200 p-2.5 text-gray-500 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
                     x-on:click="show = false">
                 <span class="sr-only">{{ __('Close') }}</span>
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -422,10 +413,110 @@
             </dl>
         </div>
 
-        <div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
+        <div class="flex justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-700">
             <button type="button" class="{{ $cancelButton }}" x-on:click="show = false">{{ __('Close') }}</button>
         </div>
     </x-ui.drawer>
+
+    @can('view dish-types')
+        {{--
+            Manage Types drawer: dish types live here instead of on a page of their
+            own. Two panels, swapped by resources/js/pages/dish-types-manager.js:
+            the list, and one form that creates or edits (its `_method` input is
+            switched between POST and PUT). It does not use the page's shared
+            #delete-modal / #save-modal (dishes.js owns those), so deleting is
+            confirmed inside the list row.
+        --}}
+        <x-ui.drawer name="manage-dish-types-drawer" placement="right" size="md">
+            <div id="manage-dish-types-panel" class="flex h-full flex-col overflow-hidden"
+                 data-feed-url="{{ route('dish-types.index') }}"
+                 data-store-url="{{ route('dish-types.store') }}"
+                 data-drawer="manage-dish-types-drawer"
+                 data-empty="{{ __('No dish types yet') }}"
+                 data-load-error="{{ __('Unable to load this dish type.') }}"
+                 data-delete-prompt="{{ __('Delete the dish type {name}?') }}"
+                 data-confirm-create="{{ __('Create the dish type {name}?') }}"
+                 data-confirm-edit="{{ __('Save the changes to {name}?') }}"
+                 data-yes="{{ __('Delete') }}"
+                 data-no="{{ __('Cancel') }}"
+                 data-title-create="{{ __('Add Dish Type') }}"
+                 data-title-edit="{{ __('Edit Dish Type') }}"
+                 data-label-create="{{ __('Create Dish Type') }}"
+                 data-label-edit="{{ __('Update Dish Type') }}">
+                <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-700">
+                    <h3 id="types-title" class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Dish Types') }}</h3>
+                    <button type="button"
+                            class="rounded-full border border-gray-200 p-2.5 text-gray-500 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                            x-on:click="show = false">
+                        <span class="sr-only">{{ __('Close') }}</span>
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div id="types-errors" class="mx-6 mt-4 hidden rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300"></div>
+
+                {{-- Panel 1: the list --}}
+                <div id="types-list-panel" class="flex min-h-0 flex-1 flex-col">
+                    <ul id="types-list" class="flex-1 divide-y divide-gray-100 overflow-y-auto dark:divide-gray-700"></ul>
+
+                    <div class="flex justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-700">
+                        <button type="button" class="{{ $cancelButton }}" x-on:click="show = false">{{ __('Done') }}</button>
+                        @can('create dish-types')
+                            <button type="button" id="types-add" class="{{ $submitButton }}">{{ __('Add Dish Type') }}</button>
+                        @endcan
+                    </div>
+                </div>
+
+                {{-- Panel 2: create / edit --}}
+                <form id="types-form" method="POST" action="" class="hidden min-h-0 flex-1 flex-col">
+                    @csrf
+                    <input type="hidden" name="_method" value="PUT" disabled>
+
+                    <div class="flex-1 space-y-5 overflow-y-auto p-6">
+                        <div>
+                            <label for="types-name" class="{{ $label }}">{{ __('Type Name') }}</label>
+                            <div class="mt-1">
+                                <input type="text" name="type_name" id="types-name" required
+                                       class="{{ $input }}" placeholder="{{ __('Enter dish type name') }}">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="types-description" class="{{ $label }}">{{ __('Description') }}</label>
+                            <div class="mt-1">
+                                <textarea name="description" id="types-description" rows="3" class="{{ $input }}"
+                                          placeholder="{{ __('Enter description') }}"></textarea>
+                            </div>
+                        </div>
+
+                        <div>
+                            <span class="{{ $label }}">{{ __('Availability') }}</span>
+                            <div class="mt-2">
+                                <x-ui.toggle id="types-is_active" :checked="true" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="types-form-actions" class="flex justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-700">
+                        <button type="button" id="types-back" class="{{ $cancelButton }}">{{ __('Back') }}</button>
+                        <button type="submit" id="types-submit" class="{{ $submitButton }}">{{ __('Create Dish Type') }}</button>
+                    </div>
+
+                    {{-- Asked after Save and before anything is sent: swaps with the buttons above. --}}
+                    <div id="types-confirm" role="alertdialog" aria-labelledby="types-confirm-text"
+                         class="hidden flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-900/40">
+                        <p id="types-confirm-text" class="min-w-0 flex-1 basis-48 text-sm font-medium text-gray-900 dark:text-white"></p>
+                        <div class="flex flex-shrink-0 gap-3">
+                            <button type="button" id="types-confirm-back" class="{{ $cancelButton }}">{{ __('Cancel') }}</button>
+                            <button type="button" id="types-confirm-go" data-loading-label="{{ __('Saving...') }}" class="{{ $submitButton }}"></button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </x-ui.drawer>
+    @endcan
 
     <x-delete-confirmation-modal
         title="{{ __('Confirm Delete') }}"
@@ -442,5 +533,10 @@
     @push('scripts')
         {{-- Page behaviour lives in resources/js/pages/dishes.js; see vite.config.js. --}}
         @vite('resources/js/pages/dishes.js')
+
+        {{-- The Manage Types drawer (resources/js/pages/dish-types-manager.js). --}}
+        @can('view dish-types')
+            @vite('resources/js/pages/dish-types-manager.js')
+        @endcan
     @endpush
 </x-app-layout>

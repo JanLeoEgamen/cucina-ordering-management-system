@@ -23,7 +23,9 @@ class DishTypeController extends Controller implements HasMiddleware
         ];
     }
 
-    // Display the page, and the table feed for its AJAX request.
+    // The list behind the "Manage Types" drawer on the Dish Masterlist page.
+    // There is no page of its own: an AJAX request gets the feed, anything else
+    // (an old bookmark) is sent to the masterlist.
     public function index(Request $request)
     {
         if ($request->ajax()) {
@@ -31,25 +33,16 @@ class DishTypeController extends Controller implements HasMiddleware
                 ->skipPaging()
                 ->addColumn('is_active', fn (object $dishType) => $this->statusBadge((bool) $dishType->is_active))
                 ->addColumn('action', function (object $dishType) {
-                    $view = 'rounded-lg px-2 py-1 font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:text-slate-400 dark:hover:bg-slate-700/40 dark:hover:text-slate-200';
-                    $edit = 'rounded-lg px-2 py-1 font-medium text-indigo-600 transition hover:bg-indigo-50 hover:text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-200';
-                    $delete = 'ml-2 rounded-lg px-2 py-1 font-medium text-red-600 transition hover:bg-red-50 hover:text-red-900 focus:outline-none focus:ring-2 focus:ring-red-300 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:text-red-200';
+                    $edit = 'mx-0.5 rounded-full border border-gray-300 px-3 py-1.5 font-medium text-indigo-600 dark:border-gray-500 transition hover:bg-indigo-50 hover:text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-200';
+                    $delete = 'mx-0.5 rounded-full border border-red-200 px-3 py-1.5 font-medium text-red-600 dark:border-red-900 transition hover:bg-red-50 hover:text-red-900 focus:outline-none focus:ring-2 focus:ring-red-300 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:text-red-200';
 
                     $buttons = '';
 
                     // A button only shows when the matching permission lets the click through.
-                    if (auth()->user()->can('view dish-types')) {
-                        // Read only: it loads the same record the edit drawer does.
-                        $buttons .= '<button type="button" data-row-action="view"'
-                            . ' data-id="' . $dishType->dish_type_id . '"'
-                            . ' data-loading-label="' . e(__('Loading...')) . '"'
-                            . ' data-load-error="' . e(__('Unable to load this dish type.')) . '"'
-                            . ' data-view-url="' . e(route('dish-types.edit', $dishType->dish_type_id)) . '"'
-                            . ' class="' . $view . '">' . e(__('View')) . '</button>';
-                    }
-
+                    // `data-type-action` (not `data-row-action`) keeps these clear of the dishes
+                    // table's click handler in resources/js/pages/dishes.js.
                     if (auth()->user()->can('edit dish-types')) {
-                        $buttons .= '<button type="button" data-row-action="edit"'
+                        $buttons .= '<button type="button" data-type-action="edit"'
                             . ' data-id="' . $dishType->dish_type_id . '"'
                             . ' data-loading-label="' . e(__('Loading...')) . '"'
                             . ' data-edit-url="' . e(route('dish-types.edit', $dishType->dish_type_id)) . '"'
@@ -58,7 +51,7 @@ class DishTypeController extends Controller implements HasMiddleware
                     }
 
                     if (auth()->user()->can('delete dish-types')) {
-                        $buttons .= '<button type="button" data-row-action="delete"'
+                        $buttons .= '<button type="button" data-type-action="delete"'
                             . ' data-id="' . $dishType->dish_type_id . '"'
                             . ' data-delete-url="' . e(route('dish-types.destroy', $dishType->dish_type_id)) . '"'
                             . ' class="' . $delete . '">' . e(__('Delete')) . '</button>';
@@ -70,7 +63,7 @@ class DishTypeController extends Controller implements HasMiddleware
                 ->toJson();
         }
 
-        return view('dish-types.index');
+        return redirect()->route('dishes.index');
     }
 
     // Rules and normalisation shared by create and update.

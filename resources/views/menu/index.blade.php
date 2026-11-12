@@ -6,12 +6,14 @@
 
     // The +/- buttons on a card. There is no Add to Cart button: the card's
     // quantity starts at 0 and IS the dish's quantity in the cart.
-    $stepButtonClass = 'flex h-12 w-12 items-center justify-center text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-300 dark:hover:bg-gray-700';
+    $stepButtonClass = 'flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 transition hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-200 dark:hover:bg-gray-700';
+    // The + is the one solid button on a card (ink; light gray in dark mode): the eye goes straight to it.
+    $plusButtonClass = 'flex h-11 w-11 items-center justify-center rounded-full border border-gray-900 bg-gray-900 text-white shadow-sm transition hover:bg-gray-700 dark:border-mist focus:outline-none focus:ring-4 focus:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-mist dark:text-ink dark:hover:bg-white dark:focus:ring-gray-600';
 
     // The two ways to pay, as the checkout offers them. Cash on pickup is paid
     // when the order is collected; a bank or e-wallet pays is sent first and
     // proved with a reference number and a screenshot.
-    $payTile = 'flex w-full items-start gap-3 rounded-xl border p-3 text-left transition focus:outline-none focus:ring-4 focus:ring-indigo-200 dark:focus:ring-indigo-900';
+    $payTile = 'flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition focus:outline-none focus:ring-4 focus:ring-indigo-200 dark:focus:ring-indigo-900';
     $payTileIdle = 'border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/40 dark:border-gray-600 dark:bg-gray-700/40 dark:hover:border-indigo-500 dark:hover:bg-indigo-900/20';
 @endphp
 
@@ -148,6 +150,16 @@
                 $chipOff = $chip . ' border-gray-200 bg-white text-gray-700 hover:border-indigo-400 hover:text-indigo-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-indigo-500';
                 $chipOn = $chip . ' border-indigo-600 bg-indigo-600 text-white shadow-sm';
                 $field = 'h-12 w-full rounded-xl border border-gray-300 bg-white px-4 text-base text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500 dark:focus:ring-indigo-900';
+                // The search box is a pill, like the chips under it; the filter boxes keep the squarer field.
+                $search = 'h-12 w-full rounded-full border border-gray-200 bg-gray-50 px-4 text-base text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400 dark:focus:border-gray-300 dark:focus:bg-gray-700 dark:focus:ring-gray-600';
+                // Small boxes for the filter popover.
+                $mini = 'h-10 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400 dark:focus:border-gray-300 dark:focus:ring-gray-600';
+                // The buttons inside the bar (Sort, Filter).
+                $barButton = 'inline-flex h-10 items-center justify-center gap-1.5 rounded-full px-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 aria-expanded:bg-gray-100 sm:h-11 sm:gap-2 sm:px-4 dark:text-gray-200 dark:hover:bg-gray-700 dark:focus:ring-gray-700 dark:aria-expanded:bg-gray-700';
+                // A panel that opens under a bar button.
+                $panel = 'absolute inset-x-0 top-full z-30 mt-2 hidden animate-pop rounded-2xl border border-gray-200 bg-white p-3 shadow-card-lift sm:inset-x-auto sm:right-0 sm:w-80 dark:border-gray-700 dark:bg-gray-800';
+                // The cell around a bar button: a hairline before it, and (from `sm`) the anchor of its panel.
+                $cell = 'border-l border-gray-200 pl-0.5 sm:relative sm:pl-1 dark:border-gray-700';
             @endphp
 
             {{--
@@ -157,73 +169,102 @@
                 narrowing the menu never asks the server for anything — see
                 resources/js/pages/menu.js.
             --}}
-            <section class="mb-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5 dark:border-gray-700 dark:bg-gray-800">
-                <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
-                    <label class="relative block flex-1">
+            <section class="mb-6 animate-fade-up">
+                {{-- One rounded bar: search, then Sort and Filter as dropdowns. Everything works
+                     on the dishes already on the page (resources/js/pages/menu.js), so nothing
+                     here asks the server for anything. --}}
+                <div class="relative z-20 flex items-center rounded-full border border-gray-200 bg-white p-1 shadow-card sm:p-1.5 dark:border-gray-700 dark:bg-gray-800">
+                    <label class="relative flex min-w-0 flex-1 items-center">
                         <span class="sr-only">{{ __('Search the menu') }}</span>
-                        <svg class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <svg class="pointer-events-none absolute left-3.5 h-5 w-5 text-gray-400 sm:left-4 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
                         </svg>
                         <input type="search" id="menu-search" autocomplete="off"
-                               class="{{ $field }} pl-12"
+                               class="h-10 w-full min-w-0 rounded-full border-0 bg-transparent pl-11 pr-2 text-base text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 sm:h-11 sm:pl-12 sm:pr-4 dark:text-white dark:placeholder:text-gray-400"
                                placeholder="{{ __('Search a dish') }}">
                     </label>
 
-                    <div class="flex items-center gap-3">
-                        <button type="button" id="filter-toggle" aria-expanded="false" aria-controls="filter-panel"
-                                class="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 lg:flex-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
-                            </svg>
-                            {{ __('Filters') }}
-                            <span id="filter-count" class="hidden rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold tabular-nums text-white">0</span>
-                        </button>
+                    <div class="flex flex-shrink-0 items-center">
+                        {{-- Sort --}}
+                        <div class="{{ $cell }}">
+                            <button type="button" id="sort-toggle" aria-haspopup="true" aria-expanded="false" aria-controls="sort-panel" class="{{ $barButton }}">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7.5 7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5" /></svg>
+                                <span id="sort-label" class="hidden max-w-[6.5rem] truncate min-[400px]:inline sm:max-w-none">{{ __('Default') }}</span>
+                            </button>
+
+                            <div id="sort-panel" data-popover role="menu" aria-label="{{ __('Sort by') }}" class="{{ $panel }}">
+                                <p class="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('Sort by') }}</p>
+
+                                @foreach ([
+                                    ['default', __('Default')],
+                                    ['price-asc', __('Price: low to high')],
+                                    ['price-desc', __('Price: high to low')],
+                                    ['name', __('Name: A to Z')],
+                                    ['calories', __('Calories: low to high')],
+                                    ['stock', __('Most available')],
+                                ] as [$sortKey, $sortName])
+                                    <button type="button" role="menuitemradio" data-sort="{{ $sortKey }}" aria-checked="{{ $loop->first ? 'true' : 'false' }}"
+                                            class="group flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-gray-700 transition hover:bg-gray-50 aria-checked:bg-gray-100 aria-checked:font-semibold aria-checked:text-gray-900 dark:text-gray-200 dark:hover:bg-gray-700 dark:aria-checked:bg-gray-700 dark:aria-checked:text-white">
+                                        {{ $sortName }}
+                                        <svg class="hidden h-4 w-4 group-aria-checked:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4 4L19 7" /></svg>
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+
+                        {{-- Filter --}}
+                        <div class="{{ $cell }}">
+                            <button type="button" id="filter-toggle" aria-haspopup="true" aria-expanded="false" aria-controls="filter-panel" class="{{ $barButton }}">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M6 12h12M10 18h4" /></svg>
+                                {{ __('Filter') }}
+                                <span id="filter-count" class="hidden min-w-[1.25rem] rounded-full bg-indigo-600 px-1.5 py-0.5 text-center text-xs font-semibold tabular-nums text-white">0</span>
+                            </button>
+
+                            <div id="filter-panel" data-popover aria-label="{{ __('Filter') }}" class="{{ $panel }}">
+                                <p class="px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('Show') }}</p>
+
+                                <label class="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                                    <input type="checkbox" id="filter-in-stock" class="h-5 w-5 rounded-md border-gray-300 text-indigo-600 focus:ring-gray-300 dark:border-gray-500 dark:bg-gray-700">
+                                    <span class="text-sm text-gray-800 dark:text-gray-100">{{ __('In stock only') }}</span>
+                                </label>
+
+                                <label class="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-gray-50 dark:hover:bg-gray-700">
+                                    <input type="checkbox" id="filter-in-cart" class="h-5 w-5 rounded-md border-gray-300 text-indigo-600 focus:ring-gray-300 dark:border-gray-500 dark:bg-gray-700">
+                                    <span class="text-sm text-gray-800 dark:text-gray-100">{{ __('In my cart') }}</span>
+                                </label>
+
+                                <p class="mt-3 px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('Price') }}</p>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <input type="number" id="filter-min-price" min="0" step="0.01" inputmode="decimal" class="{{ $mini }}"
+                                           aria-label="{{ __('Price from') }}" placeholder="{{ __('From') }} {{ number_format($prices ? min($prices) : 0, 2) }}">
+                                    <input type="number" id="filter-max-price" min="0" step="0.01" inputmode="decimal" class="{{ $mini }}"
+                                           aria-label="{{ __('Price to') }}" placeholder="{{ __('To') }} {{ number_format($prices ? max($prices) : 0, 2) }}">
+                                </div>
+
+                                <p class="mt-3 px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('Calories') }}</p>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <input type="number" id="filter-min-calories" min="0" step="1" inputmode="numeric" class="{{ $mini }}"
+                                           aria-label="{{ __('Calories from') }}" placeholder="{{ __('From') }} {{ $calories ? min($calories) : 0 }}">
+                                    <input type="number" id="filter-max-calories" min="0" step="1" inputmode="numeric" class="{{ $mini }}"
+                                           aria-label="{{ __('Calories to') }}" placeholder="{{ __('To') }} {{ $calories ? max($calories) : 0 }}">
+                                </div>
+
+                                <div class="mt-3 flex items-center justify-between gap-2 border-t border-gray-100 pt-3 dark:border-gray-700">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Leave a box empty to ignore it.') }}</p>
+                                    <button type="button" id="filter-clear"
+                                            class="rounded-full border border-gray-200 px-3.5 py-1.5 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:text-indigo-400 dark:hover:bg-indigo-900/30">
+                                        {{ __('Clear filters') }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
                         {{-- How many dishes are on screen right now. --}}
-                        <p id="menu-count" class="shrink-0 text-sm tabular-nums text-gray-500 dark:text-gray-400">{{ $dishes->count() }} {{ __('dishes') }}</p>
+                        <p id="menu-count" class="hidden shrink-0 px-3 text-xs tabular-nums text-gray-500 lg:block dark:text-gray-400">{{ $dishes->count() }} {{ __('dishes') }}</p>
                     </div>
                 </div>
-
-                {{-- Price and calories: the other two ways a kiosk narrows a menu. --}}
-                <div id="filter-panel" class="mt-4 hidden border-t border-gray-200 pt-4 dark:border-gray-700">
-                    <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                        <label class="block">
-                            <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('Price from') }}</span>
-                            <input type="number" id="filter-min-price" min="0" step="0.01" inputmode="decimal" class="{{ $field }}"
-                                   placeholder="{{ number_format($prices ? min($prices) : 0, 2) }}">
-                        </label>
-
-                        <label class="block">
-                            <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('Price to') }}</span>
-                            <input type="number" id="filter-max-price" min="0" step="0.01" inputmode="decimal" class="{{ $field }}"
-                                   placeholder="{{ number_format($prices ? max($prices) : 0, 2) }}">
-                        </label>
-
-                        <label class="block">
-                            <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('Calories from') }}</span>
-                            <input type="number" id="filter-min-calories" min="0" step="1" inputmode="numeric" class="{{ $field }}"
-                                   placeholder="{{ $calories ? min($calories) : 0 }}">
-                        </label>
-
-                        <label class="block">
-                            <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('Calories to') }}</span>
-                            <input type="number" id="filter-max-calories" min="0" step="1" inputmode="numeric" class="{{ $field }}"
-                                   placeholder="{{ $calories ? max($calories) : 0 }}">
-                        </label>
-                    </div>
-
-                    <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
-                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Leave a box empty to ignore it.') }}</p>
-
-                        <button type="button" id="filter-clear"
-                                class="rounded-lg px-3 py-2 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50 focus:outline-none focus:ring-4 focus:ring-indigo-200 dark:text-indigo-400 dark:hover:bg-indigo-900/30 dark:focus:ring-indigo-900">
-                            {{ __('Clear filters') }}
-                        </button>
-                    </div>
-                </div>
-
-                {{-- Categories: one tap narrows the menu to a dish type. --}}
-                <div id="menu-types" class="mt-4 flex gap-2 overflow-x-auto pb-1"
+                {{-- Categories: tick one or several dish types to narrow the menu; All clears them. --}}
+                <div id="menu-types" class="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0"
                      data-chip-on="{{ $chipOn }}" data-chip-off="{{ $chipOff }}">
                     <button type="button" data-filter-type="" aria-pressed="true" class="{{ $chipOn }}">
                         {{ __('All') }} <span class="tabular-nums opacity-70">{{ $dishes->count() }}</span>
@@ -237,7 +278,7 @@
                 </div>
             </section>
 
-            <div class="grid grid-cols-1 gap-4 pb-24 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div class="grid grid-cols-1 gap-4 pb-28 min-[520px]:grid-cols-2 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
                 @foreach ($dishes as $dish)
                     @php
                         $stock = (int) $dish->available_stock;
@@ -246,52 +287,74 @@
 
                     {{-- One card per dish. The picture and the details open the
                          dish modal; the + below puts one in the cart. --}}
-                    <article class="flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:border-indigo-300 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-500"
+                    @php
+                        // How full the shelf is, for the dot in front of the stock line.
+                        $level = $soldOut ? 'out' : ($stock <= 3 ? 'low' : 'ok');
+                        $dishTypes = array_values($dish->dish_types ?? []);
+                    @endphp
+
+                    {{--
+                        One card per dish, and the PHOTO is the card: it fills the top edge to
+                        edge, zooms slowly on hover, and carries everything a diner reads first
+                        (what it is, what it costs, how many are left) on top of a dark gradient
+                        so white text is always readable, whatever the photo. The stepper sits in
+                        a strip underneath. A sold-out dish turns grey with a label over it
+                        (data-sold-out, kept in step by menu.js).
+                    --}}
+                    <article class="group relative flex animate-fade-up flex-col overflow-hidden rounded-3xl bg-white shadow-card transition duration-300 hover:-translate-y-1 hover:shadow-card-lift dark:bg-gray-800 dark:ring-1 dark:ring-white/5"
+                             style="animation-delay: {{ min($loop->index, 11) * 45 }}ms"
+                             data-sold-out="{{ $soldOut ? 'true' : 'false' }}"
                              data-dish-card="{{ $dish->session_dish_id }}">
                         <div role="button" tabindex="0"
                              data-dish-view="{{ $dish->session_dish_id }}"
                              aria-label="{{ __('View details of :dish', ['dish' => $dish->dish_name]) }}"
-                             class="group flex flex-1 cursor-pointer flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500">
-                            <div class="relative flex h-44 w-full items-center justify-center overflow-hidden bg-gray-100 dark:bg-gray-700">
-                                <svg class="h-8 w-8 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z" />
-                                </svg>
-                                @if ($dish->image)
-                                    <img src="{{ $dish->image }}" alt="" loading="lazy"
-                                         class="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-105" onerror="this.remove()">
-                                @endif
+                             class="relative block aspect-[5/4] w-full cursor-pointer overflow-hidden bg-gradient-to-br from-gray-200 to-gray-300 focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-gray-900 min-[520px]:aspect-square dark:from-gray-700 dark:to-gray-800">
+                            {{-- Shows when the dish has no photo, or it did not load. --}}
+                            <svg class="absolute left-1/2 top-[42%] h-10 w-10 -translate-x-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z" />
+                            </svg>
 
-                                {{-- Says the card opens something, without taking room when idle. --}}
-                                <span class="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-gray-900/70 px-2 py-1 text-xs font-medium text-white opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
-                                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                                    </svg>
-                                    {{ __('View') }}
-                                </span>
-                            </div>
+                            @if ($dish->image)
+                                <img src="{{ $dish->image }}" alt="" loading="lazy"
+                                     class="absolute inset-0 h-full w-full object-cover transition duration-700 ease-out group-hover:scale-110 group-data-[sold-out=true]:grayscale" onerror="this.remove()">
+                            @endif
 
-                            <div class="flex flex-1 flex-col gap-1 p-4">
-                                <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ $dish->dish_name }}</h3>
+                            {{-- The gradient the text sits on. --}}
+                            <div class="pointer-events-none absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-black/80 via-black/35 to-transparent"></div>
 
-                                @if (! empty($dish->dish_types))
-                                    <p class="flex flex-wrap items-center gap-1">
-                                        @foreach ($dish->dish_types as $type)
-                                            <span class="{{ $typeChip }}">{{ $type['type_name'] }}</span>
-                                        @endforeach
-                                    </p>
-                                @endif
+                            {{-- Categories: glass chips, top left. --}}
+                            @if ($dishTypes !== [])
+                                <div class="absolute left-3 top-3 flex max-w-[62%] flex-wrap gap-1.5">
+                                    @foreach (array_slice($dishTypes, 0, 2) as $type)
+                                        <span class="rounded-full border border-white/30 bg-white/15 px-2.5 py-0.5 text-[11px] font-medium text-white backdrop-blur-md">{{ $type['type_name'] }}</span>
+                                    @endforeach
 
-                                <p class="mt-2 text-xl font-semibold tabular-nums text-indigo-600 dark:text-indigo-400">${{ number_format((float) $dish->price, 2) }}</p>
+                                    @if (count($dishTypes) > 2)
+                                        <span class="rounded-full border border-white/30 bg-white/15 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur-md">+{{ count($dishTypes) - 2 }}</span>
+                                    @endif
+                                </div>
+                            @endif
 
-                                <p class="text-xs tabular-nums text-gray-500 dark:text-gray-400"
+                            {{-- Price: a frosted pill, top right. --}}
+                            <p class="absolute right-3 top-3 rounded-full bg-white/90 px-3 py-1 text-sm font-bold tabular-nums text-ink shadow-sm backdrop-blur">${{ number_format((float) $dish->price, 2) }}</p>
+
+                            {{-- Name and stock, over the gradient. --}}
+                            <div class="absolute inset-x-0 bottom-0 p-4">
+                                <h3 class="line-clamp-2 text-lg font-bold leading-snug text-white drop-shadow-sm">{{ $dish->dish_name }}</h3>
+
+                                <p class="mt-1 inline-flex items-center text-xs font-medium tabular-nums text-white/85 before:mr-1.5 before:inline-block before:h-1.5 before:w-1.5 before:rounded-full before:bg-emerald-400 data-[level=low]:before:bg-amber-400 data-[level=out]:before:bg-red-400"
+                                   data-level="{{ $level }}"
                                    data-stock-label="{{ $dish->session_dish_id }}">{{ $soldOut ? __('Sold out') : $stock . ' ' . __('left') }}</p>
                             </div>
-                        </div>
 
-                        <div class="flex items-center justify-between gap-2 border-t border-gray-100 px-3 py-3 dark:border-gray-700/60">
+                            {{-- Sold out: a label over the grey photo. --}}
+                            <div class="pointer-events-none absolute inset-0 hidden items-center justify-center bg-black/40 group-data-[sold-out=true]:flex">
+                                <span class="rounded-full border border-white/40 bg-black/50 px-4 py-1.5 text-sm font-semibold tracking-wide text-white backdrop-blur">{{ __('Sold out') }}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between gap-2 px-3 py-3">
                             {{-- Shown while this dish is in the cart (menu.js). --}}
-                            <span data-in-cart class="hidden items-center gap-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                            <span data-in-cart class="hidden items-center gap-1.5 rounded-full bg-gray-900 px-2.5 py-1 text-xs font-semibold text-white dark:bg-mist dark:text-ink">
                                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                     <path d="m5 13 4 4L19 7" />
                                 </svg>
@@ -299,25 +362,25 @@
                             </span>
 
                             {{-- How many of this dish are in the cart: 0 until the first +. --}}
-                            <div class="ml-auto flex shrink-0 items-center rounded-xl border border-gray-300 dark:border-gray-600">
+                            <div class="ml-auto flex shrink-0 items-center gap-1 rounded-full bg-gray-50 p-1 dark:bg-gray-900/60">
                                 <button type="button"
                                         data-card-step="-1"
                                         aria-label="{{ __('One less') }}"
                                         disabled
-                                        class="{{ $stepButtonClass }} rounded-l-xl">
+                                        class="{{ $stepButtonClass }}">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
                                         <path d="M5 12h14" />
                                     </svg>
                                 </button>
 
                                 <span data-card-qty
-                                      class="w-7 text-center text-base font-semibold tabular-nums text-gray-900 dark:text-white">0</span>
+                                      class="w-8 text-center text-base font-semibold tabular-nums text-gray-900 dark:text-white">0</span>
 
                                 <button type="button"
                                         data-card-step="1"
                                         aria-label="{{ __('One more') }}"
                                         @disabled($soldOut)
-                                        class="{{ $stepButtonClass }} rounded-r-xl">
+                                        class="{{ $plusButtonClass }}">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
                                         <path d="M12 5v14M5 12h14" />
                                     </svg>
@@ -335,7 +398,7 @@
             </div>
 
             {{-- The cart: round, lower right, visible at all times (empty or not). --}}
-            <div id="cart-bar" class="fixed bottom-6 right-6 z-40">
+            <div id="cart-bar" class="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] right-5 z-40 sm:bottom-6 sm:right-6">
                 <button type="button" data-open-cart id="cart-fab"
                         class="relative flex h-16 w-16 items-center justify-center rounded-full bg-indigo-600 text-white shadow-2xl transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-800">
                     <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -357,7 +420,7 @@
     --}}
     <x-ui.modal name="dish-modal" size="lg">
         <div class="flex max-h-[85vh] flex-col">
-            <div class="relative flex h-40 w-full shrink-0 items-center justify-center overflow-hidden bg-gray-100 dark:bg-gray-700">
+            <div class="relative flex h-56 w-full shrink-0 items-center justify-center overflow-hidden bg-gray-100 sm:h-72 dark:bg-gray-700">
                 <svg id="dish-modal-placeholder" class="h-10 w-10 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z" />
                 </svg>
@@ -402,7 +465,7 @@
                 </dl>
             </div>
 
-            <div class="flex items-center justify-between gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
+            <div class="flex items-center justify-between gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-700">
                 <button type="button" id="dish-modal-close"
                         class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
                     {{ __('Close') }}
@@ -428,14 +491,14 @@
             {{-- Header: what this is, and where we are --}}
             <div class="flex items-start justify-between gap-3 border-b border-gray-200 px-6 py-3 dark:border-gray-700">
                 <div>
-                    <h3 class="flex flex-wrap items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
+                    <h3 class="flex flex-wrap items-center gap-2 text-xl font-bold tracking-tight text-gray-900 dark:text-white">
                         {{ __('Checkout') }}
                         <span id="checkout-step-name" class="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"></span>
                     </h3>
                     <p id="checkout-step-progress" class="mt-0.5 text-xs text-gray-500 dark:text-gray-400"></p>
                 </div>
                 <button type="button"
-                        class="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                        class="rounded-full border border-gray-200 p-2.5 text-gray-500 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700"
                         x-on:click="show = false">
                     <span class="sr-only">{{ __('Close') }}</span>
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -471,7 +534,9 @@
 
             {{-- Body: one panel per step --}}
             <div class="min-h-0 flex-1 overflow-y-auto p-6">
-                <div id="checkout-errors" role="alert" aria-live="polite" class="mb-4 hidden rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300"></div>
+                {{-- Sticky: it stays in view however far the body is scrolled. The same message also
+                     comes up as a toast (menu.js showErrors), which is on screen whatever happens. --}}
+                <div id="checkout-errors" role="alert" aria-live="assertive" class="sticky top-0 z-10 mb-4 hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700 shadow-card dark:border-red-900 dark:bg-red-950 dark:text-red-300"></div>
 
                 {{-- Step 1: review the order --}}
                 <div data-step-panel="review">
@@ -600,20 +665,20 @@
             </div>
 
             {{-- Footer: the running total, and where to go next --}}
-            <div class="flex items-center justify-between gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
+            <div class="flex items-center justify-between gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-700">
                 <div>
                     <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('Total') }}</p>
-                    <p id="checkout-total" class="text-lg font-semibold tabular-nums text-gray-900 dark:text-white">$0.00</p>
+                    <p id="checkout-total" class="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">$0.00</p>
                 </div>
 
                 <div class="flex items-center gap-3">
                     <button type="button" id="checkout-back"
-                            class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                            class="rounded-full border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
                         {{ __('Back') }}
                     </button>
                     <button type="button" id="checkout-next"
                             data-loading-label="{{ __('Placing...') }}"
-                            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-indigo-800">
+                            class="rounded-full bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-indigo-800">
                         {{ __('Proceed to Payment') }}
                     </button>
                 </div>

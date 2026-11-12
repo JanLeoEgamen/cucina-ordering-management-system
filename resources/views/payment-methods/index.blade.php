@@ -5,53 +5,31 @@
 
     @php
         $label = 'block text-sm font-medium text-gray-700 dark:text-gray-300';
-        $input = 'block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm leading-5 text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400';
-        $th = 'border-b border-gray-200 bg-gray-100 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap dark:border-gray-700 dark:bg-gray-700/50 dark:text-gray-300';
-        $cancelButton = 'rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:focus:ring-gray-700';
-        $submitButton = 'rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-800';
+        $input = 'block w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm leading-5 text-gray-900 placeholder-gray-400 transition focus:border-gray-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700/60 dark:text-white dark:placeholder-gray-400 dark:focus:border-gray-300 dark:focus:bg-gray-700 dark:focus:ring-gray-600';
+        $th = 'border-b border-gray-100 bg-transparent px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap dark:border-gray-700 dark:text-gray-400';
+        $cancelButton = 'rounded-full border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:focus:ring-gray-700';
+        $submitButton = 'rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-gray-300 dark:focus:ring-gray-600';
         // pr-10 keeps the @tailwindcss/forms chevron from sitting on the value.
-        $filter = 'block w-full rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-10 text-sm leading-5 text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:w-auto dark:border-gray-600 dark:bg-gray-700 dark:text-white';
+        $filter = 'block w-full rounded-full border border-gray-200 bg-white py-2.5 pl-4 pr-10 text-sm leading-5 text-gray-900 focus:border-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-200 sm:w-auto dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-gray-300 dark:focus:ring-gray-600';
     @endphp
 
     <div class="container mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-            {{-- The filter narrows the feed in the browser (no request); the
-                 table's own search box keeps working next to it. Both are read
-                 by resources/js/pages/payment-methods.js. --}}
-            <div class="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700">
-                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <select id="method-status-filter" aria-label="{{ __('Status') }}" class="{{ $filter }}">
+        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
+            {{-- Search, sort, filter and the view tabs (resources/js/ui/table-toolbar.js). The filter narrows
+                 the feed in the browser (no request); it is read by resources/js/pages/payment-methods.js. --}}
+            <x-ui.table-toolbar :views="['table', 'card']" :sorts="[
+                [__('Name: A to Z'), 2, 'asc'],
+                [__('Name: Z to A'), 2, 'desc'],
+                [__('Account: A to Z'), 3, 'asc'],
+            ]">
+                <x-ui.filter-field :label="__('Status')">
+                    <select id="method-status-filter" aria-label="{{ __('Status') }}" class="{{ $filter }} sm:!w-full">
                         <option value="">{{ __('All statuses') }}</option>
                         <option value="active">{{ __('Active') }}</option>
                         <option value="inactive">{{ __('Inactive') }}</option>
                     </select>
-                </div>
-
-                {{-- View switch: swaps the table for the card grid; wiring and card
-                     markup live in resources/js/pages/payment-methods.js. --}}
-                <div class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-gray-600 dark:bg-gray-700"
-                     role="group" aria-label="{{ __('View mode') }}">
-                    <button type="button"
-                            data-view-mode="table"
-                            aria-pressed="true"
-                            class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-gray-500 transition hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:text-gray-400 dark:hover:text-gray-200 dark:focus:ring-indigo-800 aria-pressed:bg-white aria-pressed:text-indigo-600 aria-pressed:shadow-sm dark:aria-pressed:bg-gray-900 dark:aria-pressed:text-indigo-400">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" />
-                            <path stroke-linecap="round" d="M3 9.75h18M9.5 5v14" />
-                        </svg>
-                        {{ __('Table') }}
-                    </button>
-                    <button type="button"
-                            data-view-mode="card"
-                            aria-pressed="false"
-                            class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-gray-500 transition hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:text-gray-400 dark:hover:text-gray-200 dark:focus:ring-indigo-800 aria-pressed:bg-white aria-pressed:text-indigo-600 aria-pressed:shadow-sm dark:aria-pressed:bg-gray-900 dark:aria-pressed:text-indigo-400">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4h6.5v6.5H4V4Zm9.5 0H20v6.5h-6.5V4ZM4 13.5h6.5V20H4v-6.5Zm9.5 0H20V20h-6.5v-6.5Z" />
-                        </svg>
-                        {{ __('Card') }}
-                    </button>
-                </div>
-            </div>
+                </x-ui.filter-field>
+            </x-ui.table-toolbar>
 
             {{-- Rows come from this route's AJAX response (client side table);
                  `data-endpoint` is read by resources/js/pages/payment-methods.js. --}}
@@ -59,7 +37,7 @@
                    data-endpoint="{{ route('payment-methods.index') }}"
                    data-protected-label="{{ __('Protected') }}"
                    class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50 dark:bg-gray-700">
+                <thead class="bg-gray-50/70 dark:bg-gray-900/40">
                     <tr>
                         <th scope="col" class="{{ $th }} w-12">#</th>
                         <th scope="col" class="{{ $th }} w-20">{{ __('QR') }}</th>
@@ -69,7 +47,7 @@
                         <th scope="col" class="{{ $th }} text-right">{{ __('Actions') }}</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800"></tbody>
+                <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-700 dark:bg-gray-800"></tbody>
             </table>
 
             {{-- Card grid for the card view; populated by resources/js/pages/payment-methods.js --}}
@@ -81,10 +59,10 @@
 
     {{-- Create drawer --}}
     <x-ui.drawer name="create-payment-method-drawer" placement="right" size="lg">
-        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+        <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-700">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Create Payment Method') }}</h3>
             <button type="button"
-                    class="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                    class="rounded-full border border-gray-200 p-2.5 text-gray-500 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
                     x-on:click="show = false">
                 <span class="sr-only">{{ __('Close') }}</span>
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -195,10 +173,10 @@
 
     {{-- Edit drawer --}}
     <x-ui.drawer name="edit-payment-method-drawer" placement="right" size="lg">
-        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+        <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-700">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Edit Payment Method') }}</h3>
             <button type="button"
-                    class="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                    class="rounded-full border border-gray-200 p-2.5 text-gray-500 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
                     x-on:click="show = false">
                 <span class="sr-only">{{ __('Close') }}</span>
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -307,13 +285,13 @@
     {{-- View drawer: read only. resources/js/pages/payment-methods.js fills every
          value from the same endpoint the edit drawer loads. --}}
     <x-ui.drawer name="view-payment-method-drawer" placement="right" size="lg">
-        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+        <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-700">
             <h3 class="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
                 {{ __('Payment Method') }}
                 <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ __('View only') }}</span>
             </h3>
             <button type="button"
-                    class="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                    class="rounded-full border border-gray-200 p-2.5 text-gray-500 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
                     x-on:click="show = false">
                 <span class="sr-only">{{ __('Close') }}</span>
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -355,7 +333,7 @@
             </dl>
         </div>
 
-        <div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
+        <div class="flex justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-700">
             <button type="button" class="{{ $cancelButton }}" x-on:click="show = false">{{ __('Close') }}</button>
         </div>
     </x-ui.drawer>

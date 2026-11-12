@@ -15,6 +15,7 @@
  *   confirm                 -> send the form, toast, reload; failures keep the drawer open
  */
 import DataTable from 'datatables.net-dt';
+import { initTableToolbar } from '../ui/table-toolbar';
 import { showToast } from '../ui/toast';
 
 const start = () => {
@@ -128,12 +129,15 @@ const start = () => {
             // `null`, not omitted: the layout object is merged over DataTables'
             // defaults, which place the page length in the top row as well.
             topStart: null,
-            topEnd: 'search',
+            // The toolbar above the table (resources/js/ui/table-toolbar.js) searches instead.
+            topEnd: null,
             bottomStart: ['info', 'pageLength'],
             bottomEnd: 'paging',
         },
         language: {
-            search: 'Search',
+            // No label next to the box: the placeholder says it (the label is hidden in app.css).
+            search: '',
+            searchPlaceholder: 'Search…',
             lengthMenu: '_MENU_ per page',
             infoEmpty: 'No rows to show',
             infoFiltered: '(filtered from _MAX_ rows)',
@@ -158,6 +162,9 @@ const start = () => {
             { data: 'action', orderable: false, searchable: false, className: 'whitespace-nowrap text-right' },
         ],
     });
+
+    // Search, sort and the filter dropdown above the table.
+    initTableToolbar(table);
 
     const reload = () => table.ajax.reload(null, false);
 
@@ -189,10 +196,12 @@ const start = () => {
             return false;
         }
 
-        const type = typeFilter?.value ?? '';
+        // The type filter is a checkbox list: a dish shows when it has ANY ticked type
+        // (nothing ticked = every dish).
+        const types = [...(typeFilter?.selectedOptions ?? [])].map((option) => option.value);
 
-        return type === ''
-            || (rowData.dish_types ?? []).some((dishType) => String(dishType.dish_type_id) === type);
+        return types.length === 0
+            || (rowData.dish_types ?? []).some((dishType) => types.includes(String(dishType.dish_type_id)));
     });
 
     statusFilter?.addEventListener('change', () => table.draw());
@@ -590,7 +599,7 @@ const start = () => {
 
     const cardTemplate = (dish) => `
         <article class="flex flex-col justify-between overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <div class="relative flex h-32 w-full items-center justify-center overflow-hidden bg-gray-100 dark:bg-gray-700">
+            <div data-card-photo class="relative flex h-32 w-full items-center justify-center overflow-hidden bg-gray-100 dark:bg-gray-700">
                 <svg class="h-8 w-8 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z" /></svg>
                 ${dish.image ? `<img src="${escapeHtml(dish.image)}" alt="" data-zoom data-zoom-caption="${escapeHtml(dish.dish_name)}" loading="lazy" class="absolute inset-0 h-full w-full cursor-zoom-in object-cover" onerror="this.remove()">` : ''}
             </div>
@@ -602,7 +611,7 @@ const start = () => {
                 <p class="text-sm text-gray-500 dark:text-gray-400">${typeCell(dish.dish_types, 'display')}</p>
                 <p class="mt-3 text-lg font-semibold tabular-nums text-indigo-600 dark:text-indigo-400">${money(dish.price)}</p>
             </div>
-            <div class="flex justify-end gap-1 border-t border-gray-100 px-4 py-3 dark:border-gray-700/60">
+            <div class="flex flex-wrap justify-end gap-2 border-t border-gray-100 px-4 py-3 dark:border-gray-700/60">
                 ${dish.action ?? ''}
             </div>
         </article>`;

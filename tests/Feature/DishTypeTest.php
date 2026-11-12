@@ -41,7 +41,9 @@ class DishTypeTest extends TestCase
         $this->assertStringContainsString(route('dish-types.edit', $live->dish_type_id), $rows[0]['action']);
         $this->assertStringContainsString(route('dish-types.update', $live->dish_type_id), $rows[0]['action']);
         $this->assertStringContainsString(route('dish-types.destroy', $live->dish_type_id), $rows[0]['action']);
-        $this->assertStringContainsString('data-row-action="view"', $rows[0]['action']);
+        // The drawer's own attribute, so the dishes table's data-row-action handler ignores it.
+        $this->assertStringContainsString('data-type-action="edit"', $rows[0]['action']);
+        $this->assertStringNotContainsString('data-row-action', $rows[0]['action']);
         $this->assertArrayNotHasKey('restore_url', $rows[0]);
     }
 
@@ -122,16 +124,41 @@ class DishTypeTest extends TestCase
         $this->assertSoftDeleted('dish_types', ['dish_type_id' => $dishType->dish_type_id]);
     }
 
-    public function test_index_renders_the_table_and_both_drawers(): void
+    public function test_a_plain_visit_to_the_old_page_goes_to_the_masterlist(): void
     {
         $this->actingAs($this->user())->get(route('dish-types.index'))
+            ->assertRedirect(route('dishes.index'));
+    }
+
+    public function test_the_feed_and_the_writes_need_their_permissions(): void
+    {
+        $viewer = $this->userWith('view dishes');
+        $type = DishType::factory()->create();
+
+        $this->actingAs($viewer)->withHeaders(['X-Requested-With' => 'XMLHttpRequest'])
+            ->getJson(route('dish-types.index'))->assertForbidden();
+        $this->actingAs($viewer)->postJson(route('dish-types.store'), ['type_name' => 'X', 'is_active' => 1])->assertForbidden();
+        $this->actingAs($viewer)->putJson(route('dish-types.update', $type), ['type_name' => 'Y', 'is_active' => 1])->assertForbidden();
+        $this->actingAs($viewer)->deleteJson(route('dish-types.destroy', $type))->assertForbidden();
+    }
+
+    public function test_the_masterlist_hosts_the_manage_types_drawer_only_for_users_who_may_view_types(): void
+    {
+        $this->actingAs($this->userWith('view dishes', 'view dish-types'))->get(route('dishes.index'))
             ->assertOk()
-            ->assertSee('id="dish-types-table"', false)
-            ->assertSee('>#</th>', false)
-            ->assertSee('data-view-mode="table"', false)
-            ->assertSee('data-view-mode="card"', false)
-            ->assertSee('id="dish-types-cards"', false)
-            ->assertSee('id="create-dish-type-form"', false)
-            ->assertSee('id="edit-dish-type-form"', false);
+            ->assertSee('Dish Masterlist')
+            ->assertSee('id="manage-dish-types"', false)
+            ->assertSee('id="types-form"', false)
+            // Create / edit is confirmed before it is sent, delete inside its row.
+            ->assertSee('id="types-confirm"', false)
+            ->assertSee('data-confirm-create=', false)
+            ->assertSee('data-delete-prompt=', false)
+            ->assertSee('dish-types-manager', false);
+
+        $this->actingAs($this->userWith('view dishes'))->get(route('dishes.index'))
+            ->assertOk()
+            ->assertSee('Dish Masterlist')
+            ->assertDontSee('id="manage-dish-types"', false)
+            ->assertDontSee('id="types-form"', false);
     }
 }
