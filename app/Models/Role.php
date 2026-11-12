@@ -18,11 +18,13 @@ class Role extends SpatieRole
         'view dishes', 'create dishes', 'edit dishes', 'delete dishes',
         'view dish-types', 'create dish-types', 'edit dish-types', 'delete dish-types',
         'view payment-methods', 'create payment-methods', 'edit payment-methods', 'delete payment-methods',
+        'view payments', 'verify payments', 'reject payments', 'undo payments', 'delete payments',
         'view order-sessions', 'create order-sessions', 'edit order-sessions',
         'delete order-sessions', 'end order-sessions',
-        'view menu', 'create orders', 'view my orders',
+        'view menu', 'create orders', 'view my orders', 'view orders', 'complete orders', 'cancel orders',
         'view roles', 'create roles', 'edit roles', 'delete roles',
         'view users', 'create users', 'edit users', 'delete users',
+        'view settings', 'edit settings',
     ];
 
     // The seeded role that holds every permission.

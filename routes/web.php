@@ -4,10 +4,14 @@ use App\Http\Controllers\DishController;
 use App\Http\Controllers\DishTypeController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderSessionController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\SettingController;
 use App\Http\Controllers\UserController;
+use App\Models\OrderSession;
+use App\Models\Payment;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -15,7 +19,12 @@ Route::get('/', function () {
 });
 
 Route::get('/dashboard', function () {
-    return view('dashboard');
+    return view('dashboard', [
+        // The session that is running right now, and - for whoever checks the
+        // money - how many payments are waiting for a decision.
+        'live' => OrderSession::live(),
+        'pendingPayments' => auth()->user()->can('view payments') ? Payment::pendingCount() : null,
+    ]);
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
@@ -53,6 +62,17 @@ Route::middleware('auth')->group(function () {
     Route::delete('/payment-methods/{id}', [PaymentMethodController::class, 'destroy'])
         ->whereNumber('id')->name('payment-methods.destroy');
 
+    // Payments: every payment of every order. {id} is the order id.
+    Route::get('/payments', [PaymentController::class, 'index'])->name('payments.index');
+    Route::post('/payments/{id}/verify', [PaymentController::class, 'verify'])
+        ->whereNumber('id')->name('payments.verify');
+    Route::post('/payments/{id}/reject', [PaymentController::class, 'reject'])
+        ->whereNumber('id')->name('payments.reject');
+    Route::post('/payments/{id}/undo', [PaymentController::class, 'undo'])
+        ->whereNumber('id')->name('payments.undo');
+    Route::delete('/payments/{id}', [PaymentController::class, 'destroy'])
+        ->whereNumber('id')->name('payments.destroy');
+
     // Order sessions: index serves the page and (on an AJAX request) the feed.
     Route::get('/order-sessions', [OrderSessionController::class, 'index'])->name('order-sessions.index');
     Route::post('/order-sessions', [OrderSessionController::class, 'store'])->name('order-sessions.store');
@@ -72,8 +92,20 @@ Route::middleware('auth')->group(function () {
     // The menu: the dishes of the running session, and the orders placed from it.
     Route::get('/menu', [OrderController::class, 'index'])->name('menu.index');
     Route::post('/orders', [OrderController::class, 'store'])->name('orders.store');
+    // Every order of every session (page, and its table feed on an AJAX request).
+    Route::get('/orders', [OrderController::class, 'all'])->name('orders.index');
+    // Staff close an order once it is handed over: pending -> completed.
+    Route::post('/orders/{id}/complete', [OrderController::class, 'complete'])
+        ->whereNumber('id')->name('orders.complete');
+    // ...or call it off: pending -> cancelled, and its dishes go back on the menu.
+    Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel'])
+        ->whereNumber('id')->name('orders.cancel');
     // The customer's own orders: what they placed, and how they paid.
     Route::get('/my-orders', [OrderController::class, 'mine'])->name('my-orders.index');
+
+    // System configuration (the default order session window, ...): view settings / edit settings.
+    Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
+    Route::put('/settings', [SettingController::class, 'update'])->name('settings.update');
 
     // Roles: permissions (view roles, create roles, ...) are checked in the controller.
     Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');

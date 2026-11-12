@@ -15,7 +15,7 @@ class DatabaseSeeder extends Seeder
     {
         User::firstOrCreate(
             ['email' => 'test@example.com'],
-            ['name' => 'Test User', 'password' => bcrypt('password')]
+            ['first_name' => 'Test', 'last_name' => 'User', 'password' => bcrypt('password')]
         );
 
         // Permissions, and the Super Admin role on the account above: without
@@ -36,12 +36,9 @@ class DatabaseSeeder extends Seeder
             PaymentMethod::firstOrCreate(['method_name' => $method['method_name']], $method);
         }
 
-        // The menu the app starts with: the types first, then the dishes that
-        // belong to them (DishSeeder runs DishTypeSeeder itself, so either can be
-        // seeded on its own).
-        $this->call([
-            DishTypeSeeder::class,
-            DishSeeder::class,
-        ]);
+        // The menu the app starts with: the real dishes and their types, from
+        // database/seeders/data/menu.csv. (DishTypeSeeder / DishSeeder are the old
+        // demo menu and still run on their own with --class.)
+        $this->call(MenuSeeder::class);
     }
 }
