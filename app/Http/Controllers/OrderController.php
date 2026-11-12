@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\DB;
+use Yajra\DataTables\Facades\DataTables;
 use RuntimeException;
 
 // The ordering side: the menu of the session that is running, and the orders
@@ -25,7 +26,25 @@ class OrderController extends Controller implements HasMiddleware
             new Middleware('permission:view menu', only: ['index']),
             new Middleware('permission:create orders', only: ['store']),
             new Middleware('permission:view my orders', only: ['mine']),
+            new Middleware('permission:view orders', only: ['all']),
+            new Middleware('permission:complete orders', only: ['complete']),
+            new Middleware('permission:cancel orders', only: ['cancel']),
         ];
+    }
+
+    // Every order of every session, for whoever runs the kitchen: the page, and its table
+    // feed on the AJAX request. Each row is decorated like the session page's (orderRow),
+    // so the order popup offers the same Complete / Cancel / Verify / Reject here.
+    public function all(Request $request)
+    {
+        if ($request->ajax()) {
+            return DataTables::collection(collect(Order::getAll())->map(fn (object $order) => $this->orderRow($order)))
+                ->skipPaging()
+                ->rawColumns(['status_badge', 'payment_badge'])
+                ->toJson();
+        }
+
+        return view('orders.index');
     }
 
     // The orders the signed-in customer placed, newest first.
@@ -44,6 +63,94 @@ class OrderController extends Controller implements HasMiddleware
         return view('my-orders.index', [
             'orders' => $orders,
         ]);
+    }
+
+    // Complete an order: it was handed over. How the payment settles depends on
+    // the method:
+    //  - Cash on Pick up is paid at the counter, so completing the order is what
+    //    verifies the payment (and stamps whoever completed it).
+    //  - Anything else (bank, e-wallet) was paid first and must already be
+    //    verified: the payment can be checked as soon as the order exists.
+    public function complete($id)
+    {
+        $orderId = (int) $id;
+        $status = Order::statusOf($orderId);
+
+        if ($status === null) {
+            return $this->errorResponse('Order not found.', 404);
+        }
+
+        if ($status !== 'pending') {
+            return $this->errorResponse('Only a pending order can be completed.', 422);
+        }
+
+        $payment = Payment::ofOrder($orderId);
+
+        if (! $payment) {
+            return $this->errorResponse('This order has no payment to settle.', 422);
+        }
+
+        $cash = PaymentMethod::isCashOnPickup($payment);
+
+        if ($payment->payment_status === 'rejected') {
+            return $this->errorResponse('The payment of this order was rejected.', 422);
+        }
+
+        if (! $cash && $payment->payment_status !== 'verified') {
+            return $this->errorResponse('Verify the payment before completing this order.', 422);
+        }
+
+        DB::transaction(function () use ($orderId, $cash, $payment) {
+            // Cash is verified by the completion itself.
+            if ($cash && $payment->payment_status === 'pending') {
+                Payment::setStatus($orderId, 'verified', auth()->id());
+                Order::updatePaymentStatus($orderId, 'verified');
+            }
+
+            Order::updateStatus($orderId, 'completed');
+        });
+
+        return $this->successResponse('Order completed successfully.');
+    }
+
+    // Cancel a pending order. What it reserved goes back on the menu, and a
+    // payment that was still waiting is rejected with the reason, so it can no
+    // longer be verified. A payment that was already verified means money was
+    // received: that decision has to be undone first, on purpose.
+    public function cancel($id)
+    {
+        $orderId = (int) $id;
+        $status = Order::statusOf($orderId);
+
+        if ($status === null) {
+            return $this->errorResponse('Order not found.', 404);
+        }
+
+        if ($status !== 'pending') {
+            return $this->errorResponse('Only a pending order can be cancelled.', 422);
+        }
+
+        $payment = Payment::ofOrder($orderId);
+
+        if ($payment && $payment->payment_status === 'verified') {
+            return $this->errorResponse('Undo the payment verification before cancelling this order.', 422);
+        }
+
+        DB::transaction(function () use ($orderId, $payment) {
+            // The stock goes back through the one place that moves it.
+            foreach (OrderItem::ofOrder($orderId) as $line) {
+                SessionDish::release($line['session_dish_id'], $line['quantity']);
+            }
+
+            if ($payment && $payment->payment_status === 'pending') {
+                Payment::setStatus($orderId, 'rejected', auth()->id(), 'The order was cancelled.');
+                Order::updatePaymentStatus($orderId, 'rejected');
+            }
+
+            Order::updateStatus($orderId, 'cancelled');
+        });
+
+        return $this->successResponse('Order cancelled successfully.');
     }
 
     // The menu: the dishes the running session offers, and what is left of each.

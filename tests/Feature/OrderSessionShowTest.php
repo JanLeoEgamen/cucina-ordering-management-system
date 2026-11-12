@@ -6,6 +6,7 @@ use App\Models\Dish;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderSession;
+use App\Models\Payment;
 use App\Models\SessionDish;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -52,6 +53,76 @@ class OrderSessionShowTest extends TestCase
             ->assertSee('aria-controls="session-dishes-panel"', false);
     }
 
+    public function test_the_order_details_have_verify_and_reject_only_for_those_who_may_decide(): void
+    {
+        $session = OrderSession::factory()->create();
+        $url = route('order-sessions.show', $session->session_id);
+
+        $this->actingAs($this->userWith('view order-sessions', 'verify payments', 'reject payments'))
+            ->get($url)
+            ->assertOk()
+            ->assertSee('id="order-details-verify"', false)
+            ->assertSee('id="order-details-reject"', false)
+            ->assertSee('id="order-reject-reason"', false);
+
+        // Each button follows its own permission; the popup is gone for good.
+        $this->actingAs($this->userWith('view order-sessions', 'verify payments'))
+            ->get($url)
+            ->assertSee('id="order-details-verify"', false)
+            ->assertDontSee('id="order-details-reject"', false);
+
+        $this->actingAs($this->userWith('view order-sessions'))
+            ->get($url)
+            ->assertOk()
+            ->assertDontSee('id="order-details-verify"', false)
+            ->assertDontSee('id="order-details-reject"', false)
+            ->assertDontSee('order-details-payment-button', false)
+            ->assertDontSee('view-payment-modal', false);
+    }
+
+    public function test_a_pending_orders_row_carries_the_decision_urls(): void
+    {
+        $session = OrderSession::factory()->create();
+        $pending = Order::factory()->create(['session_id' => $session->session_id]);
+        $decided = Order::factory()->create(['session_id' => $session->session_id, 'payment_status' => 'verified']);
+
+        Payment::factory()->create(['order_id' => $pending->order_id, 'payment_status' => 'pending']);
+        Payment::factory()->create(['order_id' => $decided->order_id, 'payment_status' => 'verified']);
+
+        $rows = fn ($user) => collect(
+            $this->actingAs($user)
+                ->getJson(route('order-sessions.show', $session->session_id), $this->ajax())
+                ->assertOk()
+                ->json('data')
+        )->keyBy('order_id');
+
+        $admin = $rows($this->userWith('view order-sessions', 'verify payments', 'reject payments'));
+
+        $this->assertSame(route('payments.verify', $pending->order_id), $admin[$pending->order_id]['verify_url']);
+        $this->assertSame(route('payments.reject', $pending->order_id), $admin[$pending->order_id]['reject_url']);
+        // A payment that is already decided has nothing to decide here.
+        $this->assertNull($admin[$decided->order_id]['verify_url']);
+        $this->assertNull($admin[$decided->order_id]['reject_url']);
+
+        // Without the permissions the URLs are not handed out.
+        $viewer = $rows($this->userWith('view order-sessions'));
+
+        $this->assertNull($viewer[$pending->order_id]['verify_url']);
+        $this->assertNull($viewer[$pending->order_id]['reject_url']);
+    }
+
+    public function test_deciding_from_an_order_goes_through_the_payment_routes(): void
+    {
+        $session = OrderSession::factory()->create();
+        $order = Order::factory()->create(['session_id' => $session->session_id]);
+        Payment::factory()->create(['order_id' => $order->order_id, 'payment_status' => 'pending']);
+
+        $this->actingAs($this->userWith('verify payments'))
+            ->postJson(route('payments.verify', $order->order_id))
+            ->assertOk();
+
+        $this->assertDatabaseHas('orders', ['order_id' => $order->order_id, 'payment_status' => 'verified']);
+    }
     public function test_an_unknown_session_is_a_404_for_the_page_and_the_feed(): void
     {
         $user = $this->userWith('view order-sessions');

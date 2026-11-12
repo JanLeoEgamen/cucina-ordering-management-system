@@ -73,7 +73,7 @@ class OrderSession extends Model
                 self::TABLE . '.ended_at',
                 self::TABLE . '.is_active',
                 self::TABLE . '.created_by',
-                'users.name as created_by_name',
+                DB::raw(User::fullNameSql('users') . ' as created_by_name'),
             ])
             ->selectSub($dishes, 'dishes_count')
             ->selectSub($orders, 'orders_count')
@@ -104,7 +104,7 @@ class OrderSession extends Model
                 self::TABLE . '.ended_at',
                 self::TABLE . '.is_active',
                 self::TABLE . '.created_by',
-                'users.name as created_by_name',
+                DB::raw(User::fullNameSql('users') . ' as created_by_name'),
             ]);
 
         if (! $session) {

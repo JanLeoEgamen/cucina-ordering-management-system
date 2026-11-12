@@ -49,32 +49,50 @@ class Order extends Model
     /* -------- Reads -------- */
 
     // The orders of one session, with the customer, the payment and the lines,
-    // for the orders list in the view drawer.
+    // for the orders list of the session page.
     public static function ofSession(int $sessionId): array
+    {
+        return self::list($sessionId);
+    }
+
+    // Every live order of every session, newest first, for the Orders page.
+    public static function getAll(): array
+    {
+        return self::list();
+    }
+
+    // The orders of one session, or of all of them, with the customer, the session
+    // they were placed in, the payment and the lines.
+    protected static function list(?int $sessionId = null): array
     {
         $orders = DB::table(self::TABLE)
             ->join('users', 'users.id', '=', self::TABLE . '.user_id')
+            ->leftJoin('order_sessions', 'order_sessions.session_id', '=', self::TABLE . '.session_id')
             ->leftJoin('payments', 'payments.order_id', '=', self::TABLE . '.order_id')
             ->leftJoin('payment_methods', 'payment_methods.method_id', '=', 'payments.payment_method_id')
             ->leftJoin('users as verifiers', 'verifiers.id', '=', 'payments.verified_by')
-            ->where(self::TABLE . '.session_id', $sessionId)
+            ->when($sessionId !== null, fn ($query) => $query->where(self::TABLE . '.session_id', $sessionId))
             ->whereNull(self::TABLE . '.deleted_at')
             ->orderByDesc(self::TABLE . '.order_id')
             ->get([
                 self::TABLE . '.order_id',
+                self::TABLE . '.session_id',
+                'order_sessions.order_date as session_date',
+                'order_sessions.start_time as session_start',
+                'order_sessions.end_time as session_end',
                 self::TABLE . '.order_number',
                 self::TABLE . '.order_date',
                 self::TABLE . '.total_amount',
                 self::TABLE . '.order_status',
                 self::TABLE . '.payment_status',
-                'users.name as customer_name',
+                DB::raw(User::fullNameSql('users') . ' as customer_name'),
                 'payments.payment_method_id',
                 'payments.reference_number',
                 'payments.proof_of_payment',
                 'payments.payment_status as payment_state',
                 'payments.verified_at',
                 'payment_methods.method_name',
-                'verifiers.name as verified_by_name',
+                DB::raw(User::fullNameSql('verifiers') . ' as verified_by_name'),
             ]);
 
         // One query for the lines of every order in the list.
@@ -110,6 +128,7 @@ class Order extends Model
                 'order_sessions.end_time',
                 'payments.reference_number',
                 'payments.proof_of_payment',
+                'payments.rejection_reason',
                 'payments.payment_status as payment_state',
                 'payment_methods.method_name',
             ]);
@@ -140,6 +159,15 @@ class Order extends Model
         $order->payment = Payment::ofOrder($orderId);
 
         return $order;
+    }
+
+    // The status of a live order, or null when there is none.
+    public static function statusOf(int $orderId): ?string
+    {
+        return DB::table(self::TABLE)
+            ->where('order_id', $orderId)
+            ->whereNull('deleted_at')
+            ->value('order_status');
     }
 
     // Check whether a live order exists.
