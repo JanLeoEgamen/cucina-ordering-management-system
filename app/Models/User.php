@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -27,7 +28,8 @@ class User extends Authenticatable
 
     // Insertable and updatable columns.
     protected $fillable = [
-        'name',
+        'first_name',
+        'last_name',
         'email',
         'password',
     ];
@@ -47,6 +49,26 @@ class User extends Authenticatable
         ];
     }
 
+    // The person's full name, for display (the sidebar, "created by" ...). It is
+    // computed from the two columns, so there is no `name` column to keep in step.
+    protected function name(): Attribute
+    {
+        return Attribute::get(fn () => trim($this->first_name . ' ' . $this->last_name));
+    }
+
+    // The same full name as a SQL expression, for the query builder joins that show
+    // who a customer / creator / verifier is: User::fullNameSql('verifiers') . ' as x'.
+    // CONCAT is not in SQLite (the tests), where || joins strings.
+    public static function fullNameSql(string $table = self::TABLE): string
+    {
+        $first = $table . '.first_name';
+        $last = $table . '.last_name';
+
+        return DB::connection()->getDriverName() === 'sqlite'
+            ? "TRIM({$first} || ' ' || {$last})"
+            : "TRIM(CONCAT({$first}, ' ', {$last}))";
+    }
+
     /* -------- Reads -------- */
 
     // Get all live users with their role names, for the table feed.
@@ -56,8 +78,9 @@ class User extends Authenticatable
 
         return DB::table(self::TABLE)
             ->whereNull('deleted_at')
-            ->select(['id', 'name', 'email'])
-            ->orderBy('name')
+            ->select(['id', 'first_name', 'last_name', DB::raw(self::fullNameSql() . ' as name'), 'email'])
+            ->orderBy('first_name')
+            ->orderBy('last_name')
             ->get()
             ->map(function (object $user) use ($roles) {
                 $user->role_names = $roles[$user->id] ?? [];
@@ -77,6 +100,9 @@ class User extends Authenticatable
         if (! $user) {
             return null;
         }
+
+        // The view drawer prints the full name; the edit drawer fills the two parts.
+        $user->name = trim($user->first_name . ' ' . $user->last_name);
 
         // Ids tick the checkboxes in the edit drawer, names are printed by the
         // view drawer, so both travel with the record.
@@ -139,7 +165,8 @@ class User extends Authenticatable
         $now = now();
 
         $userId = (int) DB::table(self::TABLE)->insertGetId([
-            'name' => $attributes['name'],
+            'first_name' => $attributes['first_name'],
+            'last_name' => $attributes['last_name'],
             'email' => $attributes['email'],
             'password' => Hash::make($attributes['password']),
             'created_at' => $now,
@@ -155,7 +182,8 @@ class User extends Authenticatable
     public static function updateUser(int $userId, array $attributes, array $roleIds): int
     {
         $values = [
-            'name' => $attributes['name'],
+            'first_name' => $attributes['first_name'],
+            'last_name' => $attributes['last_name'],
             'email' => $attributes['email'],
             'updated_at' => now(),
         ];

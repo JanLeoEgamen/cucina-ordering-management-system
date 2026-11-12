@@ -5,21 +5,28 @@
 
     @php
         $label = 'block text-sm font-medium text-gray-700 dark:text-gray-300';
-        $input = 'block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm leading-5 text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400';
-        $th = 'border-b border-gray-200 bg-gray-100 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap dark:border-gray-700 dark:bg-gray-700/50 dark:text-gray-300';
-        $cancelButton = 'rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:focus:ring-gray-700';
-        $submitButton = 'rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-800';
+        $input = 'block w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm leading-5 text-gray-900 placeholder-gray-400 transition focus:border-gray-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700/60 dark:text-white dark:placeholder-gray-400 dark:focus:border-gray-300 dark:focus:bg-gray-700 dark:focus:ring-gray-600';
+        $th = 'border-b border-gray-100 bg-transparent px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap dark:border-gray-700 dark:text-gray-400';
+        $cancelButton = 'rounded-full border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:focus:ring-gray-700';
+        $submitButton = 'rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-gray-300 dark:focus:ring-gray-600';
     @endphp
 
     <div class="container mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
+            {{-- Search and sort (resources/js/ui/table-toolbar.js). --}}
+            <x-ui.table-toolbar :views="[]" :sorts="[
+                [__('Name: A to Z'), 1, 'asc'],
+                [__('Most permissions'), 2, 'desc'],
+                [__('Most users'), 3, 'desc'],
+            ]" />
+
             {{-- Rows come from this route's AJAX response (client side table);
                  `data-endpoint` is read by resources/js/pages/roles.js. --}}
             <table id="roles-table"
                    data-endpoint="{{ route('roles.index') }}"
                    data-protected-label="{{ __('Protected') }}"
                    class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50 dark:bg-gray-700">
+                <thead class="bg-gray-50/70 dark:bg-gray-900/40">
                     <tr>
                         <th scope="col" class="{{ $th }} w-12">#</th>
                         <th scope="col" class="{{ $th }}">{{ __('Role') }}</th>
@@ -28,17 +35,17 @@
                         <th scope="col" class="{{ $th }} text-right">{{ __('Actions') }}</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800"></tbody>
+                <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-700 dark:bg-gray-800"></tbody>
             </table>
         </div>
     </div>
 
     {{-- Create drawer --}}
     <x-ui.drawer name="create-role-drawer" placement="right" size="lg">
-        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+        <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-700">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Create Role') }}</h3>
             <button type="button"
-                    class="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                    class="rounded-full border border-gray-200 p-2.5 text-gray-500 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
                     x-on:click="show = false">
                 <span class="sr-only">{{ __('Close') }}</span>
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -89,10 +96,10 @@
 
     {{-- Edit drawer --}}
     <x-ui.drawer name="edit-role-drawer" placement="right" size="lg">
-        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+        <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-700">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Edit Role') }}</h3>
             <button type="button"
-                    class="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                    class="rounded-full border border-gray-200 p-2.5 text-gray-500 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
                     x-on:click="show = false">
                 <span class="sr-only">{{ __('Close') }}</span>
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -144,13 +151,13 @@
     {{-- View drawer: read only. resources/js/pages/roles.js fills it from the same
          endpoint the edit drawer loads. --}}
     <x-ui.drawer name="view-role-drawer" placement="right" size="lg">
-        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+        <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-700">
             <h3 class="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
                 {{ __('Role Details') }}
                 <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ __('View only') }}</span>
             </h3>
             <button type="button"
-                    class="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                    class="rounded-full border border-gray-200 p-2.5 text-gray-500 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
                     x-on:click="show = false">
                 <span class="sr-only">{{ __('Close') }}</span>
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -183,7 +190,7 @@
             </dl>
         </div>
 
-        <div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
+        <div class="flex justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-700">
             <button type="button" class="{{ $cancelButton }}" x-on:click="show = false">{{ __('Close') }}</button>
         </div>
     </x-ui.drawer>

@@ -1,11 +1,12 @@
 /**
  * Users list page.
  *
- * Same shape as resources/js/pages/dish-types.js - table, drawer wiring,
+ * Same shape as resources/js/pages/dishes.js - table, drawer wiring,
  * confirmations, requests - with this page's fields, and a checkbox picker for
  * the roles. A blank password on the edit form keeps the stored one.
  */
 import DataTable from 'datatables.net-dt';
+import { initTableToolbar } from '../ui/table-toolbar';
 import { showToast } from '../ui/toast';
 
 const start = () => {
@@ -66,12 +67,15 @@ const start = () => {
             // `null`, not omitted: the layout object is merged over DataTables'
             // defaults, which place the page length in the top row as well.
             topStart: null,
-            topEnd: 'search',
+            // The toolbar above the table (resources/js/ui/table-toolbar.js) searches instead.
+            topEnd: null,
             bottomStart: ['info', 'pageLength'],
             bottomEnd: 'paging',
         },
         language: {
-            search: 'Search',
+            // No label next to the box: the placeholder says it (the label is hidden in app.css).
+            search: '',
+            searchPlaceholder: 'Search…',
             lengthMenu: '_MENU_ per page',
             infoEmpty: 'No rows to show',
             infoFiltered: '(filtered from _MAX_ rows)',
@@ -91,6 +95,9 @@ const start = () => {
             { data: 'action', orderable: false, searchable: false, className: 'whitespace-nowrap text-right' },
         ],
     });
+
+    // Search, sort and the filter dropdown above the table.
+    initTableToolbar(table);
 
     const reload = () => table.ajax.reload(null, false);
 
@@ -390,8 +397,9 @@ const start = () => {
             showErrors(errors, []);
             pendingForm = { form, errors };
 
+            // One field, or several separated by spaces (first_name last_name), joined with a space.
             const subject = form.dataset.subjectField
-                ? String(form.elements[form.dataset.subjectField]?.value ?? '').trim()
+                ? form.dataset.subjectField.split(' ').map((field) => String(form.elements[field]?.value ?? '').trim()).filter(Boolean).join(' ')
                 : '';
 
             confirmTitle.textContent = form.dataset.confirmTitle ?? confirmTitle.textContent;
