@@ -16,7 +16,7 @@ Source of truth: `database/migrations/`. `scripts/harness.php` fails if a create
 ### Auth & permissions
 | Table | Notes |
 |---|---|
-| `users` | Breeze users. `first_name`, `last_name` (both required; there is **no `name` column** since `2026_11_12_200000`, which split the old one on its last space — a single word became the first name with an empty last name). The full name is computed: `User::name` accessor in PHP, `User::fullNameSql($table)` in query builder joins (`TRIM(CONCAT(first, ' ', last))`, `||` on SQLite). `email`, `password`, soft deletes (`2026_11_10_100000`). |
+| `users` | Breeze users. `first_name`, `last_name` (both required; there is **no `name` column** since `2026_11_12_200000`, which split the old one on its last space — a single word became the first name with an empty last name). The full name is computed: `User::name` accessor in PHP, `User::fullNameSql($table)` in query builder joins (`TRIM(CONCAT(first, ' ', last))`, `||` on SQLite). `company` (nullable string, after `last_name`; `2026_11_13_200000` — optional, NULL for accounts that predate it or leave it blank). `google_id` (nullable, **unique**, after `email`; `2026_11_13_300000`): Google's `sub`, saved on the first "Continue with Google"; NULL for everyone else. `profile_completed_at` (nullable timestamp, after `email_verified_at`; `2026_11_13_400000`): when the person gave the details the app needs; NULL only for a Google sign-up that has not yet submitted `/complete-profile` (the `profile.complete` middleware holds them there). The migration set it on every existing row. `email`, `password`, soft deletes (`2026_11_10_100000`). |
 | `password_reset_tokens`, `sessions` | Created with `users` (sessions are DB-backed). |
 | `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs` | Laravel infrastructure (cache + queue = database). |
 | `permissions`, `roles`, `model_has_permissions`, `model_has_roles`, `role_has_permissions` | Spatie. Role/permission rows are written via the query builder; `PermissionRegistrar` cache must be forgotten after direct writes. |
@@ -36,8 +36,19 @@ Source of truth: `database/migrations/`. `scripts/harness.php` fails if a create
 | `session_dishes` | Dishes offered in a session: `session_id`, `dish_id` (unique pair), `available_stock`, `reserved_stock`, `is_available`, `is_active`. Cascade with session/dish. |
 | `orders` | `order_id`, `session_id`, `user_id`, `order_number` unique (`ORD-YYYYMMDD-NNNN`), `order_date`, `total_amount`, `order_status` (`pending`/`completed`/`cancelled`), `payment_status` (`pending`/`verified`/`rejected`). |
 | `order_items` | `order_item_id`, `order_id`, `session_dish_id`, `quantity`, `unit_price`, `sub_total` (price is copied at order time). |
-| `settings` | System configuration, one row per key: `key` (primary), `value?` (text), timestamps. **No soft delete**: a setting is replaced, and an unsaved key falls back to `Setting::DEFAULTS`. Keys: `order_session.default_start_time` (09:00), `order_session.default_end_time` (17:00). |
+| `settings` | System configuration, one row per key: `key` (primary), `value?` (text), timestamps. **No soft delete**: a setting is replaced, and an unsaved key falls back to `Setting::DEFAULTS`. Keys: `order_session.default_start_time` (09:00), `order_session.default_end_time` (17:00), `notifications.watchers` (JSON list of user ids who receive every notification, default `[]`; read by `Setting::notificationWatchers()`, a damaged value reads as nobody). |
+| `user_notifications` | In-app notifications, one row per person told (migration `2026_11_13_100000`): `id`, `user_id` → users, `type` (`order_placed`, `payment_verified`, `payment_rejected`, `order_completed`, `order_cancelled`, `payment_resent`, `dish_sold_out`), `title` (160), `body?` (500), `url?` (a local path), `order_id?` (no foreign key on purpose: a notification never blocks an order), `read_at?`, `created_at`. The text is stored ready to print, so lists and counts join nothing. **No soft delete and no `updated_at`** (an exception to the soft-delete rule: it is not a record to keep; `php artisan notifications:prune` deletes read rows after 30 days and any after 90). Not called `notifications`: that is Laravel's own (uuid + morph) table, which the app does not use. Indexes: `(user_id, read_at, id)` unread count, `(user_id, id)` list / poll, `created_at` prune. Run `php artisan migrate`. |
 | `payments` | PK `order_id`; `payment_method_id` → payment_methods, `verified_by?` → users, `verified_at?`, `amount`, `reference_number?`, `proof_of_payment?` (path on `public` disk), `payment_status`, `rejection_reason?` (max 500, set by a rejection, cleared by undo; added in `2026_11_12_100000`). `orders.payment_status` mirrors it. |
+
+### Bulk orders
+A parallel set of tables, **not** a type flag on `order_sessions` / `orders` (those assume one menu, stock and a separate `payments` table). Migrations `2026_11_13_2001..2004`; run `php artisan migrate`. All four are soft-deleted like the rest.
+
+| Table | Columns / notes |
+|---|---|
+| `bulk_sessions` | `bulk_session_id`, `created_by` → users, `title?`, `order_date`, `start_time`, `end_time`, `min_quantity` (fewest plates, all dishes together, one order must hold; default 10), `ended_at?`, `is_active`. **Status is computed** like an order session (`BulkSession::statusOf`). Unlike order sessions, two open windows may not overlap (`BulkSession::overlaps`, enforced by the controller). |
+| `bulk_session_dishes` | Dishes offered in a bulk session: `bulk_session_id`, `dish_id` (unique pair), `is_available`, `is_active`. **No stock columns**: a bulk session has no limit. A dish removed from the session is soft-deleted, not dropped (order lines point at it). |
+| `bulk_orders` | `bulk_order_id`, `bulk_session_id`, `user_id`, `order_number` unique (`BLK-YYYYMMDD-NNNN`, own counter), `order_date`, `total_amount`, `order_status` (`pending`/`completed`/`cancelled`), and the **payment inline** (a bulk order has exactly one): `payment_method_id` → payment_methods, `payment_status` (`pending`/`verified`/`rejected`), `reference_number?`, `proof_of_payment?`, `rejection_reason?` (500), `verified_by?` → users, `verified_at?`. |
+| `bulk_order_items` | `bulk_order_item_id`, `bulk_order_id`, `bulk_session_dish_id`, `quantity`, `unit_price`, `sub_total` (price copied at order time). |
 
 ## Relationships (summary)
 
@@ -47,6 +58,11 @@ users 1─* order_sessions 1─* session_dishes *─1 dishes *─* dish_types
                   └─* orders 1─* order_items ──┘ (via session_dish_id)
                         │
                         └─1 payments *─1 payment_methods
+
+users 1─* bulk_sessions 1─* bulk_session_dishes *─1 dishes
+                  │                  │
+                  └─* bulk_orders 1─* bulk_order_items ──┘ (via bulk_session_dish_id)
+                        └─* payment_methods (payment is inline)
 ```
 
 ## Seeding

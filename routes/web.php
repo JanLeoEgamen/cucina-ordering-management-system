@@ -1,7 +1,10 @@
 <?php
 
+use App\Http\Controllers\BulkOrderController;
+use App\Http\Controllers\BulkSessionController;
 use App\Http\Controllers\DishController;
 use App\Http\Controllers\DishTypeController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderSessionController;
 use App\Http\Controllers\PaymentController;
@@ -10,13 +13,13 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WelcomeController;
 use App\Models\OrderSession;
 use App\Models\Payment;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+// The public landing page.
+Route::get('/', WelcomeController::class)->name('welcome');
 
 Route::get('/dashboard', function () {
     return view('dashboard', [
@@ -25,9 +28,10 @@ Route::get('/dashboard', function () {
         'live' => OrderSession::live(),
         'pendingPayments' => auth()->user()->can('view payments') ? Payment::pendingCount() : null,
     ]);
-})->middleware(['auth', 'verified'])->name('dashboard');
+})->middleware(['auth', 'profile.complete', 'verified'])->name('dashboard');
 
-Route::middleware('auth')->group(function () {
+// `profile.complete`: a user who signed up with Google is held on /complete-profile first.
+Route::middleware(['auth', 'profile.complete'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -89,9 +93,32 @@ Route::middleware('auth')->group(function () {
     Route::delete('/order-sessions/{id}', [OrderSessionController::class, 'destroy'])
         ->whereNumber('id')->name('order-sessions.destroy');
 
+    // Bulk sessions (staff): index serves the page and (on an AJAX request) the feed.
+    Route::get('/bulk-sessions', [BulkSessionController::class, 'index'])->name('bulk-sessions.index');
+    Route::post('/bulk-sessions', [BulkSessionController::class, 'store'])->name('bulk-sessions.store');
+    Route::get('/bulk-sessions/{id}', [BulkSessionController::class, 'show'])
+        ->whereNumber('id')->name('bulk-sessions.show');
+    Route::get('/bulk-sessions/{id}/edit', [BulkSessionController::class, 'edit'])
+        ->whereNumber('id')->name('bulk-sessions.edit');
+    Route::put('/bulk-sessions/{id}', [BulkSessionController::class, 'update'])
+        ->whereNumber('id')->name('bulk-sessions.update');
+    Route::post('/bulk-sessions/{id}/end', [BulkSessionController::class, 'end'])
+        ->whereNumber('id')->name('bulk-sessions.end');
+    Route::delete('/bulk-sessions/{id}', [BulkSessionController::class, 'destroy'])
+        ->whereNumber('id')->name('bulk-sessions.destroy');
+
+    // Bulk orders (customer): the bulk menu of the running bulk session, the orders placed
+    // from it (throttled per user like the regular ones) and the customer's own list.
+    Route::get('/bulk-menu', [BulkOrderController::class, 'index'])->name('bulk-menu.index');
+    Route::post('/bulk-orders', [BulkOrderController::class, 'store'])->middleware('throttle:10,1')->name('bulk-orders.store');
+    Route::get('/bulk-my-orders', [BulkOrderController::class, 'mine'])->name('bulk-my-orders.index');
+
     // The menu: the dishes of the running session, and the orders placed from it.
     Route::get('/menu', [OrderController::class, 'index'])->name('menu.index');
-    Route::post('/orders', [OrderController::class, 'store'])->name('orders.store');
+    // Live stock for the menu cards (polled every few seconds; AJAX only).
+    Route::get('/menu/stock', [OrderController::class, 'stock'])->name('menu.stock');
+    // Throttled per user: a stuck key or a script cannot hammer the stock rows.
+    Route::post('/orders', [OrderController::class, 'store'])->middleware('throttle:10,1')->name('orders.store');
     // Every order of every session (page, and its table feed on an AJAX request).
     Route::get('/orders', [OrderController::class, 'all'])->name('orders.index');
     // Staff close an order once it is handed over: pending -> completed.
@@ -102,6 +129,19 @@ Route::middleware('auth')->group(function () {
         ->whereNumber('id')->name('orders.cancel');
     // The customer's own orders: what they placed, and how they paid.
     Route::get('/my-orders', [OrderController::class, 'mine'])->name('my-orders.index');
+    // A rejected payment can be fixed by its customer: a new proof, or cash on pickup.
+    Route::post('/my-orders/{id}/payment/proof', [OrderController::class, 'resubmitProof'])
+        ->whereNumber('id')->middleware('throttle:10,1')->name('my-orders.payment.proof');
+    Route::post('/my-orders/{id}/payment/cash', [OrderController::class, 'switchToCash'])
+        ->whereNumber('id')->middleware('throttle:10,1')->name('my-orders.payment.cash');
+
+    // The signed-in user's own notifications. No permission (like the profile): every
+    // query is scoped to the user. The feed is what the bell polls.
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/feed', [NotificationController::class, 'feed'])->name('notifications.feed');
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+    Route::get('/notifications/{id}/open', [NotificationController::class, 'open'])
+        ->whereNumber('id')->name('notifications.open');
 
     // System configuration (the default order session window, ...): view settings / edit settings.
     Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');

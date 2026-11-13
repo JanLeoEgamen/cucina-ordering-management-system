@@ -15,7 +15,7 @@ class DatabaseSeeder extends Seeder
     {
         User::firstOrCreate(
             ['email' => 'test@example.com'],
-            ['first_name' => 'Test', 'last_name' => 'User', 'password' => bcrypt('password')]
+            ['first_name' => 'Test', 'last_name' => 'User', 'password' => bcrypt('password'), 'profile_completed_at' => now()]
         );
 
         // Permissions, and the Super Admin role on the account above: without
