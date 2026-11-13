@@ -332,7 +332,30 @@
    Desktop only (lg+): below lg the sidebar is an off-canvas drawer and always
    shows its labels.
 --------------------------------------------------------------------------- */
+/* Folded sidebar groups: <html data-nav-closed="catalog access"> (set before paint from
+   localStorage, and by toggleGroup in layouts/app.blade.php). The group's links go, its title
+   stays with the chevron turned. Plain attribute selectors, one per group, because Tailwind
+   cannot see a value that only exists at run time. */
+html[data-nav-closed~='ordering'] [data-nav-group='ordering'] .nav-group-items,
+html[data-nav-closed~='service'] [data-nav-group='service'] .nav-group-items,
+html[data-nav-closed~='catalog'] [data-nav-group='catalog'] .nav-group-items,
+html[data-nav-closed~='access'] [data-nav-group='access'] .nav-group-items {
+    display: none;
+}
+
+html[data-nav-closed~='ordering'] [data-nav-group='ordering'] .nav-chevron,
+html[data-nav-closed~='service'] [data-nav-group='service'] .nav-chevron,
+html[data-nav-closed~='catalog'] [data-nav-group='catalog'] .nav-chevron,
+html[data-nav-closed~='access'] [data-nav-group='access'] .nav-chevron {
+    transform: rotate(-90deg);
+}
+
 @media (min-width: 1024px) {
+    /* The icon rail has no titles to press: every group shows its icons, folded or not. */
+    html.cucina-sidebar-collapsed .nav-group-items {
+        display: block !important;
+    }
+
     html.cucina-sidebar-collapsed #app-sidebar {
         width: 5rem;
     }
@@ -358,8 +381,7 @@
         padding-right: 0;
     }
 
-    html.cucina-sidebar-collapsed .sidebar-brand,
-    html.cucina-sidebar-collapsed .sidebar-user {
+    html.cucina-sidebar-collapsed .sidebar-brand {
         justify-content: center;
     }
 
@@ -580,6 +602,12 @@ html {
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
+    }
+
+    /* The sign-in collage is decoration: with reduced motion it stands still, instead of
+       jumping to the end of its loop. */
+    [data-collage-track] {
+        animation: none !important;
     }
 }
 

@@ -17,7 +17,7 @@
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
             {{-- Search, sort, filter and the view tabs (resources/js/ui/table-toolbar.js). The filter narrows
                  the feed in the browser (no request); it is read by resources/js/pages/payment-methods.js. --}}
-            <x-ui.table-toolbar :views="['table', 'card']" :sorts="[
+            <x-ui.table-toolbar :export-title="__('Payment Methods')" :views="['table', 'card']" :sorts="[
                 [__('Name: A to Z'), 2, 'asc'],
                 [__('Name: Z to A'), 2, 'desc'],
                 [__('Account: A to Z'), 3, 'asc'],
@@ -39,12 +39,12 @@
                    class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead class="bg-gray-50/70 dark:bg-gray-900/40">
                     <tr>
-                        <th scope="col" class="{{ $th }} w-12">#</th>
-                        <th scope="col" class="{{ $th }} w-20">{{ __('QR') }}</th>
+                        <th scope="col" data-no-export class="{{ $th }} w-12">#</th>
+                        <th scope="col" data-no-export class="{{ $th }} w-20">{{ __('QR') }}</th>
                         <th scope="col" class="{{ $th }}">{{ __('Method Name') }}</th>
                         <th scope="col" class="{{ $th }} hidden sm:table-cell">{{ __('Account') }}</th>
                         <th scope="col" class="{{ $th }} hidden sm:table-cell">{{ __('Status') }}</th>
-                        <th scope="col" class="{{ $th }} text-right">{{ __('Actions') }}</th>
+                        <th scope="col" data-no-export class="{{ $th }} text-right">{{ __('Actions') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-700 dark:bg-gray-800"></tbody>

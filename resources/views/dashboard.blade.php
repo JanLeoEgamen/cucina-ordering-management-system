@@ -7,7 +7,10 @@
     $tiles = collect([
         ['permission' => 'view menu', 'route' => 'menu.index', 'title' => __('Order Menu'), 'text' => __('Browse the live menu and place an order.')],
         ['permission' => 'view my orders', 'route' => 'my-orders.index', 'title' => __('My Orders'), 'text' => __('Follow what you ordered and how you paid.')],
+        ['permission' => 'view bulk-menu', 'route' => 'bulk-menu.index', 'title' => __('Bulk Orders'), 'text' => __('Order big quantities for a party or an event.')],
+        ['permission' => 'view my bulk-orders', 'route' => 'bulk-my-orders.index', 'title' => __('My Bulk Orders'), 'text' => __('Follow your bulk orders and how you paid.')],
         ['permission' => 'view order-sessions', 'route' => 'order-sessions.index', 'title' => __('Order Sessions'), 'text' => __('Open a selling window, set its stock, see its orders.')],
+        ['permission' => 'view bulk-sessions', 'route' => 'bulk-sessions.index', 'title' => __('Bulk Sessions'), 'text' => __('Open a window for big orders, with a minimum number of plates.')],
         ['permission' => 'view orders', 'route' => 'orders.index', 'title' => __('Orders'), 'text' => __('Every order of every session: details, complete or cancel.')],
         ['permission' => 'view payments', 'route' => 'payments.index', 'title' => __('Payments'), 'text' => __('Check proofs, verify or reject payments.')],
         ['permission' => 'view dishes', 'route' => 'dishes.index', 'title' => __('Dish Masterlist'), 'text' => __('Dishes with their photos and prices, and the types they are sorted by.')],

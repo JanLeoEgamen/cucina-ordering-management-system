@@ -110,7 +110,7 @@ const start = () => {
     };
 
     // Currency with thousands separators; tabular figures line the decimals up.
-    const money = (value) => '$' + Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const money = (value) => '₱' + Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     const priceCell = (value, type) => (type === 'display' ? money(value) : Number(value));
 

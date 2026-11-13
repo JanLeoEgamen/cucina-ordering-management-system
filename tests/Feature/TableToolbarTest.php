@@ -71,8 +71,13 @@ class TableToolbarTest extends TestCase
         $this->assertStringContainsString('sm:inset-x-auto sm:right-0 sm:w-80', $html);
         $this->assertStringContainsString('sm:relative', $html);
 
-        // The sort choice is clipped, and left out on the narrowest phones.
-        $this->assertStringContainsString('hidden max-w-[6.5rem] truncate min-[400px]:inline', $html);
+        // The bar buttons are icon only on a phone (the search field needs the room) and get
+        // their labels from `sm`; the icon-only buttons keep an accessible name.
+        $this->assertStringContainsString('hidden max-w-[6.5rem] truncate sm:inline', $html);
+        $this->assertStringContainsString('<span class="hidden sm:inline">Export</span>', $html);
+        $this->assertStringContainsString('<span class="hidden sm:inline">Filter</span>', $html);
+        $this->assertStringContainsString('aria-label="Sort" title="Sort"', $html);
+        $this->assertStringContainsString('min-w-[7rem] flex-1', $html);
     }
 
     public function test_the_filters_keep_their_ids_inside_the_dropdown(): void

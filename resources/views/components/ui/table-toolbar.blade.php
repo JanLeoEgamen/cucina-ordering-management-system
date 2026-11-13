@@ -5,6 +5,8 @@
     'sorts' => [],
     // A heading before the tabs (for a table that sits inside a page, not a page of its own).
     'title' => null,
+    // The name of the exported file and the heading of the PDF. Defaults to the page title.
+    'exportTitle' => null,
 ])
 
 {{--
@@ -42,7 +44,7 @@
     $tab = 'inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium text-gray-500 transition hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:text-gray-400 dark:hover:text-gray-200 dark:focus:ring-indigo-800 aria-pressed:bg-white aria-pressed:text-indigo-600 aria-pressed:shadow-sm dark:aria-pressed:bg-gray-900 dark:aria-pressed:text-indigo-400';
 @endphp
 
-<div data-table-toolbar class="relative z-20 flex flex-col gap-3 border-b border-gray-100 px-4 py-3 lg:flex-row lg:items-center lg:justify-between dark:border-gray-700">
+<div data-table-toolbar data-export-title="{{ $exportTitle }}" class="relative z-20 flex flex-col gap-3 border-b border-gray-100 px-4 py-3 lg:flex-row lg:items-center lg:justify-between dark:border-gray-700">
     {{-- Left: the view tabs --}}
     <div class="flex flex-wrap items-center gap-3">
         @if ($title)
@@ -63,7 +65,8 @@
 
     {{-- Right: one bar - search | Sort | Filter --}}
     <div class="relative flex min-w-0 items-center rounded-full border border-gray-200 bg-white p-1 shadow-sm sm:p-1.5 lg:w-[30rem] dark:border-gray-700 dark:bg-gray-800">
-        <label class="relative flex min-w-0 flex-1 items-center">
+        {{-- min-w keeps the field usable on a phone: the bar buttons are icon only there. --}}
+        <label class="relative flex min-w-[7rem] flex-1 items-center">
             <span class="sr-only">{{ __('Search') }}</span>
             <svg class="pointer-events-none absolute left-3.5 h-5 w-5 text-gray-400 sm:left-4 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
@@ -76,9 +79,9 @@
             <div class="flex flex-shrink-0 items-center">
                 @if ($hasSorts)
                     <div class="{{ $cell }}">
-                        <button type="button" data-table-sort-toggle aria-haspopup="true" aria-expanded="false" aria-controls="table-sort-panel" class="{{ $barButton }}">
+                        <button type="button" data-table-sort-toggle aria-haspopup="true" aria-expanded="false" aria-controls="table-sort-panel" aria-label="{{ __('Sort') }}" title="{{ __('Sort') }}" class="{{ $barButton }}">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7.5 7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5" /></svg>
-                            <span data-table-sort-label class="hidden max-w-[6.5rem] truncate min-[400px]:inline sm:max-w-none">{{ __('Sort') }}</span>
+                            <span data-table-sort-label class="hidden max-w-[6.5rem] truncate sm:inline sm:max-w-none">{{ __('Sort') }}</span>
                         </button>
 
                         <div id="table-sort-panel" data-popover role="menu" aria-label="{{ __('Sort by') }}" class="{{ $panel }}">
@@ -97,9 +100,9 @@
 
                 @if ($hasFilters)
                     <div class="{{ $cell }}">
-                        <button type="button" data-table-filter-toggle aria-haspopup="true" aria-expanded="false" aria-controls="table-filter-panel" class="{{ $barButton }}">
+                        <button type="button" data-table-filter-toggle aria-haspopup="true" aria-expanded="false" aria-controls="table-filter-panel" aria-label="{{ __('Filter') }}" title="{{ __('Filter') }}" class="{{ $barButton }}">
                             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M6 12h12M10 18h4" /></svg>
-                            {{ __('Filter') }}
+                            <span class="hidden sm:inline">{{ __('Filter') }}</span>
                             <span data-table-filter-count class="hidden min-w-[1.25rem] rounded-full bg-indigo-600 px-1.5 py-0.5 text-center text-xs font-semibold tabular-nums text-white">0</span>
                         </button>
 
@@ -120,5 +123,28 @@
                 @endif
             </div>
         @endif
+
+        {{-- Export: what the table shows now (search, filters, sort; all pages) as Excel or PDF.
+             The files are built in the browser by resources/js/ui/table-export.js. --}}
+        <div class="flex flex-shrink-0 items-center">
+            <div class="{{ $cell }}">
+                <button type="button" data-table-export-toggle aria-haspopup="true" aria-expanded="false" aria-controls="table-export-panel" aria-label="{{ __('Export') }}" title="{{ __('Export') }}" class="{{ $barButton }}">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M12 4v11m0 0 4-4m-4 4-4-4" /></svg>
+                    <span class="hidden sm:inline">{{ __('Export') }}</span>
+                </button>
+
+                <div id="table-export-panel" data-popover role="menu" aria-label="{{ __('Export') }}" class="{{ $panel }} sm:!w-56">
+                    <p class="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('Export the list as') }}</p>
+
+                    @foreach ([['xlsx', __('Excel (.xlsx)'), 'M9 17v-6m3 6V8m3 9v-4M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z'], ['pdf', __('PDF'), 'M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm7 0v5h5M9 13h6m-6 4h4']] as [$format, $formatLabel, $formatIcon])
+                        <button type="button" role="menuitem" data-table-export="{{ $format }}" data-loading-label="{{ __('Preparing...') }}"
+                                class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:text-gray-200 dark:hover:bg-gray-700/50">
+                            <svg class="h-4 w-4 flex-shrink-0 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ $formatIcon }}" /></svg>
+                            <span data-export-label>{{ $formatLabel }}</span>
+                        </button>
+                    @endforeach
+                </div>
+            </div>
+        </div>
     </div>
 </div>

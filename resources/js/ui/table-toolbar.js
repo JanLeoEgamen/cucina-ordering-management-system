@@ -29,6 +29,7 @@ export function initTableToolbar(table, root = document.querySelector('[data-tab
     const sortLabel = root.querySelector('[data-table-sort-label]');
     const sortOptions = [...root.querySelectorAll('[data-table-sort]')];
     const filterToggle = root.querySelector('[data-table-filter-toggle]');
+    const exportToggle = root.querySelector('[data-table-export-toggle]');
     const filterPanel = root.querySelector('#table-filter-panel');
     const filterCount = root.querySelector('[data-table-filter-count]');
     const clearButton = root.querySelector('[data-table-clear]');
@@ -155,7 +156,7 @@ export function initTableToolbar(table, root = document.querySelector('[data-tab
         }
     }
 
-    for (const toggle of [sortToggle, filterToggle]) {
+    for (const toggle of [sortToggle, filterToggle, exportToggle]) {
         toggle?.addEventListener('click', () => {
             const panel = document.getElementById(toggle.getAttribute('aria-controls'));
 
@@ -173,7 +174,7 @@ export function initTableToolbar(table, root = document.querySelector('[data-tab
     }
 
     document.addEventListener('click', (event) => {
-        if (!event.target.closest('[data-popover], [data-table-sort-toggle], [data-table-filter-toggle]')) {
+        if (!event.target.closest('[data-popover], [data-table-sort-toggle], [data-table-filter-toggle], [data-table-export-toggle]')) {
             closePopovers();
         }
     });
@@ -183,6 +184,37 @@ export function initTableToolbar(table, root = document.querySelector('[data-tab
             closePopovers();
         }
     });
+
+    /* ---- export (Excel / PDF) ---------------------------------------------- */
+
+    // What is exported is what the table shows now (search, filters, sort; every page).
+    // The writers are loaded on the first export, not with the page.
+    for (const button of root.querySelectorAll('[data-table-export]')) {
+        button.addEventListener('click', async () => {
+            closePopovers();
+
+            const label = button.querySelector('[data-export-label]');
+            const text = label?.textContent;
+
+            button.disabled = true;
+
+            if (label && button.dataset.loadingLabel) {
+                label.textContent = button.dataset.loadingLabel;
+            }
+
+            try {
+                const { exportTable } = await import('./table-export.js');
+
+                await exportTable(table, { format: button.dataset.tableExport, title: root.dataset.exportTitle || document.title });
+            } finally {
+                button.disabled = false;
+
+                if (label && text) {
+                    label.textContent = text;
+                }
+            }
+        });
+    }
 
     return { syncSort, updateBadge };
 }

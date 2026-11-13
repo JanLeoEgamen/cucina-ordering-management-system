@@ -31,6 +31,18 @@
                     // localStorage can throw (private mode); the sidebar then
                     // simply starts expanded.
                 }
+
+                // The folded sidebar groups, restored before paint for the same reason:
+                // html[data-nav-closed="catalog access"] (see app.css and navigation.blade.php).
+                try {
+                    var closed = JSON.parse(localStorage.getItem('cucina.nav.closed') || '[]');
+
+                    if (Array.isArray(closed) && closed.length) {
+                        document.documentElement.setAttribute('data-nav-closed', closed.join(' '));
+                    }
+                } catch (error) {
+                    // Every group simply starts open.
+                }
             })();
         </script>
 
@@ -60,6 +72,39 @@
                         // Ignore: the sidebar still collapses for this page.
                     }
                 },
+                // Fold / unfold a sidebar group (Ordering, Service, ...). The folded ones live in the
+                // data-nav-closed attribute of <html>, which app.css reads, and in localStorage.
+                toggleGroup(key) {
+                    const root = document.documentElement;
+                    const closed = (root.getAttribute('data-nav-closed') || '').split(' ').filter(Boolean);
+                    const index = closed.indexOf(key);
+
+                    if (index === -1) {
+                        closed.push(key);
+                    } else {
+                        closed.splice(index, 1);
+                    }
+
+                    root.setAttribute('data-nav-closed', closed.join(' '));
+
+                    const header = document.querySelector('[data-nav-group=\'' + key + '\'] button[aria-controls]');
+                    header?.setAttribute('aria-expanded', index === -1 ? 'false' : 'true');
+
+                    try {
+                        // Stored for the next page; the group that holds the current page is
+                        // opened on arrival whatever is stored (see layouts/navigation).
+                        const stored = JSON.parse(localStorage.getItem('cucina.nav.closed') || '[]');
+                        const next = Array.isArray(stored) ? stored.filter((item) => item !== key) : [];
+
+                        if (index === -1) {
+                            next.push(key);
+                        }
+
+                        localStorage.setItem('cucina.nav.closed', JSON.stringify(next));
+                    } catch (error) {
+                        // Ignore: the group still folds for this page.
+                    }
+                },
              }"
              @keydown.escape.window="open = false">
             @include('layouts.navigation')
@@ -70,11 +115,24 @@
                 shrink that offset to 5rem (resources/css/app.css).
             --}}
             <div class="app-content pt-16 transition-[padding] duration-300 ease-in-out lg:pt-0 lg:pl-64">
+                {{--
+                    Desktop top bar: the theme switch, the notification bell (badge + latest
+                    notifications) and the account menu, always in the top right. Sticky and
+                    blurred so the bell stays in sight while the page scrolls. On a phone
+                    the same component lives in the fixed top bar (layouts/navigation).
+                    z-30 keeps it under every drawer, modal and the sidebar.
+                --}}
+                <div class="sticky top-0 z-30 hidden bg-gray-50/80 backdrop-blur dark:bg-gray-900/80 lg:block">
+                    <div class="mx-auto flex h-16 max-w-7xl items-center justify-end px-4 sm:px-6 lg:px-8">
+                        <x-ui.account-bar id="desktop" />
+                    </div>
+                </div>
+
                 <!-- Page Heading -->
                 @isset($header)
                     {{-- No bar: the title sits straight on the paper, like the pages it introduces. --}}
                     <header>
-                        <div class="max-w-7xl mx-auto px-4 pb-1 pt-8 sm:px-6 lg:px-8">
+                        <div class="max-w-7xl mx-auto px-4 pb-1 pt-8 sm:px-6 lg:px-8 lg:pt-2">
                             {{ $header }}
                         </div>
                     </header>

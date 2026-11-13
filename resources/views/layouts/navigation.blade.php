@@ -38,8 +38,10 @@
         <x-application-logo class="block h-8 w-auto fill-current text-gray-800 dark:text-white" />
         <span class="font-semibold tracking-tight text-gray-900 dark:text-white">Cucina</span>
     </a>
+    {{-- Theme switch, notification bell and account menu: one component, also used by the
+         desktop bar in layouts/app.blade.php (only one of the two is visible). --}}
     <div class="ml-auto">
-        <x-ui.theme-toggle />
+        <x-ui.account-bar id="phone" />
     </div>
 </header>
 
@@ -64,8 +66,7 @@
 
     {{--
         Collapse / expand handle: on the sidebar's right edge, halfway down, half of
-        it outside. In the middle it can never meet the profile card at the top or
-        the account links at the bottom, expanded or in the icon rail. Centred with
+        it outside, expanded or in the icon rail. Centred with
         a negative margin, not a transform: the press effect in app.css sets
         `transform` on pressed buttons and would otherwise make it jump. Desktop only
         (a phone has the top bar button and the close button).
@@ -100,23 +101,11 @@
             </button>
         </div>
 
-        {{-- Who is signed in: an ink card, like a membership card. The initial replaces
-             the external avatar image, so no name leaves this server. --}}
-        <div class="sidebar-user mt-1 flex flex-shrink-0 items-center gap-3 rounded-2xl bg-ink p-3 text-white shadow-card dark:bg-gray-800 dark:ring-1 dark:ring-white/10">
-            <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-mist text-sm font-bold text-ink" aria-hidden="true">
-                {{ mb_strtoupper(mb_substr(Auth::user()->first_name, 0, 1)) }}{{ mb_strtoupper(mb_substr(Auth::user()->last_name, 0, 1)) }}
-            </span>
-            <div class="sidebar-label min-w-0 flex-1">
-                <p class="truncate text-sm font-semibold">{{ Auth::user()->name }}</p>
-                <p class="truncate text-xs text-white/60">{{ Auth::user()->email }}</p>
-                @if ($role = Auth::user()->getRoleNames()->first())
-                    <span class="mt-1 inline-flex rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[11px] font-medium text-mist">{{ $role }}</span>
-                @endif
-            </div>
-        </div>
+        {{-- Who is signed in is NOT shown here: the account menu in the top right corner
+             (components/ui/account-bar) carries the name, email and role, once. --}}
 
         {{-- Links, in one white rounded panel --}}
-        <div class="mt-3 flex min-h-0 flex-1 flex-col rounded-2xl bg-white shadow-card dark:bg-gray-800">
+        <div class="mt-1 flex min-h-0 flex-1 flex-col rounded-2xl bg-white shadow-card dark:bg-gray-800">
         <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="{{ __('Main navigation') }}">
             <a href="{{ route('dashboard') }}"
                @click="open = false"
@@ -128,11 +117,18 @@
             </a>
 
             {{-- Ordering --}}
-            @canany(['view menu', 'view my orders'])
-                <div class="space-y-1 pt-3">
-                    <p class="sidebar-label px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">{{ __('Ordering') }}</p>
-                    {{-- The icon rail has no room for the title: a thin rule marks the group instead. --}}
+            @canany(['view menu', 'view my orders', 'view bulk-menu', 'view my bulk-orders'])
+                <div class="space-y-1 pt-3" data-nav-group="ordering" @if (request()->routeIs('menu.*', 'my-orders.*', 'bulk-menu.*', 'bulk-my-orders.*')) data-has-active @endif>
+                    {{-- The title is a button: it folds the group (state: html[data-nav-closed], kept in
+                         localStorage, see layouts/app.blade.php). The icon rail has no room for it, so a
+                         thin rule marks the group there and its links always show. --}}
+                    <button type="button" @click="toggleGroup('ordering')" aria-expanded="true" aria-controls="nav-group-ordering"
+                            class="sidebar-label group flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-1 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-200">
+                        <span>{{ __('Ordering') }}</span>
+                        <svg class="nav-chevron h-3.5 w-3.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 9-7 7-7-7" /></svg>
+                    </button>
                     <hr class="sidebar-rule mx-3 hidden border-gray-100 dark:border-gray-700">
+                    <div id="nav-group-ordering" class="nav-group-items space-y-1">
                 @can('view menu')
                     <a href="{{ route('menu.index') }}"
                        @click="open = false"
@@ -154,15 +150,45 @@
                         <span class="sidebar-label">{{ __('My Orders') }}</span>
                     </a>
                 @endcan
+
+                @can('view bulk-menu')
+                    <a href="{{ route('bulk-menu.index') }}"
+                       @click="open = false"
+                       title="{{ __('Bulk Orders') }}"
+                       @if (request()->routeIs('bulk-menu.*')) aria-current="page" @endif
+                       class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('bulk-menu.*') ? 'bg-gray-900 text-white shadow-sm dark:bg-mist dark:text-ink' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white' }}">
+                        <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                        <span class="sidebar-label">{{ __('Bulk Orders') }}</span>
+                    </a>
+                @endcan
+
+                @can('view my bulk-orders')
+                    <a href="{{ route('bulk-my-orders.index') }}"
+                       @click="open = false"
+                       title="{{ __('My Bulk Orders') }}"
+                       @if (request()->routeIs('bulk-my-orders.*')) aria-current="page" @endif
+                       class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('bulk-my-orders.*') ? 'bg-gray-900 text-white shadow-sm dark:bg-mist dark:text-ink' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white' }}">
+                        <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        <span class="sidebar-label">{{ __('My Bulk Orders') }}</span>
+                    </a>
+                @endcan
+                    </div>
                 </div>
             @endcanany
 
             {{-- Service --}}
-            @canany(['view order-sessions', 'view orders', 'view payments'])
-                <div class="space-y-1 pt-3">
-                    <p class="sidebar-label px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">{{ __('Service') }}</p>
-                    {{-- The icon rail has no room for the title: a thin rule marks the group instead. --}}
+            @canany(['view order-sessions', 'view bulk-sessions', 'view orders', 'view payments'])
+                <div class="space-y-1 pt-3" data-nav-group="service" @if (request()->routeIs('order-sessions.*', 'bulk-sessions.*', 'orders.index', 'payments.*')) data-has-active @endif>
+                    {{-- The title is a button: it folds the group (state: html[data-nav-closed], kept in
+                         localStorage, see layouts/app.blade.php). The icon rail has no room for it, so a
+                         thin rule marks the group there and its links always show. --}}
+                    <button type="button" @click="toggleGroup('service')" aria-expanded="true" aria-controls="nav-group-service"
+                            class="sidebar-label group flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-1 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-200">
+                        <span>{{ __('Service') }}</span>
+                        <svg class="nav-chevron h-3.5 w-3.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 9-7 7-7-7" /></svg>
+                    </button>
                     <hr class="sidebar-rule mx-3 hidden border-gray-100 dark:border-gray-700">
+                    <div id="nav-group-service" class="nav-group-items space-y-1">
                 @can('view order-sessions')
                     <a href="{{ route('order-sessions.index') }}"
                        @click="open = false"
@@ -171,6 +197,17 @@
                        class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('order-sessions.*') ? 'bg-gray-900 text-white shadow-sm dark:bg-mist dark:text-ink' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white' }}">
                         <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                         <span class="sidebar-label">{{ __('Order Sessions') }}</span>
+                    </a>
+                @endcan
+
+                @can('view bulk-sessions')
+                    <a href="{{ route('bulk-sessions.index') }}"
+                       @click="open = false"
+                       title="{{ __('Bulk Sessions') }}"
+                       @if (request()->routeIs('bulk-sessions.*')) aria-current="page" @endif
+                       class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('bulk-sessions.*') ? 'bg-gray-900 text-white shadow-sm dark:bg-mist dark:text-ink' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white' }}">
+                        <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                        <span class="sidebar-label">{{ __('Bulk Sessions') }}</span>
                     </a>
                 @endcan
 
@@ -195,15 +232,23 @@
                         <span class="sidebar-label">{{ __('Payments') }}</span>
                     </a>
                 @endcan
+                    </div>
                 </div>
             @endcanany
 
             {{-- Catalog --}}
             @canany(['view dishes', 'view payment-methods'])
-                <div class="space-y-1 pt-3">
-                    <p class="sidebar-label px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">{{ __('Catalog') }}</p>
-                    {{-- The icon rail has no room for the title: a thin rule marks the group instead. --}}
+                <div class="space-y-1 pt-3" data-nav-group="catalog" @if (request()->routeIs('dishes.*', 'payment-methods.*')) data-has-active @endif>
+                    {{-- The title is a button: it folds the group (state: html[data-nav-closed], kept in
+                         localStorage, see layouts/app.blade.php). The icon rail has no room for it, so a
+                         thin rule marks the group there and its links always show. --}}
+                    <button type="button" @click="toggleGroup('catalog')" aria-expanded="true" aria-controls="nav-group-catalog"
+                            class="sidebar-label group flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-1 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-200">
+                        <span>{{ __('Catalog') }}</span>
+                        <svg class="nav-chevron h-3.5 w-3.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 9-7 7-7-7" /></svg>
+                    </button>
                     <hr class="sidebar-rule mx-3 hidden border-gray-100 dark:border-gray-700">
+                    <div id="nav-group-catalog" class="nav-group-items space-y-1">
                 @can('view dishes')
                     <a href="{{ route('dishes.index') }}"
                        @click="open = false"
@@ -225,15 +270,23 @@
                         <span class="sidebar-label">{{ __('Payment Methods') }}</span>
                     </a>
                 @endcan
+                    </div>
                 </div>
             @endcanany
 
             {{-- Access --}}
             @canany(['view roles', 'view users', 'view settings'])
-                <div class="space-y-1 pt-3">
-                    <p class="sidebar-label px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">{{ __('Access') }}</p>
-                    {{-- The icon rail has no room for the title: a thin rule marks the group instead. --}}
+                <div class="space-y-1 pt-3" data-nav-group="access" @if (request()->routeIs('roles.*', 'users.*', 'settings.*')) data-has-active @endif>
+                    {{-- The title is a button: it folds the group (state: html[data-nav-closed], kept in
+                         localStorage, see layouts/app.blade.php). The icon rail has no room for it, so a
+                         thin rule marks the group there and its links always show. --}}
+                    <button type="button" @click="toggleGroup('access')" aria-expanded="true" aria-controls="nav-group-access"
+                            class="sidebar-label group flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-1 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-200">
+                        <span>{{ __('Access') }}</span>
+                        <svg class="nav-chevron h-3.5 w-3.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 9-7 7-7-7" /></svg>
+                    </button>
                     <hr class="sidebar-rule mx-3 hidden border-gray-100 dark:border-gray-700">
+                    <div id="nav-group-access" class="nav-group-items space-y-1">
                 @can('view roles')
                     <a href="{{ route('roles.index') }}"
                        @click="open = false"
@@ -266,34 +319,43 @@
                         <span class="sidebar-label">{{ __('System Configuration') }}</span>
                     </a>
                 @endcan
+                    </div>
                 </div>
             @endcanany
         </nav>
 
-        {{-- User + session actions --}}
-        <div class="flex-shrink-0 border-t border-gray-100 p-3 dark:border-gray-700">
-            <div class="space-y-1">
-                <x-ui.theme-toggle labeled />
+        {{-- Runs right here, before the first paint: the group that holds the page you are on is
+             always opened on arrival (a folded group would hide the highlighted link), without
+             touching what is stored; then every header says whether its group is open. --}}
+        <script>
+            (function () {
+                var root = document.documentElement;
+                var closed = (root.getAttribute('data-nav-closed') || '').split(' ').filter(Boolean);
 
-                <a href="{{ route('profile.edit') }}"
-                   @click="open = false"
-                   title="{{ __('Profile') }}"
-                   class="sidebar-link flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white">
-                    <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                    <span class="sidebar-label">{{ __('Profile') }}</span>
-                </a>
+                document.querySelectorAll('[data-nav-group]').forEach(function (group) {
+                    var key = group.getAttribute('data-nav-group');
 
-                <form method="POST" action="{{ route('logout') }}">
-                    @csrf
-                    <button type="submit"
-                            title="{{ __('Log Out') }}"
-                            class="sidebar-link flex w-full items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-left text-sm font-medium text-gray-600 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white">
-                        <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                        <span class="sidebar-label">{{ __('Log Out') }}</span>
-                    </button>
-                </form>
-            </div>
-        </div>
+                    if (group.hasAttribute('data-has-active')) {
+                        closed = closed.filter(function (item) { return item !== key; });
+                    }
+                });
+
+                if (closed.length) {
+                    root.setAttribute('data-nav-closed', closed.join(' '));
+                } else {
+                    root.removeAttribute('data-nav-closed');
+                }
+
+                document.querySelectorAll('[data-nav-group]').forEach(function (group) {
+                    var header = group.querySelector('button[aria-controls]');
+
+                    if (header) {
+                        header.setAttribute('aria-expanded', closed.indexOf(group.getAttribute('data-nav-group')) === -1 ? 'true' : 'false');
+                    }
+                });
+            })();
+        </script>
+
         </div>
     </div>
 </aside>

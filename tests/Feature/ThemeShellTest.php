@@ -15,20 +15,26 @@ class ThemeShellTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_the_sidebar_shows_who_is_signed_in_without_calling_an_avatar_service(): void
+    public function test_the_account_menu_shows_who_is_signed_in_once_without_calling_an_avatar_service(): void
     {
         $user = $this->superAdmin();
         $user->update(['first_name' => 'Alex', 'last_name' => 'Morgan']);
 
-        $this->actingAs($user)
+        $html = $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Alex Morgan')
             ->assertSee(Role::SUPER_ADMIN)
-            // The initials in a light circle replace the picture from an external
-            // avatar service, so the user's name no longer leaves this server.
-            ->assertSee('>' . "\n" . '                AM' . "\n" . '            </span>', false)
-            ->assertDontSee('ui-avatars.com', false);
+            // The initials in a circle replace the picture from an external avatar
+            // service, so the user's name no longer leaves this server.
+            ->assertSee('>AM</span>', false)
+            ->assertDontSee('ui-avatars.com', false)
+            ->getContent();
+
+        // The identity card lives in the account menu only (one per top bar: the phone's
+        // and the desktop's); the sidebar does not repeat it.
+        $this->assertSame(2, substr_count($html, 'Alex Morgan</p>'));
+        $this->assertStringNotContainsString('sidebar-user', $html);
     }
 
     public function test_a_user_without_a_role_gets_the_card_without_a_role_chip(): void
@@ -95,14 +101,15 @@ class ThemeShellTest extends TestCase
         $this->assertSame($dish->dish_id, $row['dish_id']);
     }
 
-    public function test_the_app_has_a_dark_light_switch_in_the_sidebar_and_the_phone_bar(): void
+    public function test_the_app_has_a_dark_light_switch_in_the_top_right_of_both_bars(): void
     {
         $html = $this->actingAs($this->superAdmin())->get(route('dashboard'))->assertOk()->getContent();
 
-        // Two switches: the labelled sidebar row, and the round icon in the phone's top bar.
+        // Two switches, one per top bar (the phone's and the desktop's; only one shows): the
+        // round icon next to the bell. The sidebar no longer has a labelled row.
         $this->assertSame(2, substr_count($html, 'data-theme-toggle'));
-        $this->assertStringContainsString('Dark mode', $html);
-        $this->assertStringContainsString('Light mode', $html);
+        $this->assertStringContainsString('Switch between dark and light mode', $html);
+        $this->assertStringNotContainsString('sidebar-link flex w-full items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-left', $html);
 
         // The theme is set before first paint, from the saved choice or the OS.
         $this->assertStringContainsString("localStorage.getItem('cucina.theme')", $html);
@@ -166,7 +173,7 @@ class ThemeShellTest extends TestCase
 
         $this->assertSame(1, substr_count($html, 'id="sidebar-toggle"'));
 
-        // Halfway down the sidebar's right edge (not near the profile card at the
+        // Halfway down the sidebar's right edge (clear of the brand at the
         // top), centred with a margin: a transform would be overridden by the press
         // effect and make the handle jump.
         $this->assertStringContainsString('absolute -right-[calc(1.125rem+0.5px)] top-1/2', $html);
@@ -181,16 +188,41 @@ class ThemeShellTest extends TestCase
     {
         $all = $this->actingAs($this->superAdmin())->get(route('dashboard'))->assertOk()->getContent();
 
-        foreach (['Ordering', 'Service', 'Catalog', 'Access'] as $title) {
-            $this->assertStringContainsString('>' . $title . '</p>', $all);
+        // Each title is a button that folds its group (not a plain label).
+        foreach (['ordering' => 'Ordering', 'service' => 'Service', 'catalog' => 'Catalog', 'access' => 'Access'] as $key => $title) {
+            $this->assertStringContainsString('<span>' . $title . '</span>', $all);
+            $this->assertStringContainsString("@click=\"toggleGroup('" . $key . "')\"", $all);
+            $this->assertStringContainsString('data-nav-group="' . $key . '"', $all);
+            $this->assertStringContainsString('id="nav-group-' . $key . '"', $all);
         }
 
         // A customer sees only the ordering group.
         $customer = $this->actingAs($this->userWith('view menu', 'view my orders'))->get(route('dashboard'))->assertOk()->getContent();
 
-        $this->assertStringContainsString('>Ordering</p>', $customer);
-        $this->assertStringNotContainsString('>Service</p>', $customer);
-        $this->assertStringNotContainsString('>Access</p>', $customer);
+        $this->assertStringContainsString('<span>Ordering</span>', $customer);
+        $this->assertStringNotContainsString('<span>Service</span>', $customer);
+        $this->assertStringNotContainsString('<span>Access</span>', $customer);
+    }
+
+    public function test_a_sidebar_group_can_be_folded_and_the_group_of_the_current_page_is_marked_to_open(): void
+    {
+        $admin = $this->superAdmin();
+
+        $html = $this->actingAs($admin)->get(route('menu.index'))->assertOk()->getContent();
+
+        // The folded state is restored before paint from localStorage, and toggled by one method.
+        $this->assertStringContainsString("localStorage.getItem('cucina.nav.closed')", $html);
+        $this->assertStringContainsString('toggleGroup(key)', $html);
+        $this->assertLessThan(strpos($html, '</head>'), strpos($html, "localStorage.getItem('cucina.nav.closed')"));
+
+        // Only the group that holds the page you are on carries `data-has-active`.
+        $this->assertSame(1, preg_match_all('/data-nav-group="[a-z]+"\s+data-has-active/', $html));
+        $this->assertMatchesRegularExpression('/data-nav-group="ordering"\s+data-has-active/', $html);
+
+        $dishes = $this->actingAs($admin)->get(route('dishes.index'))->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('/data-nav-group="catalog"\s+data-has-active/', $dishes);
+        $this->assertDoesNotMatchRegularExpression('/data-nav-group="ordering"\s+data-has-active/', $dishes);
     }
 
     public function test_the_active_link_is_the_ink_pill(): void

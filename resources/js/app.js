@@ -21,6 +21,8 @@ Alpine.start();
  */
 import './ui/image-viewer';
 import './ui/theme';
+// The notification bell's badge and toasts (a small poll; see the file).
+import './ui/notifications';
 
 /*
  * Every <select> gets the app's own dropdown (resources/js/ui/select-menu.js), the

@@ -26,7 +26,7 @@
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
             {{-- Search, sort, filters and the view tabs (resources/js/ui/table-toolbar.js). The filters
                  narrow the feed in the browser (no request); they are read by resources/js/pages/dishes.js. --}}
-            <x-ui.table-toolbar :views="['table', 'card']" :sorts="[
+            <x-ui.table-toolbar :export-title="__('Dish Masterlist')" :views="['table', 'card']" :sorts="[
                 [__('Name: A to Z'), 2, 'asc'],
                 [__('Name: Z to A'), 2, 'desc'],
                 [__('Price: low to high'), 4, 'asc'],
@@ -60,13 +60,13 @@
                    class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead class="bg-gray-50/70 dark:bg-gray-900/40">
                     <tr>
-                        <th scope="col" class="{{ $th }} w-12">#</th>
-                        <th scope="col" class="{{ $th }} w-20">{{ __('Image') }}</th>
+                        <th scope="col" data-no-export class="{{ $th }} w-12">#</th>
+                        <th scope="col" data-no-export class="{{ $th }} w-20">{{ __('Image') }}</th>
                         <th scope="col" class="{{ $th }}">{{ __('Dish Name') }}</th>
                         <th scope="col" class="{{ $th }}">{{ __('Dish Type') }}</th>
                         <th scope="col" class="{{ $th }} text-right">{{ __('Price') }}</th>
                         <th scope="col" class="{{ $th }}">{{ __('Status') }}</th>
-                        <th scope="col" class="{{ $th }} text-right">{{ __('Actions') }}</th>
+                        <th scope="col" data-no-export class="{{ $th }} text-right">{{ __('Actions') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-700 dark:bg-gray-800"></tbody>
@@ -138,7 +138,7 @@
                     <label for="create-price" class="{{ $label }}">{{ __('Price') }}</label>
                     <div class="mt-1">
                         <div class="relative">
-                            <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400">$</span>
+                            <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400">₱</span>
                             <input type="number" name="price" id="create-price" step="0.01" min="0" required
                                    class="{{ $input }} pl-8" placeholder="0.00">
                         </div>
@@ -273,7 +273,7 @@
                     <label for="edit-price" class="{{ $label }}">{{ __('Price') }}</label>
                     <div class="mt-1">
                         <div class="relative">
-                            <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400">$</span>
+                            <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400">₱</span>
                             <input type="number" name="price" id="edit-price" step="0.01" min="0" required
                                    class="{{ $input }} pl-8" placeholder="0.00">
                         </div>

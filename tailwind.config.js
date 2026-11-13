@@ -119,9 +119,24 @@ export default {
                     '20%, 60%': { transform: 'translateX(-6px)' },
                     '40%, 80%': { transform: 'translateX(6px)' },
                 },
+                // The sign-in collage: a column holds its tiles twice, so moving it up by
+                // half its height lands exactly where it started and the loop has no seam.
+                'marquee-up': {
+                    '0%': { transform: 'translateY(0)' },
+                    '100%': { transform: 'translateY(-50%)' },
+                },
                 'live-dot': {
                     '0%, 100%': { opacity: '1', transform: 'scale(1)' },
                     '50%': { opacity: '0.35', transform: 'scale(0.7)' },
+                },
+                // The bell swings from its top when a notification arrives.
+                'bell-ring': {
+                    '0%, 100%': { transform: 'rotate(0)' },
+                    '15%': { transform: 'rotate(16deg)' },
+                    '30%': { transform: 'rotate(-14deg)' },
+                    '45%': { transform: 'rotate(10deg)' },
+                    '60%': { transform: 'rotate(-8deg)' },
+                    '75%': { transform: 'rotate(4deg)' },
                 },
             },
             animation: {
@@ -130,7 +145,9 @@ export default {
                 pop: 'pop 0.25s cubic-bezier(0.22, 1, 0.36, 1) backwards',
                 'cart-bump': 'cart-bump 0.45s ease-out',
                 'live-dot': 'live-dot 1.6s ease-in-out infinite',
+                'marquee-up': 'marquee-up 60s linear infinite',
                 shake: 'shake 0.4s ease-in-out',
+                'bell-ring': 'bell-ring 0.9s ease-in-out',
             },
         },
     },

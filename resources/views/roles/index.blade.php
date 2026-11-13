@@ -14,7 +14,7 @@
     <div class="container mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
             {{-- Search and sort (resources/js/ui/table-toolbar.js). --}}
-            <x-ui.table-toolbar :views="[]" :sorts="[
+            <x-ui.table-toolbar :export-title="__('Roles')" :views="[]" :sorts="[
                 [__('Name: A to Z'), 1, 'asc'],
                 [__('Most permissions'), 2, 'desc'],
                 [__('Most users'), 3, 'desc'],
@@ -28,11 +28,11 @@
                    class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead class="bg-gray-50/70 dark:bg-gray-900/40">
                     <tr>
-                        <th scope="col" class="{{ $th }} w-12">#</th>
+                        <th scope="col" data-no-export class="{{ $th }} w-12">#</th>
                         <th scope="col" class="{{ $th }}">{{ __('Role') }}</th>
                         <th scope="col" class="{{ $th }} text-center">{{ __('Permissions') }}</th>
                         <th scope="col" class="{{ $th }} text-center">{{ __('Users') }}</th>
-                        <th scope="col" class="{{ $th }} text-right">{{ __('Actions') }}</th>
+                        <th scope="col" data-no-export class="{{ $th }} text-right">{{ __('Actions') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-700 dark:bg-gray-800"></tbody>
