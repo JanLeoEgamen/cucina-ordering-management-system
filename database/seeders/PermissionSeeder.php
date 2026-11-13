@@ -10,6 +10,13 @@ use Spatie\Permission\PermissionRegistrar;
 
 class PermissionSeeder extends Seeder
 {
+    // The accounts that get the Super Admin role when they exist (DatabaseSeeder and UserSeeder make them).
+    public const SUPER_ADMIN_EMAILS = [
+        'test@example.com',
+        'jbegamen@bounty.com.ph',
+        'jleoegamen6@gmail.com',
+    ];
+
     // Seed the permissions the app checks (App\Models\Role::PERMISSIONS) and the
     // two roles that come with the app: Super Admin (everything) and Customer
     // (ordering only, see Role::CUSTOMER_PERMISSIONS). Super Admin is put on the
@@ -74,11 +81,11 @@ class PermissionSeeder extends Seeder
         // The pivots were written by hand, so the cache is dropped once more.
         $guard->forgetCachedPermissions();
 
-        // Only when the account exists: a fresh test database has no user yet.
-        $user = DB::table('users')->where('email', 'test@example.com')->whereNull('deleted_at')->first();
+        // Only the accounts that exist: a fresh test database has no user yet.
+        $admins = DB::table('users')->whereIn('email', self::SUPER_ADMIN_EMAILS)->whereNull('deleted_at')->pluck('id');
 
-        if ($user) {
-            User::syncUserRoles((int) $user->id, [(int) $roleId]);
+        foreach ($admins as $adminId) {
+            User::syncUserRoles((int) $adminId, [(int) $roleId]);
         }
     }
 }

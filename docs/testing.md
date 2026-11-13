@@ -1,7 +1,7 @@
 # Testing
 
 ```
-php artisan test                      # all (baseline 2026-11-13: 391 passed)
+php artisan test                      # all (baseline 2026-11-13: 409 passed)
 php artisan test --filter=DishTest    # one class
 php scripts/harness.php               # docs drift check + full suite
 ```
@@ -17,7 +17,8 @@ php scripts/harness.php               # docs drift check + full suite
 | Area | Tests |
 |---|---|
 | Dishes (CRUD, uploads, query builder) | `DishTest`, `DishQueryBuilderTest` |
-| Menu seeder (CSV loaded, idempotent, keeps edits) | `MenuSeederTest` |
+| Menu seeder (CSVs loaded, every type seeded, multi-type dishes, old `A / B` type split, idempotent, keeps edits) | `MenuSeederTest` |
+| Full `DatabaseSeeder` (what `migrate:fresh --seed` leaves: Jan Leo Egamen as Super Admin with every permission, roles, dishes, dish types, re-run changes nothing) | `DatabaseSeederTest` |
 | User names (first / last, required, full name in feeds and joins, the migration's split) | `UserNameTest` |
 | User company (optional; registration, Users page create / edit / feed, profile, 255 limit) | `UserCompanyTest` |
 | Dish types (CRUD, feed, 403s, redirect of the old page, Manage Types drawer on the masterlist) | `DishTypeTest` |

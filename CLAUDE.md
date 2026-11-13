@@ -21,7 +21,7 @@ cp .env.example .env && php artisan key:generate
 php artisan migrate --seed          # seeds test@example.com / password as Super Admin (dev only)
 php artisan storage:link            # needed for uploaded images
 composer dev                        # server + queue worker (notifications,default) + pail logs + vite
-php artisan test                    # PHPUnit (baseline: 391 passing)
+php artisan test                    # PHPUnit (baseline: 409 passing)
 php artisan schedule:work           # optional locally: runs the daily notifications:prune (server: cron `schedule:run`)
 php scripts/harness.php             # docs-drift check + tests;  --docs = drift only
 npm run build                       # must pass after frontend changes
