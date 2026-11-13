@@ -56,6 +56,42 @@
                     </div>
                 </div>
 
+            </section>
+
+            {{--
+                Who receives a copy of EVERY notification. Customers always get their own
+                (order placed, payment verified / rejected, order completed or cancelled);
+                the users picked here also get everyone's, plus staff-only ones (a customer
+                sent a new proof, a dish sold out). Saved with the rest of the form.
+            --}}
+            <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
+                <div class="border-b border-gray-100 px-6 py-4 dark:border-gray-700">
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ __('Notifications') }}</h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        {{ __('Customers are always told about their own orders. Pick the users who should also receive every notification of every customer.') }}
+                    </p>
+                </div>
+
+                <div class="p-6">
+                    <label for="notification-watchers" class="{{ $label }}">{{ __('Also notify') }}</label>
+                    <div class="mt-1">
+                        {{-- An empty entry is always sent, so un-picking everybody is saved as "nobody". --}}
+                        <input type="hidden" name="notification_watchers[]" value="">
+                        <select multiple name="notification_watchers[]" id="notification-watchers" @disabled(! $canEdit)
+                                data-placeholder="{{ __('Nobody') }}" data-count-label="{{ __('{n} users') }}"
+                                class="{{ $input }}">
+                            @foreach ($users as $user)
+                                <option value="{{ $user->id }}" @selected(in_array((int) $user->id, $watchers, true))>
+                                    {{ $user->name }} · {{ $user->email }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        {{ __('They see them under Notifications in the menu. Whoever causes an event is not told about their own action.') }}
+                    </p>
+                </div>
+
                 @if ($canEdit)
                     <div class="flex justify-end gap-3 border-t border-gray-100 bg-gray-50/70 px-6 py-4 dark:border-gray-700 dark:bg-gray-900/40">
                         <button type="submit" id="settings-submit" data-loading-label="{{ __('Saving...') }}" class="{{ $submitButton }}">

@@ -16,9 +16,13 @@ class Setting
 
     public const SESSION_END_TIME = 'order_session.default_end_time';
 
+    // The users who receive a copy of EVERY notification (a JSON list of user ids).
+    public const NOTIFICATION_WATCHERS = 'notifications.watchers';
+
     public const DEFAULTS = [
         self::SESSION_START_TIME => '09:00',
         self::SESSION_END_TIME => '17:00',
+        self::NOTIFICATION_WATCHERS => '[]',
     ];
 
     /* -------- Reads -------- */
@@ -40,7 +44,24 @@ class Setting
         ];
     }
 
+    // The ids of the users who receive every notification, as ints. A damaged
+    // value reads as "nobody" rather than breaking an order.
+    public static function notificationWatchers(): array
+    {
+        $ids = json_decode((string) self::get(self::NOTIFICATION_WATCHERS), true);
+
+        return is_array($ids)
+            ? array_values(array_unique(array_filter(array_map('intval', $ids))))
+            : [];
+    }
+
     /* -------- Writes -------- */
+
+    // Save who receives every notification.
+    public static function setNotificationWatchers(array $userIds): void
+    {
+        self::set(self::NOTIFICATION_WATCHERS, json_encode(array_values(array_unique(array_filter(array_map('intval', $userIds))))));
+    }
 
     // Save one setting (insert, or replace the value of the existing key).
     public static function set(string $key, ?string $value): void
