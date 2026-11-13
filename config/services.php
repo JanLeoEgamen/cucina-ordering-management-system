@@ -28,6 +28,15 @@ return [
         'key' => env('RESEND_KEY'),
     ],
 
+    // "Continue with Google" (Auth\GoogleAuthController). Both keys come from Google Cloud
+    // Console -> APIs & Services -> Credentials -> OAuth client ID (Web application); the
+    // redirect URI registered there must equal APP_URL + /auth/google/callback.
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

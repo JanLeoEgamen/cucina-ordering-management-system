@@ -1,0 +1,68 @@
+Dish Type Name,Dish Type Description,Dish Name,Description,Price,Calories,Main Ingredients
+Beef,Beef main dishes,Korean Beef Stew,Korean-inspired braised beef stew,0.00,,Beef; soy sauce; garlic; onion; ginger
+Beef,Beef main dishes,Mechado,Filipino tomato-based beef stew,0.00,,Beef; tomato sauce; potatoes; carrots
+Beef,Beef main dishes,Bistek,Filipino beef steak in soy-calamansi sauce,0.00,,Beef; soy sauce; calamansi; onions
+Beef,Beef main dishes,Beef Salpicao,Garlic-infused sauteed beef,0.00,,Beef; garlic; butter; soy sauce
+Beef,Beef main dishes,Gyudon,Japanese beef and onion rice bowl,0.00,,Beef; onion; soy sauce; mirin
+Beef,Beef main dishes,Beef Bulgogi,Korean-style marinated beef,0.00,,Beef; soy sauce; garlic; sesame oil
+Beef,Beef main dishes,Beef Steak,Filipino-style beef steak,0.00,,Beef; soy sauce; calamansi; onion
+Chicken,Chicken main dishes,Chicken Adobo,Filipino chicken braised in soy sauce and vinegar,0.00,,Chicken; soy sauce; vinegar; garlic
+Chicken,Chicken main dishes,Chicken Adobo with Egg,Chicken adobo served with boiled egg,0.00,,Chicken; egg; soy sauce; vinegar; garlic
+Chicken,Chicken main dishes,Sweet and Sour Chicken,Crispy chicken with sweet and sour sauce,0.00,,Chicken; bell peppers; pineapple; vinegar
+Chicken,Chicken main dishes,Yakitori,Japanese-style grilled chicken,0.00,,Chicken; soy sauce; mirin; sugar
+Chicken,Chicken main dishes,Chicken Yakitori,Japanese grilled chicken with savory glaze,0.00,,Chicken; soy sauce; garlic; mirin
+Chicken,Chicken main dishes,Mongolian Chicken,Chicken stir-fried in savory-sweet sauce,0.00,,Chicken; soy sauce; garlic; onion
+Chicken,Chicken main dishes,Chicken BBQ,Grilled chicken with barbecue marinade,0.00,,Chicken; soy sauce; calamansi; garlic
+Chicken,Chicken main dishes,Orange Chicken,Crispy chicken coated in orange sauce,0.00,,Chicken; orange juice; garlic; soy sauce
+Chicken,Chicken main dishes,Chicken Wing Lollipop,Chicken wings with ranch or spicy Sriracha sauce,0.00,,Chicken wings; flour; breadcrumbs; spices
+Chicken,Chicken main dishes,Spanish-Style Chicken and Chorizo,Chicken cooked with Spanish-style chorizo,0.00,,Chicken; chorizo; tomato; garlic
+Chicken,Chicken main dishes,Chicken and Egg Adobo,Filipino chicken adobo with egg,0.00,,Chicken; egg; soy sauce; vinegar
+Pork,Pork main dishes,Picadillo with Egg,Ground pork stew with egg,0.00,,Ground pork; potatoes; carrots; egg
+Pork,Pork main dishes,Shogayaki,Japanese ginger pork stir-fry,0.00,,Pork; ginger; soy sauce; mirin
+Pork,Pork main dishes,Creamy Garlic Pork,Pork cooked in creamy garlic sauce,0.00,,Pork; cream; garlic; butter
+Pork,Pork main dishes,Bicol Express,Filipino spicy pork cooked in coconut milk,0.00,,Pork; coconut milk; chili; shrimp paste
+Pork,Pork main dishes,Binagoongan,Pork cooked in shrimp paste sauce,0.00,,Pork; bagoong; tomato; garlic
+Pork,Pork main dishes,Pork Tocino,Sweet Filipino cured pork,0.00,,Pork; sugar; garlic; salt
+Pork,Pork main dishes,Pork Tapa,Marinated and seasoned pork,0.00,,Pork; soy sauce; garlic; sugar
+Pork,Pork main dishes,Pork Katsudon,Japanese breaded pork cutlet rice bowl,0.00,,Pork; egg; onion; breadcrumbs
+Pork,Pork main dishes,Vietnamese Lemongrass Pork,Pork marinated with lemongrass,0.00,,Pork; lemongrass; garlic; fish sauce
+Pork,Pork main dishes,Pork Pad Kra Pao,Thai-style stir-fried pork with basil,0.00,,Ground pork; basil; garlic; chili
+Pork,Pork main dishes,Sweet and Sour Pork Meatballs,Pork meatballs coated in sweet and sour sauce,0.00,,Ground pork; breadcrumbs; egg; pineapple
+Fish,Fish main dishes,Sweet and Sour Fish,Crispy fish served with sweet and sour sauce,0.00,,Fish fillet; bell peppers; pineapple; vinegar
+Vegetable,Vegetable and tofu dishes,Tofu Sisig,Filipino-inspired sizzling tofu,0.00,,Tofu; onion; chili; mayonnaise
+Vegetable,Vegetable and tofu dishes,Tortang Talong,Filipino eggplant omelet,0.00,,Eggplant; egg; onion
+Vegetable,Vegetable and tofu dishes,Monggo,Filipino mung bean stew,0.00,,Mung beans; garlic; onion; tomato
+Vegetable,Vegetable and tofu dishes,Monggo with Lechon Kawali,Mung bean stew topped with crispy pork belly,0.00,,Mung beans; pork belly; garlic
+Vegetable,Vegetable and tofu dishes,Mapo Tofu,Spicy tofu in savory sauce,0.00,,Tofu; ground pork; chili bean paste; garlic
+Vegetable,Vegetable and tofu dishes,Grilled Vegetables,Assorted vegetables grilled with seasoning,0.00,,Mixed vegetables; olive oil; herbs
+Healthy Meal,Special healthy meal offerings,Chicken Kofta with Turmeric Rice and Grilled Vegetables,Chicken kofta served with turmeric rice and vegetables,0.00,,Chicken; rice; turmeric; mixed vegetables
+Healthy Meal,Special healthy meal offerings,Buttermilk Chicken with Roasted Vegetables,Buttermilk-marinated chicken with roasted vegetables,0.00,,Chicken; buttermilk; carrots; broccoli
+Healthy Meal,Special healthy meal offerings,Grilled Chicken Pesto Pasta,Grilled chicken served with pesto pasta,0.00,,Chicken; pasta; basil pesto; parmesan
+Healthy Meal,Special healthy meal offerings,Baked Chicken Alfredo,Baked pasta with creamy chicken Alfredo sauce,0.00,,Chicken; pasta; cream; parmesan
+Healthy Meal,Special healthy meal offerings,Spanish-Style Grilled Chicken and Chorizo,Grilled chicken with Spanish-inspired chorizo,0.00,,Chicken; chorizo; paprika; garlic
+Breakfast / Silog,Filipino breakfast and silog meals,Tosilog,Tocino served with garlic rice and egg,0.00,,Pork tocino; rice; egg
+Breakfast / Silog,Filipino breakfast and silog meals,Tapsilog,Tapa served with garlic rice and egg,0.00,,Beef tapa; rice; egg
+Breakfast / Silog,Filipino breakfast and silog meals,Tocilog,Sweet pork served with garlic rice and egg,0.00,,Pork tocino; rice; egg
+Rice Meals / Snacks,Rice-based snacks and light meals,Arroz Caldo,Filipino chicken rice porridge,0.00,,Rice; chicken; ginger; garlic
+Rice Meals / Snacks,Rice-based snacks and light meals,Champorado,Filipino chocolate rice porridge,0.00,,Rice; cocoa; sugar; milk
+Pasta / Noodles,Pasta and noodle-based meals,Pancit,Filipino stir-fried noodle dish,0.00,,Noodles; vegetables; soy sauce
+Pasta / Noodles,Pasta and noodle-based meals,Pancit Guisado,Stir-fried Filipino noodles with vegetables,0.00,,Rice noodles; cabbage; carrots
+Pasta / Noodles,Pasta and noodle-based meals,Sopas,Filipino creamy macaroni soup,0.00,,Macaroni; chicken; milk; cabbage
+Pasta / Noodles,Pasta and noodle-based meals,Spaghetti,Filipino-style sweet spaghetti,0.00,,Pasta; ground meat; tomato sauce; cheese
+Pasta / Noodles,Pasta and noodle-based meals,Baked Macaroni,Baked macaroni with creamy meat sauce,0.00,,Macaroni; ground meat; cheese
+Sandwiches,Bread-based sandwiches and toast,Chicken Sandwich,Sandwich with seasoned chicken filling,0.00,,Bread; chicken; mayonnaise
+Sandwiches,Bread-based sandwiches and toast,Tuna Sandwich,Tuna filling between slices of bread,0.00,,Bread; tuna; mayonnaise; onion
+Sandwiches,Bread-based sandwiches and toast,Tamago Sandwich,Japanese-style egg salad sandwich,0.00,,Bread; egg; mayonnaise
+Sandwiches,Bread-based sandwiches and toast,Breakfast Sandwich,Breakfast sandwich with egg and savory filling,0.00,,Bread; egg; cheese; ham
+Sandwiches,Bread-based sandwiches and toast,Chicken Pesto Sandwich,Chicken sandwich with basil pesto spread,0.00,,Bread; chicken; pesto; cheese
+Sandwiches,Bread-based sandwiches and toast,Vegetable Sandwich,Sandwich filled with assorted vegetables,0.00,,Bread; lettuce; cucumber; tomato
+Sandwiches,Bread-based sandwiches and toast,Vegetable Egg Toast,Toast topped with egg and vegetables,0.00,,Bread; egg; mixed vegetables
+Sandwiches,Bread-based sandwiches and toast,Vegetable Toast,Toast topped with seasoned vegetables,0.00,,Bread; mixed vegetables; cheese
+Bread / Bakery,Bread rolls and baked snacks,Sausage Roll,Savory sausage wrapped in pastry,0.00,,Sausage; puff pastry; egg
+Bread / Bakery,Bread rolls and baked snacks,Cheese Roll,Soft bread roll filled with cheese,0.00,,Bread dough; cheese; butter
+Bread / Bakery,Bread rolls and baked snacks,Adobo Bun,Bread bun filled with savory chicken adobo,0.00,,Bread; chicken adobo
+Bread / Bakery,Bread rolls and baked snacks,Asado Bun,Bun filled with savory meat asado,0.00,,Bread; pork or chicken asado
+Desserts / Cookies,Sweet baked goods and desserts,Chocolate Chip Cookies,Cookies with chocolate chips,0.00,,Flour; butter; sugar; chocolate chips
+Desserts / Cookies,Sweet baked goods and desserts,Chocolate Crinkles,Soft chocolate cookies coated in powdered sugar,0.00,,Cocoa; flour; butter; sugar; egg
+Desserts / Cookies,Sweet baked goods and desserts,Oatmeal Cookies,Cookies made with rolled oats,0.00,,Oats; flour; butter; sugar
+Desserts / Cookies,Sweet baked goods and desserts,Turon,Filipino fried banana spring roll,0.00,,Banana; spring roll wrapper; sugar
