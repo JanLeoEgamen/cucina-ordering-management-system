@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -51,6 +52,91 @@ class Dish extends Model
     }
 
     /* -------- Reads -------- */
+
+    // The collage of the signed-out pages (the sign-in panel and the landing hero), split into
+    // scrolling columns; empty when there is no dish yet. A short column is cycled up to
+    // `$minPerColumn` with its own tiles, so it never runs dry while it scrolls. Those pages are
+    // public and hit by anyone, so the picked dishes are cached for a few minutes.
+    public static function collageColumns(int $columns = 3, int $minPerColumn = 8): array
+    {
+        $tiles = Cache::get('guest.dish-collage');
+
+        if ($tiles === null) {
+            $tiles = self::showcase();
+
+            // An empty pick is not kept: the first dish that is added shows up at once.
+            if ($tiles !== []) {
+                Cache::put('guest.dish-collage', $tiles, 600);
+            }
+        }
+
+        if ($tiles === []) {
+            return [];
+        }
+
+        $split = array_fill(0, $columns, []);
+
+        foreach ($tiles as $index => $tile) {
+            $split[$index % $columns][] = $tile;
+        }
+
+        foreach ($split as $c => $column) {
+            if ($column === []) {
+                $column = $split[0] ?: $tiles;
+            }
+
+            for ($i = 0; count($column) < $minPerColumn; $i++) {
+                $column[] = $column[$i % count($column)];
+            }
+
+            $split[$c] = $column;
+        }
+
+        return $split;
+    }
+
+    // A mixed handful of available dishes for the collage on the signed-out pages: name,
+    // photo URL (null while a dish has none) and its first type. Dishes WITH a photo are
+    // spread evenly among the plain ones, so the collage looks full before every dish has a
+    // picture and fills with photos as they are added. Prices and stock are never included.
+    public static function showcase(int $limit = 24): array
+    {
+        $dishes = self::getAll()->filter(fn (object $dish) => (bool) $dish->is_active);
+
+        $photos = $dishes->filter(fn (object $dish) => $dish->image)->shuffle()->take(12)->values();
+        $plain = $dishes->reject(fn (object $dish) => $dish->image)->shuffle()->take(max($limit - $photos->count(), 0))->values();
+
+        $total = $photos->count() + $plain->count();
+
+        // The positions the photos take: evenly spaced over the whole run.
+        $photoAt = [];
+
+        foreach (range(0, max($photos->count() - 1, 0)) as $i) {
+            if ($photos->count() > 0) {
+                $photoAt[(int) floor($i * $total / $photos->count())] = true;
+            }
+        }
+
+        $tiles = [];
+        $nextPhoto = 0;
+        $nextPlain = 0;
+
+        for ($position = 0; $position < $total; $position++) {
+            $dish = isset($photoAt[$position]) && $nextPhoto < $photos->count()
+                ? $photos[$nextPhoto++]
+                : ($plain[$nextPlain++] ?? $photos[$nextPhoto++] ?? null);
+
+            if ($dish) {
+                $tiles[] = [
+                    'name' => $dish->dish_name,
+                    'image' => $dish->image ?: null,
+                    'type' => $dish->dish_types[0]['type_name'] ?? null,
+                ];
+            }
+        }
+
+        return $tiles;
+    }
 
     // Get all live dishes with their dish types, for the table feed.
     public static function getAll(): Collection

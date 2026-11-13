@@ -22,6 +22,11 @@ class Role extends SpatieRole
         'view order-sessions', 'create order-sessions', 'edit order-sessions',
         'delete order-sessions', 'end order-sessions',
         'view menu', 'create orders', 'view my orders', 'view orders', 'complete orders', 'cancel orders',
+        'view bulk-sessions', 'create bulk-sessions', 'edit bulk-sessions',
+        'delete bulk-sessions', 'end bulk-sessions',
+        'view bulk-menu', 'create bulk-orders', 'view my bulk-orders',
+        'view bulk-orders', 'complete bulk-orders', 'cancel bulk-orders',
+        'verify bulk-payments', 'reject bulk-payments', 'undo bulk-payments',
         'view roles', 'create roles', 'edit roles', 'delete roles',
         'view users', 'create users', 'edit users', 'delete users',
         'view settings', 'edit settings',
@@ -40,6 +45,9 @@ class Role extends SpatieRole
         'view menu',
         'create orders',
         'view my orders',
+        'view bulk-menu',
+        'create bulk-orders',
+        'view my bulk-orders',
     ];
 
     // Protected roles: they cannot be edited or deleted from the app. Add a
