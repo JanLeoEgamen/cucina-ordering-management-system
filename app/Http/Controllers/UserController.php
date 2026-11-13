@@ -102,6 +102,7 @@ class UserController extends Controller implements HasMiddleware
         return $request->validate([
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
+            'company' => ['nullable', 'string', 'max:255'],
             'email' => [
                 'required',
                 'string',

@@ -32,6 +32,12 @@
         </div>
 
         <div>
+            <x-input-label for="company" :value="__('Company')" />
+            <x-text-input id="company" name="company" type="text" class="mt-1 block w-full" :value="old('company', $user->company)" autocomplete="organization" />
+            <x-input-error class="mt-2" :messages="$errors->get('company')" />
+        </div>
+
+        <div>
             <x-input-label for="email" :value="__('Email')" />
             <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $user->email)" required autocomplete="username" />
             <x-input-error class="mt-2" :messages="$errors->get('email')" />

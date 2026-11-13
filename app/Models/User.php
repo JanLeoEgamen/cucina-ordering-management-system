@@ -30,8 +30,10 @@ class User extends Authenticatable
     protected $fillable = [
         'first_name',
         'last_name',
+        'company',
         'email',
         'password',
+        'profile_completed_at',
     ];
 
     protected $hidden = [
@@ -45,6 +47,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'profile_completed_at' => 'datetime',
             'password' => 'hashed',
         ];
     }
@@ -78,7 +81,7 @@ class User extends Authenticatable
 
         return DB::table(self::TABLE)
             ->whereNull('deleted_at')
-            ->select(['id', 'first_name', 'last_name', DB::raw(self::fullNameSql() . ' as name'), 'email'])
+            ->select(['id', 'first_name', 'last_name', DB::raw(self::fullNameSql() . ' as name'), 'company', 'email'])
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get()
@@ -167,8 +170,11 @@ class User extends Authenticatable
         $userId = (int) DB::table(self::TABLE)->insertGetId([
             'first_name' => $attributes['first_name'],
             'last_name' => $attributes['last_name'],
+            'company' => $attributes['company'] ?? null,
             'email' => $attributes['email'],
             'password' => Hash::make($attributes['password']),
+            // An admin typed the details in: nothing left to ask this person (see EnsureProfileIsComplete).
+            'profile_completed_at' => $now,
             'created_at' => $now,
             'updated_at' => $now,
         ]);
@@ -184,6 +190,7 @@ class User extends Authenticatable
         $values = [
             'first_name' => $attributes['first_name'],
             'last_name' => $attributes['last_name'],
+            'company' => $attributes['company'] ?? null,
             'email' => $attributes['email'],
             'updated_at' => now(),
         ];

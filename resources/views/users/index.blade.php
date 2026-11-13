@@ -18,7 +18,7 @@
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
             {{-- Search, sort and the filter (resources/js/ui/table-toolbar.js). The filter narrows the feed
                  in the browser (no request); it is read by resources/js/pages/users.js. --}}
-            <x-ui.table-toolbar :views="[]" :sorts="[
+            <x-ui.table-toolbar :export-title="__('Users')" :views="[]" :sorts="[
                 [__('Name: A to Z'), 1, 'asc'],
                 [__('Name: Z to A'), 1, 'desc'],
                 [__('Email: A to Z'), 2, 'asc'],
@@ -40,11 +40,12 @@
                    class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead class="bg-gray-50/70 dark:bg-gray-900/40">
                     <tr>
-                        <th scope="col" class="{{ $th }} w-12">#</th>
+                        <th scope="col" data-no-export class="{{ $th }} w-12">#</th>
                         <th scope="col" class="{{ $th }}">{{ __('Name') }}</th>
                         <th scope="col" class="{{ $th }}">{{ __('Email') }}</th>
+                        <th scope="col" class="{{ $th }}">{{ __('Company') }}</th>
                         <th scope="col" class="{{ $th }}">{{ __('Roles') }}</th>
-                        <th scope="col" class="{{ $th }} text-right">{{ __('Actions') }}</th>
+                        <th scope="col" data-no-export class="{{ $th }} text-right">{{ __('Actions') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-700 dark:bg-gray-800"></tbody>
@@ -95,6 +96,14 @@
                             <input type="text" name="last_name" id="create-user-last-name" required autocomplete="off"
                                    class="{{ $input }}" placeholder="{{ __('Enter last name') }}">
                         </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="create-user-company" class="{{ $label }}">{{ __('Company') }}</label>
+                    <div class="mt-1">
+                        <input type="text" name="company" id="create-user-company" autocomplete="off"
+                               class="{{ $input }}" placeholder="{{ __('Optional') }}">
                     </div>
                 </div>
 
@@ -188,6 +197,14 @@
                 </div>
 
                 <div>
+                    <label for="edit-user-company" class="{{ $label }}">{{ __('Company') }}</label>
+                    <div class="mt-1">
+                        <input type="text" name="company" id="edit-user-company" autocomplete="off"
+                               class="{{ $input }}" placeholder="{{ __('Optional') }}">
+                    </div>
+                </div>
+
+                <div>
                     <label for="edit-user-email" class="{{ $label }}">{{ __('Email') }}</label>
                     <div class="mt-1">
                         <input type="email" name="email" id="edit-user-email" required
@@ -259,6 +276,10 @@
                 <div>
                     <dt class="{{ $label }}">{{ __('Email') }}</dt>
                     <dd id="view-user-email" class="mt-1 text-sm text-gray-900 dark:text-white"></dd>
+                </div>
+                <div>
+                    <dt class="{{ $label }}">{{ __('Company') }}</dt>
+                    <dd id="view-user-company" class="mt-1 text-sm text-gray-900 dark:text-white"></dd>
                 </div>
                 <div>
                     <dt class="{{ $label }}">{{ __('Roles') }}</dt>

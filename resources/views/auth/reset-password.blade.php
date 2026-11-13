@@ -1,4 +1,4 @@
-<x-guest-layout>
+<x-guest-layout :heading="__('Choose a new password')">
     <form method="POST" action="{{ route('password.store') }}">
         @csrf
 

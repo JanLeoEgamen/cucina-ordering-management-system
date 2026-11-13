@@ -22,6 +22,7 @@ const start = () => {
     const viewErrors = document.querySelector('#view-user-errors');
     const viewName = document.querySelector('#view-user-name');
     const viewEmail = document.querySelector('#view-user-email');
+    const viewCompany = document.querySelector('#view-user-company');
     const viewRoles = document.querySelector('#view-user-roles');
     const confirmTitle = document.querySelector('#save-modal-title');
     const confirmMessage = document.querySelector('#save-modal-message');
@@ -89,6 +90,8 @@ const start = () => {
             { data: null, orderable: false, searchable: false, className: 'hidden w-12 sm:table-cell', render: indexCell },
             { data: 'name', render: nameCell },
             { data: 'email', className: 'hidden sm:table-cell' },
+            // Optional, so a user without one gets an empty cell (null would print "null").
+            { data: 'company', className: 'hidden md:table-cell', render: (value) => value ?? '' },
             // The roles cell is rendered by the server; sorting its markup would
             // mean nothing, so only the sort arrow is dropped.
             { data: 'roles', orderable: false },
@@ -326,6 +329,7 @@ const start = () => {
 
                 fillText(viewName, record.name);
                 fillText(viewEmail, record.email);
+                fillText(viewCompany, record.company);
 
                 if (viewRoles) {
                     viewRoles.innerHTML = chips(record.role_names ?? []);
