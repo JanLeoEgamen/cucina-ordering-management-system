@@ -161,7 +161,8 @@ class OrderSessionController extends Controller implements HasMiddleware
         OrderSession::updateSession(
             (int) $id,
             $validated,
-            $this->postedStocks($request, $validated['dish_ids'])
+            $this->postedStocks($request, $validated['dish_ids']),
+            $this->postedLoadedStocks($request, $validated['dish_ids'])
         );
 
         return $this->successResponse('Order session updated successfully.');
@@ -221,6 +222,9 @@ class OrderSessionController extends Controller implements HasMiddleware
             'dish_ids.*' => ['integer', 'exists:dishes,dish_id'],
             'stocks' => ['required', 'array'],
             'stocks.*' => ['nullable', 'integer', 'min:0'],
+            // What each stock box showed when the edit form was opened.
+            'loaded_stocks' => ['nullable', 'array'],
+            'loaded_stocks.*' => ['nullable', 'integer', 'min:0'],
         ], [
             'dish_ids.required' => 'Pick at least one dish.',
             'dish_ids.min' => 'Pick at least one dish.',
@@ -238,6 +242,24 @@ class OrderSessionController extends Controller implements HasMiddleware
         }
 
         return $stocks;
+    }
+
+    // The stock each box showed when the edit form was opened: [dish_id => stock].
+    // A dish with no loaded value (just added, or a create form) is left out, and
+    // its typed stock is then taken as it is.
+    protected function postedLoadedStocks(Request $request, array $dishIds): array
+    {
+        $loaded = [];
+
+        foreach ($dishIds as $dishId) {
+            $value = $request->input('loaded_stocks.' . (int) $dishId);
+
+            if ($value !== null && $value !== '') {
+                $loaded[(int) $dishId] = max(0, (int) $value);
+            }
+        }
+
+        return $loaded;
     }
 
     // Only the user who created the session may end it, and only while it is

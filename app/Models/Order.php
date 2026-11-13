@@ -170,6 +170,40 @@ class Order extends Model
             ->value('order_status');
     }
 
+    // What a notification about an order needs, in one query: its number and
+    // total, the customer, and the payment method.
+    public static function notificationSummary(int $orderId): ?object
+    {
+        return DB::table(self::TABLE)
+            ->join('users', 'users.id', '=', self::TABLE . '.user_id')
+            ->leftJoin('payments', 'payments.order_id', '=', self::TABLE . '.order_id')
+            ->leftJoin('payment_methods', 'payment_methods.method_id', '=', 'payments.payment_method_id')
+            ->where(self::TABLE . '.order_id', $orderId)
+            ->first([
+                self::TABLE . '.order_id',
+                self::TABLE . '.session_id',
+                self::TABLE . '.user_id',
+                self::TABLE . '.order_number',
+                self::TABLE . '.total_amount',
+                DB::raw(User::fullNameSql('users') . ' as customer_name'),
+                'payment_methods.method_name',
+            ]);
+    }
+
+    // The status of a live order, read WITH a row lock. Call it first inside a
+    // transaction: two staff members acting on the same order at the same time
+    // then queue up, and the second one sees the status the first one left
+    // (so a double Cancel cannot give the stock back twice). SQLite has no row
+    // locks and ignores the hint; it serialises writers anyway.
+    public static function lockedStatus(int $orderId): ?string
+    {
+        return DB::table(self::TABLE)
+            ->where('order_id', $orderId)
+            ->whereNull('deleted_at')
+            ->lockForUpdate()
+            ->value('order_status');
+    }
+
     // Check whether a live order exists.
     public static function existsById(int $orderId): bool
     {

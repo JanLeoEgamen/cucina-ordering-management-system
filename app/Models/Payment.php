@@ -157,6 +157,27 @@ class Payment extends Model
         return Storage::disk('public')->url($path);
     }
 
+    // The customer fixes a rejected payment: a new proof (same or another
+    // method) and the payment is pending again, for staff to check. The old
+    // reviewer, moment and rejection reason are cleared, the amount stays the
+    // order's total. Returns the number of changed rows.
+    public static function resubmit(int $orderId, int $methodId, ?string $referenceNumber, ?string $proofOfPayment): int
+    {
+        return DB::table(self::TABLE)
+            ->where('order_id', $orderId)
+            ->whereNull('deleted_at')
+            ->update([
+                'payment_method_id' => $methodId,
+                'reference_number' => $referenceNumber,
+                'proof_of_payment' => $proofOfPayment,
+                'payment_status' => 'pending',
+                'verified_by' => null,
+                'verified_at' => null,
+                'rejection_reason' => null,
+                'updated_at' => now(),
+            ]);
+    }
+
     // Verify, reject or put back to pending. The reviewer and the moment are
     // stamped (and cleared again for pending, when $verifiedBy is null); the
     // reason belongs to a rejection only, so any other status clears it.

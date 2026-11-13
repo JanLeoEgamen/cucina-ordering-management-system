@@ -17,7 +17,7 @@
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
             {{-- Search, sort, filters and the view tabs (resources/js/ui/table-toolbar.js). The filters
                  narrow the feed in the browser (no request); resources/js/pages/payments.js reads them. --}}
-            <x-ui.table-toolbar :views="['table', 'card']" :sorts="[
+            <x-ui.table-toolbar :export-title="__('Payments')" :views="['table', 'card']" :sorts="[
                 [__('Newest first'), 8, 'desc'],
                 [__('Oldest first'), 8, 'asc'],
                 [__('Amount: high to low'), 5, 'desc'],
@@ -70,16 +70,16 @@
                    class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead class="bg-gray-50/70 dark:bg-gray-900/40">
                     <tr>
-                        <th scope="col" class="{{ $th }} w-12">#</th>
+                        <th scope="col" data-no-export class="{{ $th }} w-12">#</th>
                         <th scope="col" class="{{ $th }}">{{ __('Order #') }}</th>
                         <th scope="col" class="{{ $th }} hidden sm:table-cell">{{ __('Customer') }}</th>
                         <th scope="col" class="{{ $th }} hidden md:table-cell">{{ __('Payment Method') }}</th>
                         <th scope="col" class="{{ $th }} hidden lg:table-cell">{{ __('Reference Number') }}</th>
                         <th scope="col" class="{{ $th }} text-right">{{ __('Amount') }}</th>
-                        <th scope="col" class="{{ $th }} hidden sm:table-cell">{{ __('Proof') }}</th>
+                        <th scope="col" data-no-export class="{{ $th }} hidden sm:table-cell">{{ __('Proof') }}</th>
                         <th scope="col" class="{{ $th }}">{{ __('Status') }}</th>
                         <th scope="col" class="{{ $th }} hidden lg:table-cell">{{ __('Date') }}</th>
-                        <th scope="col" class="{{ $th }} text-right">{{ __('Actions') }}</th>
+                        <th scope="col" data-no-export class="{{ $th }} text-right">{{ __('Actions') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-700 dark:bg-gray-800"></tbody>

@@ -18,7 +18,7 @@
             {{-- Search, sort, filter and the view tabs (resources/js/ui/table-toolbar.js). A session is
                  scheduled before its window opens, live inside it, and ended once its end time went past
                  or its creator closed it by hand. --}}
-            <x-ui.table-toolbar :views="['table', 'card', 'calendar']" :sorts="[
+            <x-ui.table-toolbar :export-title="__('Order Sessions')" :views="['table', 'card', 'calendar']" :sorts="[
                 [__('Date: newest first'), 1, 'desc'],
                 [__('Date: oldest first'), 1, 'asc'],
                 [__('Most orders'), 4, 'desc'],
@@ -42,14 +42,14 @@
                    class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead class="bg-gray-50/70 dark:bg-gray-900/40">
                     <tr>
-                        <th scope="col" class="{{ $th }} w-12">#</th>
+                        <th scope="col" data-no-export class="{{ $th }} w-12">#</th>
                         <th scope="col" class="{{ $th }}">{{ __('Date') }}</th>
                         <th scope="col" class="{{ $th }}">{{ __('Time') }}</th>
                         <th scope="col" class="{{ $th }} hidden sm:table-cell">{{ __('Dishes') }}</th>
                         <th scope="col" class="{{ $th }} hidden sm:table-cell">{{ __('Orders') }}</th>
                         <th scope="col" class="{{ $th }} hidden md:table-cell">{{ __('Created By') }}</th>
                         <th scope="col" class="{{ $th }} hidden sm:table-cell">{{ __('Status') }}</th>
-                        <th scope="col" class="{{ $th }} text-right">{{ __('Actions') }}</th>
+                        <th scope="col" data-no-export class="{{ $th }} text-right">{{ __('Actions') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-700 dark:bg-gray-800"></tbody>

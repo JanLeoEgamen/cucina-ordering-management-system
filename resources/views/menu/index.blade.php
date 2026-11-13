@@ -27,6 +27,11 @@
                     <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
                         {{ $date }} · <span class="tabular-nums">{{ $window }}</span>
                         · {{ __('Open until') }} <span class="tabular-nums">{{ substr($session->end_time, 0, 5) }}</span>
+                        {{-- menu.js keeps the dot in step with the stock refresh: pulsing = connected, gray = the last refresh failed. --}}
+                        · <span id="stock-live" role="status" data-state="live" class="group inline-flex items-center gap-1.5" title="{{ __('Stock updates by itself every few seconds') }}">
+                            <span class="h-2 w-2 rounded-full bg-green-500 motion-safe:animate-pulse group-data-[state=offline]:bg-gray-400 group-data-[state=offline]:animate-none" aria-hidden="true"></span>
+                            <span data-live-label>{{ __('Live stock') }}</span>
+                        </span>
                     </p>
                 @else
                     <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{{ __('No order session is running right now.') }}</p>
@@ -67,6 +72,13 @@
          class="container mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8"
          data-session-id="{{ $session->session_id ?? '' }}"
          data-order-url="{{ route('orders.store') }}"
+         data-stock-url="{{ route('menu.stock') }}"
+         data-live-label="{{ __('Live stock') }}"
+         data-offline-label="{{ __('Reconnecting…') }}"
+         data-stock-reduced="{{ __(':dish: only :left left, so your cart was adjusted.') }}"
+         data-stock-gone="{{ __(':dish just sold out and was taken out of your cart.') }}"
+         data-session-ended="{{ __('This order session has ended, so orders can no longer be placed.') }}"
+         data-price-changed="{{ __(':dish is now :price (was :old). Check your cart.') }}"
          data-methods='@json($methods)'
          data-cash='@json($cash)'
          data-dishes='@json($dishes)'
@@ -336,7 +348,7 @@
                             @endif
 
                             {{-- Price: a frosted pill, top right. --}}
-                            <p class="absolute right-3 top-3 rounded-full bg-white/90 px-3 py-1 text-sm font-bold tabular-nums text-ink shadow-sm backdrop-blur">${{ number_format((float) $dish->price, 2) }}</p>
+                            <p data-price-label="{{ $dish->session_dish_id }}" class="absolute right-3 top-3 rounded-full bg-white/90 px-3 py-1 text-sm font-bold tabular-nums text-ink shadow-sm backdrop-blur">₱{{ number_format((float) $dish->price, 2) }}</p>
 
                             {{-- Name and stock, over the gradient. --}}
                             <div class="absolute inset-x-0 bottom-0 p-4">
@@ -534,9 +546,18 @@
 
             {{-- Body: one panel per step --}}
             <div class="min-h-0 flex-1 overflow-y-auto p-6">
-                {{-- Sticky: it stays in view however far the body is scrolled. The same message also
-                     comes up as a toast (menu.js showErrors), which is on screen whatever happens. --}}
-                <div id="checkout-errors" role="alert" aria-live="assertive" class="sticky top-0 z-10 mb-4 hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700 shadow-card dark:border-red-900 dark:bg-red-950 dark:text-red-300"></div>
+                {{-- Sticky: it stays in view however far the body is scrolled. It is the only place the
+                     message shows (menu.js showErrors), and the round X dismisses it: it floats over
+                     the fields, so the customer may want it out of the way while fixing them. --}}
+                <div id="checkout-errors" role="alert" aria-live="assertive" class="sticky top-0 z-10 mb-4 hidden rounded-xl border border-red-200 bg-red-50 py-2.5 pl-3 pr-2.5 text-sm font-medium text-red-700 shadow-card dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+                    <div class="flex items-start gap-3">
+                        <div id="checkout-errors-list" class="min-w-0 flex-1 space-y-1 pt-1"></div>
+                        <button type="button" id="checkout-errors-close" aria-label="{{ __('Dismiss') }}" title="{{ __('Dismiss') }}"
+                                class="shrink-0 rounded-full border border-red-200 p-1.5 text-red-500 transition hover:bg-red-100 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-300 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/50 dark:hover:text-red-100 dark:focus:ring-red-700">
+                            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg>
+                        </button>
+                    </div>
+                </div>
 
                 {{-- Step 1: review the order --}}
                 <div data-step-panel="review">
@@ -668,7 +689,7 @@
             <div class="flex items-center justify-between gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-700">
                 <div>
                     <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('Total') }}</p>
-                    <p id="checkout-total" class="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">$0.00</p>
+                    <p id="checkout-total" class="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">₱0.00</p>
                 </div>
 
                 <div class="flex items-center gap-3">

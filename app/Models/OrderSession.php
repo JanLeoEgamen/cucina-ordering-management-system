@@ -200,14 +200,16 @@ class OrderSession extends Model
     }
 
     // Update a session and replace its dish list; returns the number of changed rows.
-    public static function updateSession(int $sessionId, array $attributes, array $stocks): int
+    // $loaded is [dish_id => the stock the edit form showed when it was opened]:
+    // see syncStocks.
+    public static function updateSession(int $sessionId, array $attributes, array $stocks, array $loaded = []): int
     {
         $changed = DB::table(self::TABLE)
             ->where('session_id', $sessionId)
             ->whereNull('deleted_at')
             ->update(self::values($attributes) + ['updated_at' => now()]);
 
-        self::syncStocks($sessionId, $stocks);
+        self::syncStocks($sessionId, $stocks, $loaded);
 
         return $changed;
     }
@@ -244,10 +246,20 @@ class OrderSession extends Model
             ->update(['ended_at' => $now, 'is_active' => 0, 'updated_at' => $now]) === 1;
     }
 
-    // Replace the session's dish list: the posted dishes keep their stock, a
-    // dish the form no longer lists leaves the session. Its row stays for the
-    // order history, which prints the dish name of every sold line.
-    public static function syncStocks(int $sessionId, array $stocks): void
+    // Replace the session's dish list: a dish the form no longer lists leaves the
+    // session. Its row stays for the order history, which prints the dish name of
+    // every sold line.
+    //
+    // The stock box of the edit form shows what was LEFT when it was opened, and
+    // customers keep ordering while an admin has it open. Writing the box back
+    // as the new stock would undo every order placed in between (and oversell),
+    // so for a dish that is live in the session and whose loaded value came back
+    // ($loaded), only the admin's CHANGE is applied to the stock as it is now:
+    //   available = max(0, available_now + (typed - loaded))
+    // Without a loaded value (a new session, a dish just added, an old client)
+    // the typed number is the stock, as before. The change is one UPDATE, so an
+    // order landing at the same instant is not lost either.
+    public static function syncStocks(int $sessionId, array $stocks, array $loaded = []): void
     {
         $now = now();
         $posted = [];
@@ -262,11 +274,20 @@ class OrderSession extends Model
                 ->first();
 
             if ($existing) {
-                // Re-offering a dish that left the session restores its row.
+                // Re-offering a dish that left the session restores its row (and the
+                // typed number is its stock: nothing live to protect).
+                $stockValue = (int) $stock;
+
+                if ($existing->deleted_at === null && array_key_exists($dishId, $loaded)) {
+                    // $change is an int, so it is safe inside the statement.
+                    $change = (int) $stock - (int) $loaded[$dishId];
+                    $stockValue = DB::raw('CASE WHEN available_stock + (' . $change . ') < 0 THEN 0 ELSE available_stock + (' . $change . ') END');
+                }
+
                 DB::table(self::TABLE_SESSION_DISH)
                     ->where('session_dish_id', $existing->session_dish_id)
                     ->update([
-                        'available_stock' => (int) $stock,
+                        'available_stock' => $stockValue,
                         'is_available' => 1,
                         'is_active' => 1,
                         'deleted_at' => null,

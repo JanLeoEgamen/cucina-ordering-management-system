@@ -62,7 +62,7 @@
             </div>
             <div>
                 <p class="{{ $label }}">{{ __('Sales') }}</p>
-                <p class="mt-1 text-sm font-medium tabular-nums text-gray-900 dark:text-white">${{ number_format($salesTotal, 2) }}</p>
+                <p class="mt-1 text-sm font-medium tabular-nums text-gray-900 dark:text-white">₱{{ number_format($salesTotal, 2) }}</p>
             </div>
         </section>
 
@@ -93,7 +93,7 @@
                         @forelse ($session->dishes as $dish)
                             <tr>
                                 <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{{ $dish['dish_name'] }}</td>
-                                <td class="px-4 py-3 text-right text-sm tabular-nums text-gray-600 dark:text-gray-300">${{ number_format($dish['price'], 2) }}</td>
+                                <td class="px-4 py-3 text-right text-sm tabular-nums text-gray-600 dark:text-gray-300">₱{{ number_format($dish['price'], 2) }}</td>
                                 <td class="px-4 py-3 text-right text-sm tabular-nums text-gray-600 dark:text-gray-300">{{ $dish['available_stock'] }}</td>
                                 <td class="px-4 py-3 text-right text-sm tabular-nums text-gray-600 dark:text-gray-300">{{ $dish['reserved_stock'] }}</td>
                             </tr>
@@ -110,7 +110,7 @@
         {{-- The orders placed in this session: a table, or cards, like the other lists --}}
         <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
             {{-- Search, sort, filters and the view tabs (resources/js/ui/table-toolbar.js). --}}
-            <x-ui.table-toolbar :title="__('Orders')" :views="['table', 'card']" :sorts="[
+            <x-ui.table-toolbar :export-title="__('Orders') . ' ' . $date" :title="__('Orders')" :views="['table', 'card']" :sorts="[
                 [__('Newest first'), 7, 'desc'],
                 [__('Oldest first'), 7, 'asc'],
                 [__('Total: high to low'), 4, 'desc'],
@@ -152,7 +152,7 @@
                    class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead class="bg-gray-50/70 dark:bg-gray-900/40">
                     <tr>
-                        <th scope="col" class="{{ $th }} w-12">#</th>
+                        <th scope="col" data-no-export class="{{ $th }} w-12">#</th>
                         <th scope="col" class="{{ $th }}">{{ __('Order #') }}</th>
                         <th scope="col" class="{{ $th }}">{{ __('Customer') }}</th>
                         <th scope="col" class="{{ $th }} hidden md:table-cell">{{ __('Items') }}</th>
@@ -160,7 +160,7 @@
                         <th scope="col" class="{{ $th }} hidden sm:table-cell">{{ __('Payment') }}</th>
                         <th scope="col" class="{{ $th }}">{{ __('Status') }}</th>
                         <th scope="col" class="{{ $th }} hidden lg:table-cell">{{ __('Placed') }}</th>
-                        <th scope="col" class="{{ $th }} text-right">{{ __('Actions') }}</th>
+                        <th scope="col" data-no-export class="{{ $th }} text-right">{{ __('Actions') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-700 dark:bg-gray-800"></tbody>

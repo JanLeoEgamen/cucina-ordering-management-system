@@ -258,6 +258,11 @@ const start = () => {
             stock.value = '0';
         }
 
+        // No stock was loaded from the server: a typed number is the stock itself.
+        for (const loaded of list.querySelectorAll('input[name^="loaded_stocks["]')) {
+            loaded.value = '';
+        }
+
         // One event is enough: the list re-reads its own boxes on change.
         list.dispatchEvent(new Event('change', { bubbles: true }));
 
@@ -281,6 +286,7 @@ const start = () => {
         for (const dish of dishes ?? []) {
             const box = list.querySelector('input[name="dish_ids[]"][value="' + dish.dish_id + '"]');
             const stock = list.querySelector('input[name="stocks[' + dish.dish_id + ']"]');
+            const loaded = list.querySelector('input[name="loaded_stocks[' + dish.dish_id + ']"]');
 
             if (box) {
                 box.checked = true;
@@ -288,6 +294,14 @@ const start = () => {
 
             if (stock) {
                 stock.value = String(dish.available_stock ?? 0);
+            }
+
+            // Remember what was loaded: on save the server applies only the
+            // difference to the stock as it is by then (customers keep ordering
+            // while this drawer is open). Only the edit drawer fills a list with
+            // dishes, so this is never sent from the create form.
+            if (loaded) {
+                loaded.value = String(dish.available_stock ?? 0);
             }
         }
 

@@ -28,6 +28,7 @@ const start = () => {
 
     const sessionId = root.dataset.sessionId ?? '';
     const orderUrl = root.dataset.orderUrl ?? '';
+    const stockUrl = root.dataset.stockUrl ?? '';
     const bankMethods = JSON.parse(root.dataset.methods ?? '[]');
     const cashMethod = JSON.parse(root.dataset.cash ?? 'null');
 
@@ -110,6 +111,12 @@ const start = () => {
     let proofFile = null;
     let receipt = null;
     let placing = false;
+    // The session closed while the page was open (the stock refresh saw it).
+    let sessionClosed = false;
+    // Sent with the order so a retry after a lost answer returns the same receipt
+    // instead of placing a second order. It follows the cart: a changed cart is a
+    // different order and gets a new key (see orderKeyFor).
+    let orderKey = { value: '', fingerprint: '' };
 
     /* ---- helpers --------------------------------------------------------- */
 
@@ -119,7 +126,7 @@ const start = () => {
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
     }[character]));
 
-    const money = (value) => '$' + Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const money = (value) => '₱' + Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     const total = () => [...lines.values()].reduce((sum, line) => sum + line.price * line.quantity, 0);
 
@@ -146,29 +153,64 @@ const start = () => {
             return;
         }
 
-        checkoutErrors.innerHTML = items.map((message) => '<div>' + escapeHtml(message) + '</div>').join('');
+        const target = checkoutErrors.querySelector('#checkout-errors-list') ?? checkoutErrors;
+
+        target.innerHTML = items.map((message) => '<div>' + escapeHtml(message) + '</div>').join('');
         checkoutErrors.classList.toggle('hidden', items.length === 0);
 
-        // The banner above sits at the top of a scrolling body, so a customer who has
-        // scrolled down to the button never saw it. A toast is on screen wherever
-        // they are; the banner (pinned, see the view) stays for reference.
-        items.slice(0, 3).forEach((message) => showToast(message, 'error'));
+        // The message shows ONLY here, in the form: the banner is `sticky top-0` in the
+        // checkout's scrolling body (see the view), so it stays on screen wherever the
+        // customer has scrolled. It used to be repeated as a toast, which doubled it.
     };
 
-    // Draw the eye to the field that is wrong: bring it to the middle of the
-    // scrolling body and give it a short shake and a red ring.
-    const flagField = (element) => {
-        if (!element) {
+    // The round X on the banner: the customer has read it and wants the fields back.
+    checkoutErrors?.querySelector('#checkout-errors-close')?.addEventListener('click', () => showErrors([]));
+
+    // Draw the eye to what is wrong: bring the first one to the middle of the scrolling
+    // body and give every one a short shake and a red ring. The SAME effect for every kind of
+    // field (the proof zone, the reference, the payment options, the cart), so a customer
+    // learns it once. Elements that are not on screen (another step) are skipped.
+    const flagFields = (elements) => {
+        const shown = [...new Set(elements)].filter((element) => element && element.offsetParent !== null);
+
+        if (shown.length === 0) {
             return;
         }
 
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        shown[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-        element.classList.remove('animate-shake');
-        void element.offsetWidth;
-        element.classList.add('animate-shake', 'ring-2', 'ring-red-400');
+        for (const element of shown) {
+            element.classList.remove('animate-shake');
+            void element.offsetWidth;
+            element.classList.add('animate-shake', 'ring-2', 'ring-red-400');
 
-        setTimeout(() => element.classList.remove('animate-shake', 'ring-2', 'ring-red-400'), 1600);
+            setTimeout(() => element.classList.remove('animate-shake', 'ring-2', 'ring-red-400'), 1600);
+        }
+    };
+
+    // The fields of the checkout, looked up when needed (the payment options are drawn later).
+    const proofField = () => [document.querySelector('#proof-drop-zone')];
+    const referenceField = () => [referenceInput];
+    const paymentOptions = () => [...document.querySelectorAll('[data-pay-choice], [data-method-id]')];
+    const cartRows = () => [...document.querySelectorAll('#cart-lines > *')];
+
+    // The server names the field that is wrong (a 422 with `errors`): flag what that name is.
+    const flagServerErrors = (errors) => {
+        const fields = [];
+
+        for (const key of Object.keys(errors ?? {})) {
+            if (key === 'proof_of_payment') {
+                fields.push(...proofField());
+            } else if (key === 'reference_number') {
+                fields.push(...referenceField());
+            } else if (key === 'payment_method_id') {
+                fields.push(...paymentOptions());
+            } else if (key === 'items' || key.startsWith('items.') || key.startsWith('expected_prices')) {
+                fields.push(...cartRows());
+            }
+        }
+
+        flagFields(fields);
     };
 
     const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.content ?? '';
@@ -1325,7 +1367,10 @@ const start = () => {
 
     /* ---- moving between the steps ---------------------------------------- */
 
-    // The stock the server returns after an order, keyed by session_dish_id.
+    // The stock the server returns (after an order, on a refused order, and on
+    // every live refresh), keyed by session_dish_id. A dish missing from the map
+    // was turned off or left the session: it reads as sold out.
+    // Returns what had to change in the customer's cart, so the caller can tell them.
     const applyStock = (stock) => {
         for (const card of document.querySelectorAll('[data-dish-card]')) {
             const id = Number(card.dataset.dishCard);
@@ -1340,8 +1385,204 @@ const start = () => {
             setStock(card, left);
         }
 
-        // The steppers may not promise more than is left.
-        syncCards();
+        // The cart may hold more than is left now. Take the dish out when it sold
+        // out, or lower the amount to what remains, and remember each change.
+        const changes = [];
+
+        for (const line of [...lines.values()]) {
+            const left = Number(stock[line.id] ?? 0);
+
+            line.stock = left;
+
+            if (left < 1) {
+                lines.delete(line.id);
+                changes.push((root.dataset.stockGone ?? '').replace(':dish', line.name));
+            } else if (line.quantity > left) {
+                line.quantity = left;
+                changes.push((root.dataset.stockReduced ?? '').replace(':dish', line.name).replace(':left', String(left)));
+            }
+        }
+
+        // renderCart() also re-syncs the steppers, so they may not promise more
+        // than is left.
+        renderCart();
+
+        return changes;
+    };
+
+    // The prices the server sent (live refresh, or a refused order), keyed by
+    // session_dish_id. A changed price moves the card's pill, the dish data the
+    // modal / sort / price filter read, and the cart line. Returns one message per
+    // dish that is IN THE CART, so the customer is told before they pay; a dish
+    // they are only browsing just shows its new price.
+    const applyPrices = (prices) => {
+        const changes = [];
+        let moved = false;
+
+        for (const [key, value] of Object.entries(prices ?? {})) {
+            const id = Number(key);
+            const price = Number(value);
+            const dish = dishesById.get(id);
+
+            if (! dish || Number.isNaN(price) || Number(dish.price) === price) {
+                continue;
+            }
+
+            const before = Number(dish.price);
+
+            dish.price = price;
+            moved = true;
+
+            const label = document.querySelector('[data-price-label="' + id + '"]');
+
+            if (label) {
+                label.textContent = money(price);
+            }
+
+            const line = lines.get(id);
+
+            if (line) {
+                line.price = price;
+                changes.push((root.dataset.priceChanged ?? '')
+                    .replace(':dish', line.name)
+                    .replace(':price', money(price))
+                    .replace(':old', money(before)));
+            }
+        }
+
+        // The price boxes and the price sort read the dish data.
+        if (moved) {
+            applyFilters();
+            applySort();
+        }
+
+        return changes;
+    };
+
+    /* ---- live stock ------------------------------------------------------ */
+
+    // The stock moves while the customer browses: other people order, staff
+    // cancel. Instead of a stale number that fails at checkout, the menu asks the
+    // server for the numbers every few seconds. Plain polling on purpose: one tiny
+    // GET, no websocket server to run, works on any hosting.
+    const POLL_MS = 5000;
+    const liveDot = document.querySelector('#stock-live');
+    const liveLabel = liveDot?.querySelector('[data-live-label]');
+    let pollTimer = null;
+    let polling = false;
+
+    const setLive = (online) => {
+        if (! liveDot) {
+            return;
+        }
+
+        liveDot.dataset.state = online ? 'live' : 'offline';
+
+        if (liveLabel) {
+            liveLabel.textContent = online ? (root.dataset.liveLabel ?? '') : (root.dataset.offlineLabel ?? '');
+        }
+    };
+
+    // Tell the customer what changed in their cart, and walk them back to the
+    // cart when they were further along, so they see it before paying.
+    const reportCartChanges = (changes) => {
+        if (changes.length === 0) {
+            return;
+        }
+
+        changes.slice(0, 3).forEach((message) => showToast(message, 'warning'));
+
+        if (step === 'payment' || step === 'confirm') {
+            showStep('review');
+        }
+    };
+
+    const refreshStock = async () => {
+        // Not while an order is in flight (its own answer carries the stock), and
+        // not when nobody can see the page.
+        if (! stockUrl || ! sessionId || polling || placing || sessionClosed || document.hidden) {
+            return;
+        }
+
+        polling = true;
+
+        try {
+            const response = await fetch(stockUrl + '?session_id=' + encodeURIComponent(sessionId), {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+                cache: 'no-store',
+            });
+
+            if (! response.ok) {
+                setLive(false);
+
+                return;
+            }
+
+            const payload = await response.json();
+
+            // An order may have been placed while this request was in the air; its
+            // answer is newer than ours, so drop this one.
+            if (placing) {
+                return;
+            }
+
+            setLive(true);
+
+            if (payload.live === false) {
+                sessionClosed = true;
+                setLive(false);
+                showToast(root.dataset.sessionEnded ?? '', 'warning');
+
+                return;
+            }
+
+            // Prices first: applyStock() redraws the cart, which then shows them.
+            const priceChanges = applyPrices(payload.prices);
+
+            reportCartChanges([...priceChanges, ...applyStock(payload.stock ?? {})]);
+        } catch (error) {
+            setLive(false);
+        } finally {
+            polling = false;
+        }
+    };
+
+    // A chain of timeouts rather than setInterval: the next request is only
+    // planned once the last one is done, and a little jitter keeps a room full of
+    // customers from asking at the very same second.
+    const scheduleRefresh = () => {
+        clearTimeout(pollTimer);
+
+        pollTimer = setTimeout(async () => {
+            await refreshStock();
+
+            if (! sessionClosed) {
+                scheduleRefresh();
+            }
+        }, POLL_MS + Math.random() * 1000);
+    };
+
+    // Coming back to the tab: show the real numbers now, not after the next tick.
+    document.addEventListener('visibilitychange', () => {
+        if (! document.hidden) {
+            refreshStock();
+        }
+    });
+
+    window.addEventListener('online', refreshStock);
+
+    // One key per distinct cart + payment method; see `orderKey` above.
+    const newKey = () => (window.crypto?.randomUUID ? window.crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+    const orderKeyFor = (methodIdentifier) => {
+        // The price is part of the order: the same cart at another price is another order.
+        const fingerprint = [...lines.values()].map((line) => line.id + 'x' + line.quantity + '@' + line.price).sort().join(',') + '|' + methodIdentifier;
+
+        if (orderKey.fingerprint !== fingerprint) {
+            orderKey = { value: newKey(), fingerprint };
+        }
+
+        return orderKey.value;
     };
 
     const placeOrder = async () => {
@@ -1352,8 +1593,17 @@ const start = () => {
         const method = choice === 'bank' ? pickedMethod() : cashMethod;
 
         if (! method) {
-            showErrors([choice === 'bank' ? (root.dataset.chooseMethod ?? '') : (root.dataset.noOptions ?? '')]);
             showStep('payment');
+            showErrors([choice === 'bank' ? (root.dataset.chooseMethod ?? '') : (root.dataset.noOptions ?? '')]);
+            flagFields(paymentOptions());
+
+            return;
+        }
+
+        // The stock refresh already saw the session close: say so now instead of
+        // sending an order that is certain to be refused.
+        if (sessionClosed) {
+            showErrors([root.dataset.sessionEnded ?? '']);
 
             return;
         }
@@ -1373,6 +1623,7 @@ const start = () => {
             data.append('_token', csrfToken());
             data.append('session_id', sessionId);
             data.append('payment_method_id', String(method.method_id));
+            data.append('idempotency_key', orderKeyFor(method.method_id));
 
             if (choice === 'bank' && referenceInput?.value.trim()) {
                 data.append('reference_number', referenceInput.value.trim());
@@ -1384,6 +1635,9 @@ const start = () => {
 
             for (const line of lines.values()) {
                 data.append('items[' + line.id + ']', String(line.quantity));
+                // The price the customer saw (and paid, for a bank order): the server
+                // refuses the order when it is not the price any more.
+                data.append('expected_prices[' + line.id + ']', String(line.price));
             }
 
             const response = await fetch(orderUrl, {
@@ -1397,11 +1651,39 @@ const start = () => {
             if (! response.ok) {
                 // The order stays where it is: the customer can fix the cart or
                 // the payment and send it again.
-                showErrors(messages(payload));
+                if (payload.stock) {
+                    // A dish ran out (or was turned off) while they were checking
+                    // out. The answer carries the real numbers: show them, fix the
+                    // cart, and go back to it instead of to the payment step.
+                    applyPrices(payload.prices);
+                    applyStock(payload.stock);
+                    showStep('review');
+                    showErrors(messages(payload));
+                    flagFields(cartRows());
+
+                    return;
+                }
+
+                if (response.status === 409) {
+                    // The same customer's other request is still being placed
+                    // (double tap, second tab): wait for it, do not send again.
+                    showErrors(messages(payload));
+                    showStep('confirm');
+
+                    return;
+                }
+
+                // showStep() clears the banner, so the message comes after it; then the field the
+                // server named (the proof, the reference, the payment option) is flagged.
                 showStep('payment');
+                showErrors(messages(payload));
+                flagServerErrors(payload.errors);
 
                 return;
             }
+
+            // Placed: the next order is a new one with a new key.
+            orderKey = { value: '', fingerprint: '' };
 
             receipt = {
                 number: payload.order_number ?? '',
@@ -1449,6 +1731,7 @@ const start = () => {
         if (step === 'review') {
             if (lines.size === 0) {
                 showErrors([root.dataset.emptyCart ?? '']);
+                flagFields([document.querySelector('#cart-empty')]);
 
                 return;
             }
@@ -1463,12 +1746,14 @@ const start = () => {
         if (step === 'payment') {
             if (! choice) {
                 showErrors([root.dataset.choosePayment ?? '']);
+                flagFields(paymentOptions());
 
                 return;
             }
 
             if (choice === 'bank' && ! pickedMethod()) {
                 showErrors([root.dataset.chooseMethod ?? '']);
+                flagFields(paymentOptions());
 
                 return;
             }
@@ -1476,7 +1761,7 @@ const start = () => {
             // Anything but cash is paid first, so the proof is required.
             if (choice === 'bank' && ! proofFile) {
                 showErrors([root.dataset.proofRequired ?? '']);
-                flagField(document.querySelector('#proof-drop-zone'));
+                flagFields(proofField());
 
                 return;
             }
@@ -1536,6 +1821,11 @@ const start = () => {
     renderMethods();
     showStep('review');
     applyFilters();
+
+    // Last: the page is wired, so the first refresh can safely touch the cards.
+    if (stockUrl && sessionId) {
+        scheduleRefresh();
+    }
 };
 
 // Loaded as a module (deferred), so the DOM is normally already parsed.

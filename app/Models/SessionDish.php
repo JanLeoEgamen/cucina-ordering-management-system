@@ -109,15 +109,38 @@ class SessionDish extends Model
             ->first();
     }
 
-    // Stock left for every dish of a session, keyed by session_dish_id. The menu
-    // sends it back after an order so the cards show what is left.
+    // Stock left for every dish the session offers, keyed by session_dish_id.
+    // The menu reads it after an order and on every live refresh
+    // (GET /menu/stock). A dish that was turned off or left the session is not
+    // in the map, and the menu treats a missing dish as sold out.
     public static function stockOfSession(int $sessionId): array
     {
         return DB::table(self::TABLE)
             ->where('session_id', $sessionId)
             ->whereNull('deleted_at')
+            ->where('is_available', true)
+            ->where('is_active', true)
             ->get(['session_dish_id', 'available_stock'])
             ->mapWithKeys(fn (object $dish) => [(int) $dish->session_dish_id => (int) $dish->available_stock])
+            ->all();
+    }
+
+    // The current price of every dish the session offers, keyed by session_dish_id
+    // (the same dishes as offeredForSession). The menu reads it on every live
+    // refresh, so a price an admin changed shows up while customers browse, and
+    // the order is checked against the prices the customer saw.
+    public static function pricesOfSession(int $sessionId): array
+    {
+        return DB::table(self::TABLE)
+            ->join(self::TABLE_DISH, self::TABLE_DISH . '.dish_id', '=', self::TABLE . '.dish_id')
+            ->where(self::TABLE . '.session_id', $sessionId)
+            ->whereNull(self::TABLE . '.deleted_at')
+            ->where(self::TABLE . '.is_available', true)
+            ->where(self::TABLE . '.is_active', true)
+            ->whereNull(self::TABLE_DISH . '.deleted_at')
+            ->where(self::TABLE_DISH . '.is_active', true)
+            ->get([self::TABLE . '.session_dish_id', self::TABLE_DISH . '.price'])
+            ->mapWithKeys(fn (object $dish) => [(int) $dish->session_dish_id => round((float) $dish->price, 2)])
             ->all();
     }
 
@@ -126,11 +149,15 @@ class SessionDish extends Model
     // Take stock for an order: available_stock down, reserved_stock up. The
     // stock is re-checked in the same statement, so two orders cannot take the
     // last plate at the same time; false means there was not enough left.
+    // A dish an admin turned off a moment ago is refused here too, not only
+    // by the menu's earlier check.
     public static function reserve(int $sessionDishId, int $quantity): bool
     {
         return DB::table(self::TABLE)
             ->where('session_dish_id', $sessionDishId)
             ->whereNull('deleted_at')
+            ->where('is_available', true)
+            ->where('is_active', true)
             ->where('available_stock', '>=', $quantity)
             ->update([
                 'available_stock' => DB::raw('available_stock - ' . (int) $quantity),

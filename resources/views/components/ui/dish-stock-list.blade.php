@@ -26,6 +26,8 @@
 @props([
     'prefix',
     'dishes',
+    // false for a session with no stock (bulk sessions): the same picker, without the number boxes.
+    'stock' => true,
 ])
 
 @php
@@ -176,15 +178,20 @@
 
                 <label for="{{ $prefix }}-dish-{{ $dish->dish_id }}" class="min-w-0 flex-1 cursor-pointer">
                     <span class="block truncate text-sm text-gray-800 dark:text-gray-200">{{ $dish->dish_name }}</span>
-                    <span class="block text-xs tabular-nums text-gray-500 dark:text-gray-400">${{ number_format((float) $dish->price, 2) }}</span>
+                    <span class="block text-xs tabular-nums text-gray-500 dark:text-gray-400">₱{{ number_format((float) $dish->price, 2) }}</span>
                 </label>
 
-                <label for="{{ $prefix }}-stock-{{ $dish->dish_id }}" class="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">{{ __('Stock') }}</label>
-                <input type="number"
-                       id="{{ $prefix }}-stock-{{ $dish->dish_id }}"
-                       name="stocks[{{ $dish->dish_id }}]"
-                       min="0" step="1" value="0"
-                       class="{{ $stockInput }}">
+                @if ($stock)
+                    <label for="{{ $prefix }}-stock-{{ $dish->dish_id }}" class="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">{{ __('Stock') }}</label>
+                    <input type="number"
+                           id="{{ $prefix }}-stock-{{ $dish->dish_id }}"
+                           name="stocks[{{ $dish->dish_id }}]"
+                           min="0" step="1" value="0"
+                           class="{{ $stockInput }}">
+                    {{-- What the box showed when the edit drawer was opened (order-sessions.js fills it; empty on create).
+                         The server applies only the CHANGE from it, so orders placed while the drawer is open are not undone. --}}
+                    <input type="hidden" name="loaded_stocks[{{ $dish->dish_id }}]" value="">
+                @endif
             </div>
         @empty
             <p class="px-3 py-4 text-sm text-gray-500 dark:text-gray-400">{{ __('There are no dishes to offer yet.') }}</p>

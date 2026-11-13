@@ -38,7 +38,7 @@ const start = () => {
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
     }[character]));
 
-    const money = (value) => '$' + Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const money = (value) => '₱' + Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     // 2026-11-10 14:05:00 -> Nov 10, 2026, 2:05 PM
     const prettyDateTime = (value) => {

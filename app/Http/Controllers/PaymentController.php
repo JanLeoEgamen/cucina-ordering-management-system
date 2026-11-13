@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
+use App\Support\OrderNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -192,10 +193,36 @@ class PaymentController extends Controller implements HasMiddleware
             return $this->errorResponse('The order is cancelled.', 422);
         }
 
-        DB::transaction(function () use ($orderId, $status, $reason) {
+        $refused = DB::transaction(function () use ($orderId, $status, $reason) {
+            // Same lock as Complete / Cancel: a verification that lands in the
+            // middle of a Cancel would leave a cancelled order with a verified
+            // payment (money received, nothing to hand over).
+            if (Order::lockedStatus($orderId) === 'cancelled') {
+                return 'The order is cancelled.';
+            }
+
+            // And two reviewers pressing Verify / Reject together: the second one
+            // finds the decision already taken.
+            if (Payment::statusOf($orderId) !== 'pending') {
+                return 'Only a pending payment can be ' . $status . '.';
+            }
+
             Payment::setStatus($orderId, $status, auth()->id(), $reason);
             Order::updatePaymentStatus($orderId, $status);
+
+            return null;
         });
+
+        if ($refused) {
+            return $this->errorResponse($refused, 422);
+        }
+
+        // Tell the customer (and the watchers): a queued job, see OrderNotifier.
+        if ($status === 'verified') {
+            OrderNotifier::paymentVerified($orderId);
+        } else {
+            OrderNotifier::paymentRejected($orderId, $reason);
+        }
 
         return $this->successResponse($message);
     }

@@ -18,6 +18,7 @@ import DataTable from 'datatables.net-dt';
 import { initTableToolbar } from '../ui/table-toolbar';
 import { showToast } from '../ui/toast';
 import { initOrderPopup, post } from '../ui/order-popup';
+import { proofLink } from '../ui/proof-link';
 
 const start = () => {
     const tableElement = document.querySelector('#session-orders-table');
@@ -41,7 +42,7 @@ const start = () => {
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
     }[character]));
 
-    const money = (value) => '$' + Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const money = (value) => '₱' + Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     // 2026-11-10 14:05:00 -> Nov 10, 2:05 PM
     const prettyDateTime = (value) => {
@@ -69,8 +70,7 @@ const start = () => {
     const paymentHtml = (order) => '<span class="block text-sm text-gray-700 dark:text-gray-300">' + escapeHtml(order.method_name ?? '—') + '</span>'
         + (order.reference_number ? '<span class="mt-0.5 block text-xs tabular-nums text-gray-500 dark:text-gray-400">' + escapeHtml(order.reference_number) + '</span>' : '')
         + (order.proof_url
-            ? '<a href="' + escapeHtml(order.proof_url) + '" target="_blank" rel="noopener" data-zoom data-zoom-caption="' + escapeHtml(copy.proofCaption ?? '') + '"'
-              + ' class="mt-0.5 block text-xs font-medium text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400">' + escapeHtml(copy.proofLabel ?? '') + '</a>'
+            ? '<span class="mt-1 block">' + proofLink(order.proof_url, copy.proofLabel, copy.proofCaption) + '</span>'
             : '')
         + '<span class="mt-1 block">' + (order.payment_badge ?? '') + '</span>';
 

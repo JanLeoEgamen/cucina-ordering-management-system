@@ -13,12 +13,13 @@
  * page decides what to refresh (cancelling gives stock back, so the session page reloads).
  */
 import { showToast } from './toast';
+import { proofLink } from './proof-link';
 
 export const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
 }[character]));
 
-export const money = (value) => '$' + Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const money = (value) => '₱' + Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // 2026-11-10 14:05:00 -> Nov 10, 2:05 PM
 export const prettyDateTime = (value) => {
@@ -275,7 +276,7 @@ export function initOrderPopup({ onChange = () => {} } = {}) {
         }
 
         byId('order-details-proof').innerHTML = order.proof_url
-            ? '<a href="' + escapeHtml(order.proof_url) + '" target="_blank" rel="noopener" data-zoom data-zoom-caption="' + escapeHtml(copy.proofCaption ?? '') + '" class="font-medium text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400">' + escapeHtml(copy.proofLabel ?? '') + '</a>'
+            ? proofLink(order.proof_url, copy.proofLabel, copy.proofCaption)
             : '<span class="text-gray-500 dark:text-gray-400">—</span>';
 
         const lines = order.items ?? [];
