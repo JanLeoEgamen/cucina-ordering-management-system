@@ -10,9 +10,13 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
 
-// The real menu, read from database/seeders/data/menu.csv: one row per dish, with
-// the type it belongs to (and the type's description) on the same row. Edit the
-// CSV, not this class, to change the menu.
+// The real menu, read from two files in database/seeders/data/:
+//   dish_types.csv  every dish type with its description (all of them are seeded,
+//                   also a type no dish uses yet)
+//   menu.csv        one row per dish; "Dish Type Names" lists ALL the types of the
+//                   dish, separated by ";" (e.g. "Breakfast; Silog"), because a
+//                   dish can sit in many types. Never write two types as "A / B".
+// Edit the CSVs, not this class, to change the menu.
 //
 // Re-running keeps what the app already holds: a type and a dish are looked up by
 // name and only created when missing, so prices and edits made in the app are not
@@ -23,9 +27,12 @@ use RuntimeException;
 // and attached to the dish. A dish that already has an image keeps it.
 class MenuSeeder extends Seeder
 {
-    // Columns of the CSV, by header text.
+    // Columns of dish_types.csv, by header text.
     private const TYPE = 'Dish Type Name';
     private const TYPE_DESCRIPTION = 'Dish Type Description';
+
+    // Columns of menu.csv, by header text.
+    private const TYPES = 'Dish Type Names';
     private const NAME = 'Dish Name';
     private const DESCRIPTION = 'Description';
     private const PRICE = 'Price';
@@ -36,12 +43,17 @@ class MenuSeeder extends Seeder
 
     public function run(): void
     {
-        foreach ($this->rows() as $row) {
-            $type = DishType::firstOrCreate(
-                ['type_name' => $row[self::TYPE]],
-                ['description' => $row[self::TYPE_DESCRIPTION] ?: null, 'is_active' => true]
-            );
+        // Every type first, so each one exists even when no dish uses it yet.
+        $typeIds = [];
 
+        foreach ($this->rows($this->typesPath()) as $row) {
+            $typeIds[$row[self::TYPE]] = $this->type($row[self::TYPE], $row[self::TYPE_DESCRIPTION])->dish_type_id;
+        }
+
+        // Databases seeded before the split still hold "Breakfast / Silog" style types.
+        $this->splitCombinedTypes($typeIds);
+
+        foreach ($this->rows($this->csvPath()) as $row) {
             $dish = Dish::firstOrCreate(
                 ['dish_name' => $row[self::NAME]],
                 [
@@ -53,13 +65,61 @@ class MenuSeeder extends Seeder
                 ]
             );
 
-            // syncWithoutDetaching: a second run must not add the same type twice.
-            $dish->dishTypes()->syncWithoutDetaching([$type->dish_type_id]);
+            // A type missing from dish_types.csv is still created, so a typo in the
+            // menu cannot silently drop a category.
+            $ids = [];
+
+            foreach ($this->typeNames($row[self::TYPES]) as $name) {
+                $ids[] = $typeIds[$name] ??= $this->type($name, null)->dish_type_id;
+            }
+
+            // syncWithoutDetaching: a second run must not add the same type twice,
+            // and a type the app added to the dish stays.
+            $dish->dishTypes()->syncWithoutDetaching($ids);
 
             $this->attachImage($dish);
         }
     }
 
+    // The live type with this name, created when missing (a soft deleted one is not reused).
+    protected function type(string $name, ?string $description): DishType
+    {
+        return DishType::firstOrCreate(
+            ['type_name' => $name],
+            ['description' => $description ?: null, 'is_active' => true]
+        );
+    }
+
+    // "Breakfast; Silog" (or the old "Breakfast / Silog") => ['Breakfast', 'Silog'].
+    protected function typeNames(string $cell): array
+    {
+        return array_values(array_unique(array_filter(array_map('trim', preg_split('/[;\/]/', $cell)))));
+    }
+
+    // Turn an existing "A / B" type into the types A and B: its dishes move to both
+    // and the combined type is soft deleted. Only a name whose parts are all known
+    // types is touched, so a type an admin made on purpose is left alone.
+    protected function splitCombinedTypes(array $typeIds): void
+    {
+        $combined = DishType::where('type_name', 'like', '%/%')->get();
+
+        foreach ($combined as $old) {
+            $parts = $this->typeNames($old->type_name);
+
+            if (count($parts) < 2 || array_diff($parts, array_keys($typeIds)) !== []) {
+                continue;
+            }
+
+            $dishIds = $old->dishes()->pluck('dishes.dish_id')->all();
+
+            foreach ($parts as $part) {
+                DishType::find($typeIds[$part])->dishes()->syncWithoutDetaching($dishIds);
+            }
+
+            $old->dishes()->detach();
+            $old->delete();
+        }
+    }
     // Copy a matching picture to the public disk, for a dish that has none yet.
     protected function attachImage(Dish $dish): void
     {
@@ -90,17 +150,22 @@ class MenuSeeder extends Seeder
         return database_path('seeders/data/menu.csv');
     }
 
+    protected function typesPath(): string
+    {
+        return database_path('seeders/data/dish_types.csv');
+    }
+
     /**
-     * The CSV as rows keyed by header, skipping blank lines.
+     * A CSV as rows keyed by header, skipping blank lines.
      *
      * @return array<int, array<string, string>>
      */
-    protected function rows(): array
+    protected function rows(string $path): array
     {
-        $handle = fopen($this->csvPath(), 'r');
+        $handle = fopen($path, 'r');
 
         if ($handle === false) {
-            throw new RuntimeException('Cannot read ' . $this->csvPath());
+            throw new RuntimeException('Cannot read ' . $path);
         }
 
         $header = array_map(fn ($name) => trim((string) $name), fgetcsv($handle) ?: []);
