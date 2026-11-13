@@ -8,6 +8,7 @@ use App\Models\BulkSession;
 use App\Models\BulkSessionDish;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
+use App\Models\Setting;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -48,6 +49,8 @@ class BulkOrderController extends Controller implements HasMiddleware
             'session' => $session,
             // A dish that is turned off, or left the session, is not offered.
             'dishes' => $session ? BulkSessionDish::offeredForSession($session->bulk_session_id) : collect(),
+            // The fewest / most plates one order may hold (System Configuration + the session).
+            'limits' => $session ? $this->limitsFor($session) : ['min' => 0, 'max' => null],
             // The same two ways to pay as the regular checkout: cash on pickup, and
             // bank / e-wallet with a reference and a proof.
             'cash' => PaymentMethod::cashOption(),
@@ -177,12 +180,22 @@ class BulkOrderController extends Controller implements HasMiddleware
             $plates += $quantity;
         }
 
-        // The point of a bulk session. Judged on the session as it is now, so a
-        // minimum raised while the customer was checking out is applied.
-        if ($plates < (int) $session->min_quantity) {
+        // The point of a bulk session. Judged on the limits as they are now (the
+        // session and System Configuration), so a minimum raised or a maximum set
+        // while the customer was checking out is applied.
+        $limits = $this->limitsFor($session);
+
+        if ($plates < $limits['min']) {
             return $this->reviewResponse(
                 $session,
-                'A bulk order needs at least ' . (int) $session->min_quantity . ' plates (you have ' . $plates . ').'
+                'A bulk order needs at least ' . $limits['min'] . ' plates (you have ' . $plates . ').'
+            );
+        }
+
+        if ($limits['max'] !== null && $plates > $limits['max']) {
+            return $this->reviewResponse(
+                $session,
+                'A bulk order can hold at most ' . $limits['max'] . ' plates (you have ' . $plates . ').'
             );
         }
 
@@ -255,12 +268,32 @@ class BulkOrderController extends Controller implements HasMiddleware
     // apply them on the spot instead of retrying into the same refusal.
     protected function reviewResponse(object $session, string $message)
     {
+        $limits = $this->limitsFor($session);
+
         return response()->json([
             'status' => 'error',
             'message' => $message . ' Please review your cart.',
             'prices' => BulkSessionDish::pricesOfSession((int) $session->bulk_session_id),
-            'min_quantity' => (int) $session->min_quantity,
+            'min_quantity' => $limits['min'],
+            'max_quantity' => $limits['max'],
         ], 422);
+    }
+
+    // The plates one order of this session may hold. The minimum is the larger of the
+    // session's own and the system's (a session may ask for more, never for less); the
+    // maximum is the system's, or null for no limit. A session minimum above the
+    // maximum (the maximum was lowered afterwards) is brought down to it, so the
+    // session never becomes impossible to order from.
+    protected function limitsFor(object $session): array
+    {
+        $limits = Setting::bulkLimits();
+        $min = max((int) $session->min_quantity, $limits['min']);
+
+        if ($limits['max'] !== null) {
+            $min = min($min, $limits['max']);
+        }
+
+        return ['min' => $min, 'max' => $limits['max']];
     }
 
     // Remove an uploaded proof when its order was not written.

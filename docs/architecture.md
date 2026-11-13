@@ -56,7 +56,7 @@ Route (routes/web.php, group: auth)
 
 ## Bulk orders (separate from the menu)
 
-A second, parallel ordering feature: staff open a **bulk session** (a window like an order session, plus `min_quantity` plates per order) and customers order big quantities from a **separate bulk menu**. Decided with the owner: customers order themselves; the dishes come from the same Dish Masterlist; **no stock** (the kitchen decides its capacity); the same payment methods, but its own pages, not the Orders / Payments pages.
+A second, parallel ordering feature: staff open a **bulk session** (a window like an order session, plus `min_quantity` plates per order; System Configuration sets the minimum and maximum plates of any bulk order, and a session may ask for more than the minimum, never less) and customers order big quantities from a **separate bulk menu**. Decided with the owner: customers order themselves; the dishes come from the same Dish Masterlist; **no stock** (the kitchen decides its capacity); the same payment methods, but its own pages, not the Orders / Payments pages.
 
 It is its own tables and models (`BulkSession`, `BulkSessionDish`, `BulkOrder`, `BulkOrderItem`), **not** a `session_type` column: `orders.session_id` / `order_items.session_dish_id` are NOT NULL stock links, and the menu, dashboard, welcome page, `Order::list`, `Payment::listQuery`, `orderRow()`, `OrderNotifier` and the order popup all assume one kind of session. The payment is stored on `bulk_orders` itself (one per order), so an order and its payment change state under the same row lock (`BulkOrder::lockedState`). Same payment rules as orders (cash is verified by completing, others verified first; a verified payment blocks cancel) apply. At most **one open bulk session at a time** (overlap check, unlike order sessions). Status of this work: **data layer, permissions, factories, the staff Bulk Sessions page (`BulkSessionController`) and customer ordering (`BulkOrderController`: bulk menu, place order, My Bulk Orders) done; the order lifecycle (complete / cancel / verify / reject / undo, fixing a rejected payment), notifications and the session page's orders table follow** (see changelog). A placed bulk order is `pending` with a `pending` payment and nothing can move it yet.
 
@@ -79,6 +79,8 @@ In-app notifications (a bell with an unread badge and a **Notifications** page),
 
 **Plain AJAX, no websocket:** the bell polls `GET /notifications/feed?after=N` about every 8 s (a count + an indexed range read, almost always empty; paused while the tab is hidden), so a notification appears within seconds without a refresh. The bell sits in the **top right corner** of every page (a sticky bar from `lg`, the phone top bar below it) with the dark / light switch and the account menu; opening it lists the latest 6 (`?recent=1`, read only then), and a new arrival swings it and toasts. Reverb / websockets were tried and removed on purpose: one less long-running process to run and watch. One event = the order (one join query), the people (one query), **one bulk INSERT**; the text is stored ready to print; read rows are pruned daily by `notifications:prune` (`Schedule`, needs `schedule:work` / the server cron).
 
+**Email copy (optional, System Configuration → Notifications → *Send notifications by email*, default off):** when on, `OrderNotifier` pushes ONE more job after the in-app rows are saved — `App\Jobs\SendNotificationEmails` on the same queue, carrying one entry per person told (same title, text and link as the bell) — and the worker sends a `App\Mail\NotificationMail` (markdown view `emails/notification`) to each person's account address. One job per event, not per person. It is **not retried** (`tries = 1`, a retry would email everyone twice); each address is tried on its own and a failure is logged and skipped, and the push is inside `rescue()` so a mail problem can never fail the delivery job (whose retry would write the bell rows twice). The mail server comes from `.env` (`MAIL_*`; the default `log` mailer only writes to the log).
+
 **Running it (one long-lived process besides the web server):** `php artisan queue:work --queue=notifications,default --tries=3 --max-time=3600` under Supervisor / systemd, restarted on every deploy (`php artisan queue:restart`), plus the scheduler cron. `composer dev` starts the worker locally. Without the worker nobody is notified (orders still work; the jobs wait in `jobs`).
 
 ## Directory map
@@ -87,7 +89,7 @@ In-app notifications (a bell with an unread badge and a **Notifications** page),
 app/Http/Controllers/   one controller per resource + Auth/ + Controller.php (shared badges/responses)
 app/Models/             query-builder models (+ Role, User Eloquent)
 app/Support/            OrderNotifier (who is told what)   app/Console/Commands/  notifications:prune
-app/Jobs/               DeliverNotification (queued)
+app/Jobs/               DeliverNotification, SendNotificationEmails (queued)   app/Mail/  NotificationMail
 config/notifications.php  the notifications queue name
 app/Exceptions/         StockRanOutException
 database/migrations/    schema            database/seeders/   starter data      database/factories/  test data

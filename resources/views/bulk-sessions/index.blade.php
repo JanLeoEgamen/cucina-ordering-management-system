@@ -84,7 +84,7 @@
                   data-subject-field="order_date"
                   data-default-start="{{ $sessionWindow['start_time'] }}"
                   data-default-end="{{ $sessionWindow['end_time'] }}"
-                  data-default-min="10"
+                  data-default-min="{{ $bulkLimits['min'] }}"
                   data-confirm-title="{{ __('Confirm Create') }}"
                   data-confirm-message="{{ __('Are you sure you want to create this bulk session?') }}"
                   data-confirm-label="{{ __('Create Bulk Session') }}"
@@ -123,9 +123,9 @@
 
                 <div>
                     <label for="create-min-quantity" class="{{ $label }}">{{ __('Minimum plates per order') }}</label>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('All dishes together: an order smaller than this is refused.') }}</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('All dishes together: an order smaller than this is refused.') }} {{ __('Allowed by System Configuration:') }} {{ $bulkLimits['min'] }}{{ $bulkLimits['max'] ? ' – ' . $bulkLimits['max'] : '+' }}</p>
                     <div class="mt-1">
-                        <input type="number" name="min_quantity" id="create-min-quantity" min="1" step="1" required class="{{ $input }}">
+                        <input type="number" name="min_quantity" id="create-min-quantity" min="{{ $bulkLimits['min'] }}" @if ($bulkLimits['max']) max="{{ $bulkLimits['max'] }}" @endif step="1" required class="{{ $input }}">
                     </div>
                 </div>
 
@@ -205,7 +205,7 @@
                     <label for="edit-min-quantity" class="{{ $label }}">{{ __('Minimum plates per order') }}</label>
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Applies to orders placed from now on; orders already placed are kept.') }}</p>
                     <div class="mt-1">
-                        <input type="number" name="min_quantity" id="edit-min-quantity" min="1" step="1" required class="{{ $input }}">
+                        <input type="number" name="min_quantity" id="edit-min-quantity" min="{{ $bulkLimits['min'] }}" @if ($bulkLimits['max']) max="{{ $bulkLimits['max'] }}" @endif step="1" required class="{{ $input }}">
                     </div>
                 </div>
 

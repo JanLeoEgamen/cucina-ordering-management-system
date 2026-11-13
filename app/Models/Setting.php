@@ -19,10 +19,23 @@ class Setting
     // The users who receive a copy of EVERY notification (a JSON list of user ids).
     public const NOTIFICATION_WATCHERS = 'notifications.watchers';
 
+    // '1' = every notification is also sent by email; '0' = in-app only.
+    public const EMAIL_NOTIFICATIONS = 'notifications.email_enabled';
+
+    // The fewest and the most plates ONE bulk order may hold. The maximum is empty
+    // when there is no limit.
+    public const BULK_MIN_QUANTITY = 'bulk_orders.min_quantity';
+
+    public const BULK_MAX_QUANTITY = 'bulk_orders.max_quantity';
+
     public const DEFAULTS = [
         self::SESSION_START_TIME => '09:00',
         self::SESSION_END_TIME => '17:00',
         self::NOTIFICATION_WATCHERS => '[]',
+        // Off until an admin turns it on: mail has to be set up in .env first.
+        self::EMAIL_NOTIFICATIONS => '0',
+        self::BULK_MIN_QUANTITY => '10',
+        self::BULK_MAX_QUANTITY => '',
     ];
 
     /* -------- Reads -------- */
@@ -44,6 +57,26 @@ class Setting
         ];
     }
 
+    // Is the email copy of notifications switched on?
+    public static function emailNotifications(): bool
+    {
+        return self::get(self::EMAIL_NOTIFICATIONS) === '1';
+    }
+
+    // The plates one bulk order may hold: ['min' => int >= 1, 'max' => ?int]. A max of
+    // null means "no limit". A damaged value reads as the default, and a maximum below
+    // the minimum is ignored, so an order is never impossible to place.
+    public static function bulkLimits(): array
+    {
+        $min = (int) self::get(self::BULK_MIN_QUANTITY);
+        $min = $min >= 1 ? $min : (int) self::DEFAULTS[self::BULK_MIN_QUANTITY];
+
+        $max = (int) self::get(self::BULK_MAX_QUANTITY);
+        $max = $max >= $min ? $max : null;
+
+        return ['min' => $min, 'max' => $max];
+    }
+
     // The ids of the users who receive every notification, as ints. A damaged
     // value reads as "nobody" rather than breaking an order.
     public static function notificationWatchers(): array
@@ -56,6 +89,21 @@ class Setting
     }
 
     /* -------- Writes -------- */
+
+    // Switch the email copy of notifications on or off.
+    public static function setEmailNotifications(bool $enabled): void
+    {
+        self::set(self::EMAIL_NOTIFICATIONS, $enabled ? '1' : '0');
+    }
+
+    // Save the bulk order limits (a null maximum = no limit).
+    public static function setBulkLimits(int $min, ?int $max): void
+    {
+        DB::transaction(function () use ($min, $max) {
+            self::set(self::BULK_MIN_QUANTITY, (string) $min);
+            self::set(self::BULK_MAX_QUANTITY, $max === null ? '' : (string) $max);
+        });
+    }
 
     // Save who receives every notification.
     public static function setNotificationWatchers(array $userIds): void

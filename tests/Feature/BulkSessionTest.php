@@ -6,6 +6,7 @@ use App\Models\BulkOrder;
 use App\Models\BulkSession;
 use App\Models\BulkSessionDish;
 use App\Models\Dish;
+use App\Models\Setting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -30,6 +31,36 @@ class BulkSessionTest extends TestCase
             'min_quantity' => 20,
             'dish_ids' => [Dish::factory()->create()->dish_id],
         ], $overrides);
+    }
+
+    /* -------- the limits of System Configuration -------- */
+
+    public function test_a_session_minimum_must_stay_inside_the_system_limits(): void
+    {
+        Setting::setBulkLimits(15, 100);
+        $this->actingAs($this->superAdmin());
+
+        $this->postJson(route('bulk-sessions.store'), $this->payload(['min_quantity' => 14]))
+            ->assertStatus(422)->assertJsonValidationErrors('min_quantity');
+        $this->postJson(route('bulk-sessions.store'), $this->payload(['min_quantity' => 101]))
+            ->assertStatus(422)->assertJsonValidationErrors('min_quantity');
+
+        $this->assertDatabaseCount('bulk_sessions', 0);
+
+        // Both ends are allowed.
+        $this->postJson(route('bulk-sessions.store'), $this->payload(['min_quantity' => 15]))->assertOk();
+        $this->assertSame(1, BulkSession::query()->count());
+    }
+
+    public function test_the_new_session_drawer_starts_from_the_system_minimum(): void
+    {
+        Setting::setBulkLimits(35, 200);
+
+        $this->actingAs($this->userWith('view bulk-sessions', 'create bulk-sessions'))
+            ->get(route('bulk-sessions.index'))
+            ->assertOk()
+            ->assertSee('data-default-min="35"', false)
+            ->assertSee('max="200"', false);
     }
 
     /* -------- access -------- */

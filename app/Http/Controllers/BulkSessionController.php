@@ -89,6 +89,9 @@ class BulkSessionController extends Controller implements HasMiddleware
             // The times a new session starts with (System Configuration): the same
             // defaults as an order session.
             'sessionWindow' => Setting::sessionWindow(),
+            // The size limits of a bulk order (System Configuration): the new-session
+            // drawer starts from the minimum and its number boxes stay inside them.
+            'bulkLimits' => Setting::bulkLimits(),
         ]);
     }
 
@@ -205,19 +208,25 @@ class BulkSessionController extends Controller implements HasMiddleware
             'dish_ids' => array_map('intval', (array) $request->input('dish_ids', [])),
         ]);
 
+        // A session's own minimum stays inside what System Configuration allows for a
+        // bulk order: not below the system minimum, not above the system maximum.
+        $limits = Setting::bulkLimits();
+
         return $request->validate([
             'title' => ['nullable', 'string', 'max:120'],
             'order_date' => ['required', 'date'],
             'start_time' => ['required', 'date_format:H:i'],
             'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
-            'min_quantity' => ['required', 'integer', 'min:1', 'max:100000'],
+            'min_quantity' => ['required', 'integer', 'min:' . $limits['min'], 'max:' . ($limits['max'] ?? 100000)],
             'dish_ids' => ['required', 'array', 'min:1'],
             'dish_ids.*' => ['integer', 'exists:dishes,dish_id'],
         ], [
             'dish_ids.required' => 'Pick at least one dish.',
             'dish_ids.min' => 'Pick at least one dish.',
             'end_time.after' => 'The end time must be after the start time.',
-            'min_quantity.min' => 'The minimum quantity must be at least 1.',
+            'min_quantity.min' => 'The minimum quantity must be at least ' . $limits['min'] . ' (System Configuration).',
+            'min_quantity.max' => 'The minimum quantity cannot be more than ' . ($limits['max'] ?? 100000)
+                . ($limits['max'] !== null ? ', the most plates System Configuration allows in a bulk order.' : '.'),
         ]);
     }
 

@@ -40,6 +40,8 @@ const start = () => {
     const bankMethods = parse(root.dataset.methods, []);
     const cashMethod = parse(root.dataset.cash, null);
     let minQuantity = Number(root.dataset.minQuantity ?? 0);
+    // 0 = no maximum (System Configuration leaves it empty).
+    let maxQuantity = Number(root.dataset.maxQuantity ?? 0);
 
     // id -> { id, name, price }; a dish the server says is gone is dropped from it.
     const dishes = new Map(parse(root.dataset.dishes, []).map((dish) => [Number(dish.id), { ...dish, id: Number(dish.id) }]));
@@ -130,7 +132,8 @@ const start = () => {
     const renderSummary = () => {
         const count = plates();
         const need = Math.max(0, minQuantity - count);
-        const reached = count >= minQuantity && count > 0;
+        const over = maxQuantity > 0 && count > maxQuantity;
+        const reached = count >= minQuantity && count > 0 && !over;
 
         summaryPlates.textContent = String(count);
         summaryLabel.textContent = platesWord(count);
@@ -142,7 +145,12 @@ const start = () => {
         progressBar?.setAttribute('aria-valuenow', String(Math.min(count, minQuantity)));
         progressBar?.setAttribute('aria-valuemax', String(minQuantity));
 
-        hint.textContent = reached ? copy('minReached') : copy('needMore').replace(':n', String(need));
+        if (over) {
+            hint.textContent = copy('overMax').replace(':n', String(count - maxQuantity)).replace(':max', String(maxQuantity));
+        } else {
+            hint.textContent = reached ? copy('minReached') : copy('needMore').replace(':n', String(need));
+        }
+
         reviewButton.disabled = !reached;
     };
 
@@ -521,6 +529,11 @@ const start = () => {
             minQuantity = Number(payload.min_quantity);
         }
 
+        // null (no limit) arrives as null: keep it as 0 here.
+        if (payload.max_quantity !== undefined) {
+            maxQuantity = Number(payload.max_quantity ?? 0);
+        }
+
         if (payload.prices && typeof payload.prices === 'object') {
             const current = new Map(Object.entries(payload.prices).map(([id, price]) => [Number(id), Number(price)]));
 
@@ -601,6 +614,12 @@ const start = () => {
 
         if (plates() < minQuantity) {
             showErrors([copy('belowMinimum').replace(':min', String(minQuantity)).replace(':n', String(plates()))]);
+
+            return;
+        }
+
+        if (maxQuantity > 0 && plates() > maxQuantity) {
+            showErrors([copy('aboveMaximum').replace(':max', String(maxQuantity)).replace(':n', String(plates()))]);
 
             return;
         }

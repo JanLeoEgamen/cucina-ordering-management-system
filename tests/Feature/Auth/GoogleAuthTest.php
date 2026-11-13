@@ -72,8 +72,9 @@ class GoogleAuthTest extends TestCase
         $this->get(route('google.redirect'))->assertRedirectContains('https://accounts.google.com/o/oauth2/auth');
     }
 
-    public function test_a_new_google_user_is_created_without_a_role_and_signed_in(): void
+    public function test_a_new_google_user_is_created_as_a_customer_and_signed_in(): void
     {
+        $this->seedPermissions();
         $this->enable();
         $this->google();
         Event::fake([Registered::class]);
@@ -87,7 +88,7 @@ class GoogleAuthTest extends TestCase
         $this->assertSame('Reyes', $user->last_name);
         $this->assertSame('g-123', $user->google_id);
         $this->assertNotNull($user->email_verified_at);
-        $this->assertCount(0, $user->roles);
+        $this->assertSame(['Customer'], $user->getRoleNames()->all());
         Event::assertDispatched(Registered::class);
 
         // Not complete yet: the company is still unknown, so the app holds them on the form.

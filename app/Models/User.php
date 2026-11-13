@@ -227,6 +227,34 @@ class User extends Authenticatable
         return $deleted;
     }
 
+    // Give a self-registered account the Customer role (what /register and the first
+    // Google sign-in do). It ADDS the role: syncUserRoles() below would replace the
+    // user's others. Returns false when the role does not exist yet (PermissionSeeder
+    // has not run): the account is then left role-less rather than failing the sign-up.
+    public static function giveCustomerRole(int $userId): bool
+    {
+        $roleId = DB::table('roles')
+            ->where('name', Role::CUSTOMER)
+            ->where('guard_name', 'web')
+            ->value('id');
+
+        if (! $roleId) {
+            return false;
+        }
+
+        // The pivot's primary key is (role, model type, model id), so a repeat is ignored.
+        DB::table(self::PIVOT)->insertOrIgnore([
+            'role_id' => (int) $roleId,
+            'model_type' => self::class,
+            'model_id' => $userId,
+        ]);
+
+        // The permission map is cached, so every write has to drop it.
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        return true;
+    }
+
     // Replace a user's roles: delete that user's rows, insert the posted ids.
     public static function syncUserRoles(int $userId, array $roleIds): void
     {
