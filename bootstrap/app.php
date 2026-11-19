@@ -24,6 +24,20 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => RoleOrPermissionMiddleware::class,
             'profile.complete' => EnsureProfileIsComplete::class,
         ]);
+
+        // Behind a load balancer the app only sees the balancer's address: trust its
+        // X-Forwarded-* headers so the client IP (login throttling!), the host and
+        // https URLs are right. Off unless TRUSTED_PROXIES is set ("*" or a comma list of
+        // IPs / CIDRs): trusting everyone on a server that faces the internet directly would
+        // let any client forge its IP. Read from the real environment on purpose: with
+        // `config:cache` the .env file is not loaded here (docker-compose passes it as env vars).
+        $proxies = env('TRUSTED_PROXIES');
+
+        if (is_string($proxies) && trim($proxies) !== '') {
+            $middleware->trustProxies(
+                at: trim($proxies) === '*' ? '*' : array_map('trim', explode(',', $proxies)),
+            );
+        }
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
