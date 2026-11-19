@@ -24,16 +24,27 @@ class AuditLogController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $filters = $this->filters($request);
+        $perPage = $this->perPage($request);
 
-        $entries = AuditLog::page($filters);
+        $entries = AuditLog::page($filters, $perPage);
 
         // A page past the end (the filter got narrower, an old link): the last one.
         if ($entries->currentPage() > $entries->lastPage()) {
             return redirect($entries->appends($request->query())->url($entries->lastPage()));
         }
 
+        // "Rows per page": one link per size, keeping every filter, back on page 1 (the page
+        // the reader was on means something else at another size).
+        $perPageLinks = [];
+
+        foreach (AuditLog::PAGE_SIZES as $size) {
+            $perPageLinks[$size] = $request->fullUrlWithQuery(['per_page' => $size, 'page' => null]);
+        }
+
         return view('audit-logs.index', [
             'entries' => $entries->appends($request->query()),
+            'perPage' => $perPage,
+            'perPageLinks' => $perPageLinks,
             'filters' => $filters,
             'events' => AuditLog::EVENTS,
             'outcomes' => AuditLog::OUTCOMES,
@@ -87,6 +98,18 @@ class AuditLogController extends Controller implements HasMiddleware
         ]);
 
         return array_filter($validated, fn ($value) => $value !== null && $value !== '');
+    }
+
+    // Rows per page: one of AuditLog::PAGE_SIZES, else the default. An unknown size is a 422, like
+    // an unknown filter, rather than a silent fallback (and a page size can never be asked for
+    // in the thousands to dump the table through the viewer: that is what the CSV export is for).
+    protected function perPage(Request $request): int
+    {
+        $validated = $request->validate([
+            'per_page' => ['nullable', Rule::in(AuditLog::PAGE_SIZES)],
+        ]);
+
+        return (int) ($validated['per_page'] ?? AuditLog::DEFAULT_PAGE_SIZE) ?: AuditLog::DEFAULT_PAGE_SIZE;
     }
 
     // A cell that starts with = + - @ is read as a formula by Excel, and anything typed into

@@ -145,6 +145,7 @@
             @endif
         </div>
 
-        {{ $entries->links('pagination.numbered') }}
+        {{-- Always drawn (a single page too): the count and the rows-per-page choice are how the reader knows how much there is. --}}
+        {{ $entries->links('pagination.numbered', ['always' => true, 'perPage' => $perPage, 'perPageLinks' => $perPageLinks]) }}
     </div>
 </x-app-layout>
