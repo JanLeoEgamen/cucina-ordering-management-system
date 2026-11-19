@@ -597,6 +597,8 @@ const start = () => {
     // No empty state until the first payload has actually been drawn.
     let feedLoaded = false;
 
+    // The action buttons sit in ONE row at every width: they share it equally and never wrap
+    // (the controller's own mx-0.5 / px-3 are overridden by the [&>button] classes).
     const cardTemplate = (dish) => `
         <article class="flex flex-col justify-between overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
             <div data-card-photo class="relative flex h-32 w-full items-center justify-center overflow-hidden bg-gray-100 dark:bg-gray-700">
@@ -611,7 +613,7 @@ const start = () => {
                 <p class="text-sm text-gray-500 dark:text-gray-400">${typeCell(dish.dish_types, 'display')}</p>
                 <p class="mt-3 text-lg font-semibold tabular-nums text-indigo-600 dark:text-indigo-400">${money(dish.price)}</p>
             </div>
-            <div class="flex flex-wrap justify-end gap-2 border-t border-gray-100 px-4 py-3 dark:border-gray-700/60">
+            <div class="flex flex-nowrap gap-1.5 border-t border-gray-100 px-3 py-3 dark:border-gray-700/60 [&>button]:mx-0 [&>button]:min-w-0 [&>button]:flex-1 [&>button]:whitespace-nowrap [&>button]:px-2 [&>button]:text-center">
                 ${dish.action ?? ''}
             </div>
         </article>`;

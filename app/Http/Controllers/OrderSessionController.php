@@ -47,6 +47,7 @@ class OrderSessionController extends Controller implements HasMiddleware
                         // Read only, on a page of its own: the session, its stock
                         // and its orders (see show()).
                         $buttons .= '<a href="' . e(route('order-sessions.show', $session->session_id)) . '"'
+                            . ' data-row-link="view"'
                             . ' class="' . $view . '">' . e(__('View')) . '</a>';
                     }
 

@@ -36,7 +36,7 @@
 
     <a href="{{ route('dashboard') }}" class="flex items-center gap-2">
         <x-application-logo class="block h-8 w-auto fill-current text-gray-800 dark:text-white" />
-        <span class="font-semibold tracking-tight text-gray-900 dark:text-white">Cucina</span>
+        <span class="font-semibold tracking-tight text-gray-900 dark:text-white">{{ \App\Models\Setting::appName() }}</span>
     </a>
     {{-- Theme switch, notification bell and account menu: one component, also used by the
          desktop bar in layouts/app.blade.php (only one of the two is visible). --}}
@@ -89,7 +89,7 @@
         <div class="sidebar-brand flex h-14 flex-shrink-0 items-center gap-2 px-3">
             <a href="{{ route('dashboard') }}" class="flex items-center gap-2">
                 <x-application-logo class="block h-8 w-auto flex-shrink-0 fill-current text-gray-800 dark:text-white" />
-                <span class="sidebar-label font-semibold tracking-tight text-gray-900 dark:text-white">Cucina</span>
+                <span class="sidebar-label font-semibold tracking-tight text-gray-900 dark:text-white">{{ \App\Models\Setting::appName() }}</span>
             </a>
             <button type="button"
                     @click="open = false"
@@ -118,17 +118,19 @@
 
             {{-- Ordering --}}
             @canany(['view menu', 'view my orders', 'view bulk-menu', 'view my bulk-orders'])
-                <div class="space-y-1 pt-3" data-nav-group="ordering" @if (request()->routeIs('menu.*', 'my-orders.*', 'bulk-menu.*', 'bulk-my-orders.*')) data-has-active @endif>
+                <div class="pt-3" data-nav-group="ordering" @if (request()->routeIs('menu.*', 'my-orders.*', 'bulk-menu.*', 'bulk-my-orders.*')) data-has-active @endif>
+                    <div class="nav-group-panel space-y-1">
                     {{-- The title is a button: it folds the group (state: html[data-nav-closed], kept in
                          localStorage, see layouts/app.blade.php). The icon rail has no room for it, so a
                          thin rule marks the group there and its links always show. --}}
                     <button type="button" @click="toggleGroup('ordering')" aria-expanded="true" aria-controls="nav-group-ordering"
-                            class="sidebar-label group flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-1 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-200">
+                            class="nav-group-title sidebar-label group flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-1 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-200">
                         <span>{{ __('Ordering') }}</span>
                         <svg class="nav-chevron h-3.5 w-3.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 9-7 7-7-7" /></svg>
                     </button>
                     <hr class="sidebar-rule mx-3 hidden border-gray-100 dark:border-gray-700">
-                    <div id="nav-group-ordering" class="nav-group-items space-y-1">
+                    <div id="nav-group-ordering" class="nav-group-items">
+                    <div class="nav-group-inner space-y-1">
                 @can('view menu')
                     <a href="{{ route('menu.index') }}"
                        @click="open = false"
@@ -173,22 +175,26 @@
                     </a>
                 @endcan
                     </div>
+                    </div>
+                    </div>
                 </div>
             @endcanany
 
             {{-- Service --}}
             @canany(['view order-sessions', 'view bulk-sessions', 'view orders', 'view payments'])
-                <div class="space-y-1 pt-3" data-nav-group="service" @if (request()->routeIs('order-sessions.*', 'bulk-sessions.*', 'orders.index', 'payments.*')) data-has-active @endif>
+                <div class="pt-3" data-nav-group="service" @if (request()->routeIs('order-sessions.*', 'bulk-sessions.*', 'orders.index', 'payments.*')) data-has-active @endif>
+                    <div class="nav-group-panel space-y-1">
                     {{-- The title is a button: it folds the group (state: html[data-nav-closed], kept in
                          localStorage, see layouts/app.blade.php). The icon rail has no room for it, so a
                          thin rule marks the group there and its links always show. --}}
                     <button type="button" @click="toggleGroup('service')" aria-expanded="true" aria-controls="nav-group-service"
-                            class="sidebar-label group flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-1 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-200">
+                            class="nav-group-title sidebar-label group flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-1 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-200">
                         <span>{{ __('Service') }}</span>
                         <svg class="nav-chevron h-3.5 w-3.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 9-7 7-7-7" /></svg>
                     </button>
                     <hr class="sidebar-rule mx-3 hidden border-gray-100 dark:border-gray-700">
-                    <div id="nav-group-service" class="nav-group-items space-y-1">
+                    <div id="nav-group-service" class="nav-group-items">
+                    <div class="nav-group-inner space-y-1">
                 @can('view order-sessions')
                     <a href="{{ route('order-sessions.index') }}"
                        @click="open = false"
@@ -233,22 +239,26 @@
                     </a>
                 @endcan
                     </div>
+                    </div>
+                    </div>
                 </div>
             @endcanany
 
             {{-- Catalog --}}
             @canany(['view dishes', 'view payment-methods'])
-                <div class="space-y-1 pt-3" data-nav-group="catalog" @if (request()->routeIs('dishes.*', 'payment-methods.*')) data-has-active @endif>
+                <div class="pt-3" data-nav-group="catalog" @if (request()->routeIs('dishes.*', 'payment-methods.*')) data-has-active @endif>
+                    <div class="nav-group-panel space-y-1">
                     {{-- The title is a button: it folds the group (state: html[data-nav-closed], kept in
                          localStorage, see layouts/app.blade.php). The icon rail has no room for it, so a
                          thin rule marks the group there and its links always show. --}}
                     <button type="button" @click="toggleGroup('catalog')" aria-expanded="true" aria-controls="nav-group-catalog"
-                            class="sidebar-label group flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-1 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-200">
+                            class="nav-group-title sidebar-label group flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-1 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-200">
                         <span>{{ __('Catalog') }}</span>
                         <svg class="nav-chevron h-3.5 w-3.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 9-7 7-7-7" /></svg>
                     </button>
                     <hr class="sidebar-rule mx-3 hidden border-gray-100 dark:border-gray-700">
-                    <div id="nav-group-catalog" class="nav-group-items space-y-1">
+                    <div id="nav-group-catalog" class="nav-group-items">
+                    <div class="nav-group-inner space-y-1">
                 @can('view dishes')
                     <a href="{{ route('dishes.index') }}"
                        @click="open = false"
@@ -271,22 +281,26 @@
                     </a>
                 @endcan
                     </div>
+                    </div>
+                    </div>
                 </div>
             @endcanany
 
             {{-- Access --}}
             @canany(['view roles', 'view users', 'view settings', 'view audit-logs'])
-                <div class="space-y-1 pt-3" data-nav-group="access" @if (request()->routeIs('roles.*', 'users.*', 'settings.*', 'audit-logs.*')) data-has-active @endif>
+                <div class="pt-3" data-nav-group="access" @if (request()->routeIs('roles.*', 'users.*', 'settings.*', 'audit-logs.*')) data-has-active @endif>
+                    <div class="nav-group-panel space-y-1">
                     {{-- The title is a button: it folds the group (state: html[data-nav-closed], kept in
                          localStorage, see layouts/app.blade.php). The icon rail has no room for it, so a
                          thin rule marks the group there and its links always show. --}}
                     <button type="button" @click="toggleGroup('access')" aria-expanded="true" aria-controls="nav-group-access"
-                            class="sidebar-label group flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-1 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-200">
+                            class="nav-group-title sidebar-label group flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-1 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-200">
                         <span>{{ __('Access') }}</span>
                         <svg class="nav-chevron h-3.5 w-3.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 9-7 7-7-7" /></svg>
                     </button>
                     <hr class="sidebar-rule mx-3 hidden border-gray-100 dark:border-gray-700">
-                    <div id="nav-group-access" class="nav-group-items space-y-1">
+                    <div id="nav-group-access" class="nav-group-items">
+                    <div class="nav-group-inner space-y-1">
                 @can('view roles')
                     <a href="{{ route('roles.index') }}"
                        @click="open = false"
@@ -330,6 +344,8 @@
                         <span class="sidebar-label">{{ __('Audit Trail') }}</span>
                     </a>
                 @endcan
+                    </div>
+                    </div>
                     </div>
                 </div>
             @endcanany
