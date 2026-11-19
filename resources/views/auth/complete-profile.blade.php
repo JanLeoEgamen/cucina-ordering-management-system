@@ -34,7 +34,7 @@
     </form>
 
     <x-slot name="footer">
-        <form method="POST" action="{{ route('logout') }}" class="inline">
+        <form method="POST" action="{{ route('logout') }}" class="inline" data-logout-form>
             @csrf
             <button type="submit" class="font-semibold text-gray-900 underline-offset-4 hover:underline dark:text-white">{{ __('Log out') }}</button>
         </form>

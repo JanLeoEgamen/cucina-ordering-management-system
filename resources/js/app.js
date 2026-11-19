@@ -21,6 +21,8 @@ Alpine.start();
  */
 import './ui/image-viewer';
 import './ui/theme';
+// Log out in one tab, every other tab leaves too (and any 401 sends the tab to the login page).
+import './ui/session-guard';
 // The notification bell's badge and toasts (a small poll; see the file).
 import './ui/notifications';
 

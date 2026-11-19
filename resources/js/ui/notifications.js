@@ -19,6 +19,7 @@
  *     button), and again when something new arrives while it is open: `?recent=1`.
  */
 import { showToast } from './toast';
+import { leaveToLogin } from './session-guard';
 
 const POLL_MS = 8000;
 const MAX_TOASTS = 2;
@@ -124,6 +125,11 @@ const start = () => {
             headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
             cache: 'no-store',
         });
+
+        // 401: the session is gone (logout in another tab or device, or it expired).
+        if (response.status === 401) {
+            leaveToLogin();
+        }
 
         if (!response.ok) {
             throw new Error('feed ' + response.status);

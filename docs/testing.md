@@ -46,6 +46,7 @@ php scripts/harness.php               # docs drift check + full suite
 | Auth / profile (Breeze) | `tests/Feature/Auth/*`, `ProfileTest` |
 | Customer role on sign-up (form and Google; adds without replacing, idempotent, works before the roles are seeded) | `Auth/RegistrationTest`, `Auth/GoogleAuthTest` |
 | Complete-profile gate (redirect from gated pages, 403 for AJAX, prefilled form, required company, no overwrite, logout allowed, register / admin / migration set it) | `Auth/CompleteProfileTest` |
+| Cross-tab logout (server side of `session-guard.js`: signed-in pages carry `meta[name=login-url]` and flagged logout forms, signed-out pages do not, the stale tab's poll gets a 401 after logout; the JS itself is **not** tested, there is no browser test tool) | `Auth/CrossTabLogoutTest` |
 | Google sign-in (off by default, button, redirect, create / link / returning user, refusals: unverified, deleted, other Google id, failed exchange; Google is mocked through Socialite's `Provider`) | `Auth/GoogleAuthTest` |
 | Landing page and signed-out pages (session status, payment methods, links, brand panel, the dish collage on the sign-in panel and the landing hero: available dishes only, no prices, photo spread, plain fallback) | `WelcomeTest` |
 | Export menu + `data-no-export` / title on every table toolbar | `TableExportTest` |
