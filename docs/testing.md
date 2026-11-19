@@ -17,7 +17,7 @@ php scripts/harness.php               # docs drift check + full suite
 | Area | Tests |
 |---|---|
 | Dishes (CRUD, uploads, query builder) | `DishTest`, `DishQueryBuilderTest` |
-| Menu seeder (CSVs loaded, every type seeded, multi-type dishes, old `A / B` type split, idempotent, keeps edits) | `MenuSeederTest` |
+| Menu seeder (CSVs loaded, every type seeded, multi-type dishes, old `A / B` type split, idempotent, keeps edits, no 0.00 price, 0.00 placeholder repaired) | `MenuSeederTest` |
 | Full `DatabaseSeeder` (what `migrate:fresh --seed` leaves: Jan Leo Egamen as Super Admin with every permission, roles, dishes, dish types, re-run changes nothing) | `DatabaseSeederTest` |
 | User names (first / last, required, full name in feeds and joins, the migration's split) | `UserNameTest` |
 | User company (optional; registration, Users page create / edit / feed, profile, 255 limit) | `UserCompanyTest` |
