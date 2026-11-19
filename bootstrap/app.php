@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AuditTrail;
 use App\Http\Middleware\EnsureProfileIsComplete;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -24,6 +25,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => RoleOrPermissionMiddleware::class,
             'profile.complete' => EnsureProfileIsComplete::class,
         ]);
+
+        // The audit trail: last in the `web` group so the session (and the signed-in user) is
+        // ready, and it covers every route of the group, present and future.
+        $middleware->appendToGroup('web', AuditTrail::class);
 
         // Behind a load balancer the app only sees the balancer's address: trust its
         // X-Forwarded-* headers so the client IP (login throttling!), the host and

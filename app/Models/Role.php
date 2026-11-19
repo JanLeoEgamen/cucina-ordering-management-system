@@ -30,6 +30,7 @@ class Role extends SpatieRole
         'view roles', 'create roles', 'edit roles', 'delete roles',
         'view users', 'create users', 'edit users', 'delete users',
         'view settings', 'edit settings',
+        'view audit-logs',
     ];
 
     // The seeded role that holds every permission.

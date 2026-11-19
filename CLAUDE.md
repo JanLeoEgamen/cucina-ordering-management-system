@@ -21,8 +21,9 @@ cp .env.example .env && php artisan key:generate
 php artisan migrate --seed          # seeds test@example.com / password as Super Admin (dev only)
 php artisan storage:link            # needed for uploaded images
 composer dev                        # server + queue worker (notifications,default) + pail logs + vite
-php artisan test                    # PHPUnit (baseline: 448 passing)
-php artisan schedule:work           # optional locally: runs the daily notifications:prune (server: cron `schedule:run`)
+php artisan test                    # PHPUnit (baseline: 496 passing)
+php artisan schedule:work           # optional locally: runs the daily notifications:prune + audit:prune (server: cron `schedule:run`)
+php artisan audit:prune [--days=N]  # delete audit trail entries past AUDIT_RETENTION_DAYS (365); 0 keeps all
 php scripts/harness.php             # docs-drift check + tests;  --docs = drift only
 npm run build                       # must pass after frontend changes
 php artisan db:seed --class=PermissionSeeder   # after adding a permission
@@ -71,4 +72,6 @@ Shell is PowerShell on Windows (Git Bash also available). `php` and `npm` are on
 - Windows: a stray lowercase `composer` environment variable (pointing at another profile's `vendor\bin`) makes `composer require` fail with "file_put_contents(...vendor\bin): Permission denied"; `unset composer` / `Remove-Item Env:composer` in that shell.
 - `users.email` is unique **including soft deleted rows**: any code that creates a user from an outside email (Google sign-in) must look with `User::withTrashed()` and refuse a deleted account, or the insert throws a duplicate-key error.
 - A new route behind `auth` must live inside the `['auth', 'profile.complete']` group in `routes/web.php` (or carry that middleware), or a Google sign-up that has not completed its profile can reach it. Tests that need an unfinished user use `User::factory()->profileIncomplete()`; the plain factory user is complete.
+- The audit trail is ONE middleware (`AuditTrail`, in the `web` group) plus the auth events: **do not add audit calls to controllers**. A new `{id}` resource needs its route prefix in `config/audit.php` `subjects` (else its entries have no record label / before-after diff), and a readable name in `actions`. Read `config('audit.actions')[$name]`, never `config('audit.actions.' . $name)`: route names contain dots, which config reads as nesting. `audit_logs` is append only: never add an update / delete route or method for it (prune is the only delete). After pulling, run `migrate` and `db:seed --class=PermissionSeeder` (new permission `view audit-logs`).
+- A controller that REFUSES with a redirect must flash an error (`withErrors(...)`), not only a status: the audit trail reads "redirected back with errors" as `failed`, a bare redirect is logged as a success.
 - Notification emails: `OrderNotifier::email()` must stay AFTER `insertMany()` and inside `rescue()`, and `SendNotificationEmails` must stay `tries = 1`. A throw in either makes `DeliverNotification` retry (bell rows written twice) or mails everyone twice. The switch is `Setting::emailNotifications()` (default off); new notification events get email for free because they build their rows through `mailRow()`.

@@ -13,6 +13,9 @@ Artisan::command('inspire', function () {
 // grows; nothing breaks.
 Schedule::command('notifications:prune')->dailyAt('03:00')->onOneServer();
 
+// The audit trail keeps AUDIT_RETENTION_DAYS (365) days; the run is logged as a `system` entry.
+Schedule::command('audit:prune')->dailyAt('03:20')->onOneServer();
+
 // Failed jobs (a notification that gave up after 3 tries) are kept for a week for
 // inspection (`php artisan queue:failed`), then dropped so the table does not grow.
 Schedule::command('queue:prune-failed --hours=168')->dailyAt('03:10')->onOneServer();

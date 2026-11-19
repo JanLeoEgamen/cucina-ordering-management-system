@@ -187,6 +187,16 @@ A person's own in-app notifications; see [architecture.md](architecture.md) for 
 | `` `PUT /users/{id}` `` | `edit users` | Password optional on update; a blank `company` clears it. |
 | `` `DELETE /users/{id}` `` | `delete users` | Soft delete; **422** when deleting your own account or any Super Admin account. |
 
+## Audit trail — permission `view audit-logs` (read only)
+
+No route creates, edits or deletes an entry (`POST` / `PUT` / `DELETE` on these paths answer 405). Filters, shared by the page and the export, are validated (a bad one is a 422 / redirect with the error): `q` (≤100; matches description, record, person, email, action, message, IP), `event` (`auth` / `action` / `view` / `system`), `outcome` (`success` / `failed` / `denied` / `error`), `user` (id), `from`, `to` (`Y-m-d`).
+
+| Endpoint | Permission | Notes |
+|---|---|---|
+| `` `GET /audit-logs` `` | `view audit-logs` | Page: newest first, 25 a page (numbered pagination, filters kept in the page links). |
+| `` `GET /audit-logs/export` `` | `view audit-logs` | CSV of the filtered list, newest first, **at most 10 000 rows** (`text/csv`, `audit-log-YYYYMMDD-HHMMSS.csv`); cells starting with `= + - @` get a leading `'`. The export is itself logged (`audit-logs.export`). |
+| `` `GET /audit-logs/{id}` `` | `view audit-logs` | One entry: who, when, result, the app's message, the record, what changed (before / after) and what was sent. **404** for an unknown id. |
+
 ## Account & auth (Laravel Breeze)
 
 | Endpoint | Access | Notes |

@@ -1,7 +1,7 @@
 # Testing
 
 ```
-php artisan test                      # all (baseline 2026-11-13: 448 passed)
+php artisan test                      # all (baseline 2026-11-19: 496 passed)
 php artisan test --filter=DishTest    # one class
 php scripts/harness.php               # docs drift check + full suite
 ```
@@ -47,6 +47,7 @@ php scripts/harness.php               # docs drift check + full suite
 | Customer role on sign-up (form and Google; adds without replacing, idempotent, works before the roles are seeded) | `Auth/RegistrationTest`, `Auth/GoogleAuthTest` |
 | Complete-profile gate (redirect from gated pages, 403 for AJAX, prefilled form, required company, no overwrite, logout allowed, register / admin / migration set it) | `Auth/CompleteProfileTest` |
 | Cross-tab logout (server side of `session-guard.js`: signed-in pages carry `meta[name=login-url]` and flagged logout forms, signed-out pages do not, the stale tab's poll gets a 401 after logout; the JS itself is **not** tested, there is no browser test tool) | `Auth/CrossTabLogoutTest` |
+| Audit trail: a change is logged with who / record / before-after, passwords and tokens never stored, deleted records keep their label, denied / failed / form-validation outcomes, sign in / out / failed sign in, guests and polls / table feeds not logged, views and the whole trail switchable, a failure in the trail never reaches the request, the viewer's permission, filters, escaping, 405 on any write, CSV (formula-safe, itself logged), prune and retention 0 | `AuditTrailTest` |
 | Super Admin cannot be deleted (users page 422, profile self-delete refused, button / section hidden, model refuses) | `SuperAdminProtectionTest` |
 | Order session overlap guard (create and move refused with 422 on `start_time`; back-to-back, other days, ended and deleted sessions allowed; an edit keeps its own window; a session that overlapped before the guard still saves a stock edit; an ended session is editable) | `OrderSessionOverlapTest` |
 | `users:give-customer-role` (role-less account gets Customer and can open the menu, accounts with a role and deleted ones untouched, `--dry-run` changes nothing, idempotent, refuses without the seeded role) | `GiveCustomerRoleCommandTest` |

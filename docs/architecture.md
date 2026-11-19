@@ -83,12 +83,19 @@ In-app notifications (a bell with an unread badge and a **Notifications** page),
 
 **Running it (one long-lived process besides the web server):** `php artisan queue:work --queue=notifications,default --tries=3 --max-time=3600` under Supervisor / systemd, restarted on every deploy (`php artisan queue:restart`), plus the scheduler cron. `composer dev` starts the worker locally. Without the worker nobody is notified (orders still work; the jobs wait in `jobs`).
 
+## Audit trail
+
+Every person's activity is written to `audit_logs` (`AuditLog` model, query builder, append only) by **one middleware, not by calls in controllers**: `App\Http\Middleware\AuditTrail` is in the `web` group, so a new route is covered the moment it exists. `handle()` notes who is acting and, for a route whose prefix is in `config/audit.php` `subjects`, the record as it was (label + values); `terminate()` runs after the response and writes the entry with the final status and the record's after-state diff. Sign in / out / failed sign in / lockout / registration / password reset come from Laravel's auth events (`App\Listeners\AuditAuthEvents`, subscribed in `AppServiceProvider`). The logic is in `App\Support\Audit`. Both entry points are inside `rescue()`: **an audit failure is logged and never reaches the request**. Viewing is `AuditLogController` (list, one entry, CSV; `view audit-logs`), retention is `audit:prune` (daily, `AUDIT_RETENTION_DAYS`). Rules, privacy and what is never stored: [security.md](security.md#audit-trail). A new action needs no audit code; a new state change that should read well adds a line to `config/audit.php` `actions`, and a new `{id}` resource adds its prefix to `subjects`.
+
 ## Directory map
 
 ```
 app/Http/Controllers/   one controller per resource + Auth/ + Controller.php (shared badges/responses)
 app/Models/             query-builder models (+ Role, User Eloquent)
-app/Support/            OrderNotifier (who is told what)   app/Console/Commands/  notifications:prune
+app/Support/            OrderNotifier (who is told what), Audit (the audit trail's logic)
+app/Console/Commands/   notifications:prune, audit:prune, users:give-customer-role
+app/Http/Middleware/    AuditTrail (every request), EnsureProfileIsComplete   app/Listeners/  AuditAuthEvents
+config/audit.php        audit trail switches, retention, hidden fields, record map, action names
 app/Jobs/               DeliverNotification, SendNotificationEmails (queued)   app/Mail/  NotificationMail
 config/notifications.php  the notifications queue name
 app/Exceptions/         StockRanOutException
