@@ -9,11 +9,13 @@ use App\Models\OrderSession;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\SessionDish;
+use App\Models\Setting;
 use App\Support\OrderNotifier;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -32,7 +34,7 @@ class OrderController extends Controller implements HasMiddleware
             new Middleware('permission:view menu', only: ['index', 'stock']),
             // Fixing the payment of your own order is part of ordering, so it
             // needs no permission of its own (and the Customer role already has it).
-            new Middleware('permission:create orders', only: ['store', 'resubmitProof', 'switchToCash']),
+            new Middleware('permission:create orders', only: ['store', 'resubmitProof', 'switchToCash', 'cancelMine']),
             new Middleware('permission:view my orders', only: ['mine']),
             new Middleware('permission:view orders', only: ['all']),
             new Middleware('permission:complete orders', only: ['complete']),
@@ -56,19 +58,54 @@ class OrderController extends Controller implements HasMiddleware
     }
 
     // The orders the signed-in customer placed, newest first.
-    public function mine()
+    public function mine(Request $request)
     {
-        $orders = Order::ofUser((int) auth()->id());
+        $userId = (int) auth()->id();
+
+        // A notification links to "?order=ID": go to the page that holds that order, at its
+        // card (an anchor alone cannot reach a card on another page). An id that is not the
+        // customer's is ignored, so the list simply opens at its first page.
+        if ($request->filled('order')) {
+            $orderId = (int) $request->query('order');
+            $page = Order::pageNumberOf($userId, $orderId);
+
+            if ($page !== null) {
+                return redirect(route('my-orders.index', $page > 1 ? ['page' => $page] : []) . '#order-' . $orderId);
+            }
+        }
+
+        // The filter bar (a plain GET form): what was typed, as the model understands it.
+        // Bad values are not errors, they just filter nothing (see Order::applyUserFilters()).
+        $filters = [
+            'q' => mb_substr(trim((string) $request->query('q', '')), 0, 100),
+            'status' => (string) $request->query('status', ''),
+            'payment' => (string) $request->query('payment', ''),
+            'from' => (string) $request->query('from', ''),
+            'to' => (string) $request->query('to', ''),
+        ];
+
+        $orders = Order::pageOfUser($userId, $filters)->withQueryString();
+
+        // A page past the end (an old link, orders deleted): the last one.
+        if ($orders->currentPage() > $orders->lastPage() && $orders->lastPage() > 0) {
+            return redirect($orders->url($orders->lastPage()));
+        }
 
         // The badges are rendered here, so the view prints markup instead of
         // building it, and the proof travels as a URL the card can link to.
         $canPay = auth()->user()->can('create orders');
         $cash = PaymentMethod::cashOption();
+        // One read for the whole page; the cancel itself reads it again.
+        $canCancel = $canPay && Setting::customerCancel();
 
         foreach ($orders as $order) {
             $order->status_badge = $this->orderStatusBadge($order->order_status);
             $order->payment_badge = $this->paymentStatusBadge($order->payment_status);
             $order->proof_url = Payment::proofUrl($order->proof_of_payment);
+
+            // What a click on the card opens (the order popup).
+            $order->popup = $this->customerOrderPopup($order, Carbon::parse($order->session_date)->format('M j, Y')
+                . ' · ' . substr((string) $order->start_time, 0, 5) . ' – ' . substr((string) $order->end_time, 0, 5));
 
             // A rejected payment on an order still waiting can be fixed by its
             // customer: a new proof (bank / e-wallet), or cash on pickup. Each
@@ -78,10 +115,17 @@ class OrderController extends Controller implements HasMiddleware
 
             $order->reupload_url = $fixable && ! $isCash ? route('my-orders.payment.proof', $order->order_id) : null;
             $order->cash_url = $fixable && $cash && ! $isCash ? route('my-orders.payment.cash', $order->order_id) : null;
+
+            // Cancel: only while the order waits and its payment is not verified (then staff decide).
+            $order->cancel_url = $canCancel && $order->order_status === 'pending' && $order->payment_state !== 'verified'
+                ? route('my-orders.cancel', $order->order_id) : null;
         }
 
         return view('my-orders.index', [
             'orders' => $orders,
+            'filters' => $filters,
+            // Any filter on: an empty list then means "nothing matches", not "no orders yet".
+            'filtered' => collect($filters)->contains(fn ($value) => $value !== ''),
         ]);
     }
 
@@ -166,7 +210,32 @@ class OrderController extends Controller implements HasMiddleware
     // received: that decision has to be undone first, on purpose.
     public function cancel($id)
     {
+        return $this->cancelOrder((int) $id, false);
+    }
+
+    // A customer cancels their OWN pending order, when System Configuration allows it. The same
+    // rules and the same stock release as staff's Cancel (one code path, below); the differences
+    // are who may ask and that a verified payment is a matter for staff.
+    public function cancelMine($id)
+    {
         $orderId = (int) $id;
+
+        // Someone else's order answers "not found", like the other my-orders routes.
+        if (! $this->isMyOrder($orderId)) {
+            return $this->errorResponse('Order not found.', 404);
+        }
+
+        // Read on every request: switching it off stops the very next cancel.
+        if (! Setting::customerCancel()) {
+            return $this->errorResponse('Cancelling your own order is not allowed. Please ask the staff.', 403);
+        }
+
+        return $this->cancelOrder($orderId, true);
+    }
+
+    // The one cancel: staff's ($byCustomer false) and the customer's own.
+    protected function cancelOrder(int $orderId, bool $byCustomer)
+    {
         $status = Order::statusOf($orderId);
 
         if ($status === null) {
@@ -180,10 +249,10 @@ class OrderController extends Controller implements HasMiddleware
         $payment = Payment::ofOrder($orderId);
 
         if ($payment && $payment->payment_status === 'verified') {
-            return $this->errorResponse('Undo the payment verification before cancelling this order.', 422);
+            return $this->errorResponse($this->verifiedRefusal($byCustomer), 422);
         }
 
-        $refused = DB::transaction(function () use ($orderId) {
+        $refused = DB::transaction(function () use ($orderId, $byCustomer) {
             // Lock the order and judge again: two people pressing Cancel at the
             // same moment must not both give the stock back (that would put
             // plates on the menu that were never cooked).
@@ -194,7 +263,7 @@ class OrderController extends Controller implements HasMiddleware
             $payment = Payment::ofOrder($orderId);
 
             if ($payment && $payment->payment_status === 'verified') {
-                return 'Undo the payment verification before cancelling this order.';
+                return $this->verifiedRefusal($byCustomer);
             }
 
             // The stock goes back through the one place that moves it.
@@ -203,7 +272,9 @@ class OrderController extends Controller implements HasMiddleware
             }
 
             if ($payment && $payment->payment_status === 'pending') {
-                Payment::setStatus($orderId, 'rejected', auth()->id(), 'The order was cancelled.');
+                // A customer's own cancel is not a reviewer's decision: nobody is stamped as reviewer.
+                Payment::setStatus($orderId, 'rejected', $byCustomer ? null : auth()->id(),
+                    $byCustomer ? 'The customer cancelled the order.' : 'The order was cancelled.');
                 Order::updatePaymentStatus($orderId, 'rejected');
             }
 
@@ -216,9 +287,17 @@ class OrderController extends Controller implements HasMiddleware
             return $this->errorResponse($refused, 422);
         }
 
-        OrderNotifier::cancelled($orderId);
+        OrderNotifier::cancelled($orderId, $byCustomer);
 
-        return $this->successResponse('Order cancelled successfully.');
+        return $this->successResponse($byCustomer ? 'Your order was cancelled.' : 'Order cancelled successfully.');
+    }
+
+    // Why a verified payment stops a cancel, in the words of whoever pressed it.
+    protected function verifiedRefusal(bool $byCustomer): string
+    {
+        return $byCustomer
+            ? 'Your payment was already verified, so only the staff can cancel this order.'
+            : 'Undo the payment verification before cancelling this order.';
     }
 
     // A customer fixes a payment staff rejected, by sending a new proof (and

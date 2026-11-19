@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 // Orders placed inside an order session. Same shape as DishType: query builder
@@ -105,18 +108,21 @@ class Order extends Model
         })->values()->all();
     }
 
-    // The orders one customer placed, newest first, with the session they were
-    // placed in, their lines and their payment - for the customer's own list.
-    public static function ofUser(int $userId): array
+    // Orders on one page of a customer's own list (My Orders).
+    public const USER_PAGE_SIZE = 10;
+
+    // The customer's own list as a query: newest first, with the session they were placed
+    // in and their payment. Shared by ofUser() and pageOfUser().
+    protected static function userListQuery(int $userId): Builder
     {
-        $orders = DB::table(self::TABLE)
+        return DB::table(self::TABLE)
             ->join('order_sessions', 'order_sessions.session_id', '=', self::TABLE . '.session_id')
             ->leftJoin('payments', 'payments.order_id', '=', self::TABLE . '.order_id')
             ->leftJoin('payment_methods', 'payment_methods.method_id', '=', 'payments.payment_method_id')
             ->where(self::TABLE . '.user_id', $userId)
             ->whereNull(self::TABLE . '.deleted_at')
             ->orderByDesc(self::TABLE . '.order_id')
-            ->get([
+            ->select([
                 self::TABLE . '.order_id',
                 self::TABLE . '.order_number',
                 self::TABLE . '.order_date',
@@ -132,17 +138,132 @@ class Order extends Model
                 'payments.payment_status as payment_state',
                 'payment_methods.method_name',
             ]);
+    }
 
-        // One query for the lines of every order in the list.
+    // One query for the lines of every order of the list, put on each order as `items`.
+    protected static function withItems(Collection $orders): Collection
+    {
         $items = OrderItem::itemsByOrder($orders->pluck('order_id')->all());
 
         return $orders->map(function (object $order) use ($items) {
             $order->items = $items[$order->order_id] ?? [];
 
             return $order;
-        })->values()->all();
+        })->values();
     }
 
+    // The orders one customer placed, newest first, with the session they were
+    // placed in, their lines and their payment - the whole list.
+    public static function ofUser(int $userId): array
+    {
+        return self::withItems(self::userListQuery($userId)->get())->all();
+    }
+
+    // The same list, one page at a time, for the customer's own page: only the orders
+    // of the page get their lines read. $filters narrow it (see applyUserFilters()).
+    public static function pageOfUser(int $userId, array $filters = [], int $perPage = self::USER_PAGE_SIZE): LengthAwarePaginator
+    {
+        $query = self::userListQuery($userId);
+        self::applyUserFilters($query, $filters);
+
+        $page = $query->paginate($perPage);
+
+        return $page->setCollection(self::withItems($page->getCollection()));
+    }
+
+    // What the My Orders filter bar can ask for. Anything else in a filter is ignored, so a
+    // hand-edited URL can only ever narrow the customer's OWN list (the user_id clause stays).
+    //   q        text in the order number, a dish name, the payment method or the reference number
+    //   status   an order status       payment   a payment status (the one on the order)
+    //   from/to  the day the order was placed (Y-m-d, both ends included)
+    public const USER_ORDER_STATUSES = ['pending', 'completed', 'cancelled'];
+    public const USER_PAYMENT_STATUSES = ['pending', 'verified', 'rejected'];
+
+    protected static function applyUserFilters(Builder $query, array $filters): void
+    {
+        $text = trim((string) ($filters['q'] ?? ''));
+
+        if ($text !== '') {
+            // % and _ typed by the customer are plain characters, not wildcards. "!" is the escape
+            // character because a backslash inside a string literal means different things in
+            // SQLite and MySQL.
+            $like = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $text) . '%';
+
+            $query->where(function (Builder $match) use ($like) {
+                $match->whereRaw(self::TABLE . ".order_number LIKE ? ESCAPE '!'", [$like])
+                    ->orWhereRaw("payments.reference_number LIKE ? ESCAPE '!'", [$like])
+                    ->orWhereRaw("payment_methods.method_name LIKE ? ESCAPE '!'", [$like])
+                    ->orWhereExists(function (Builder $dish) use ($like) {
+                        $dish->selectRaw('1')
+                            ->from('order_items')
+                            ->join('session_dishes', 'session_dishes.session_dish_id', '=', 'order_items.session_dish_id')
+                            ->join('dishes', 'dishes.dish_id', '=', 'session_dishes.dish_id')
+                            ->whereColumn('order_items.order_id', self::TABLE . '.order_id')
+                            ->whereNull('order_items.deleted_at')
+                            ->whereRaw("dishes.dish_name LIKE ? ESCAPE '!'", [$like]);
+                    });
+            });
+        }
+
+        $status = (string) ($filters['status'] ?? '');
+
+        if (in_array($status, self::USER_ORDER_STATUSES, true)) {
+            $query->where(self::TABLE . '.order_status', $status);
+        }
+
+        $payment = (string) ($filters['payment'] ?? '');
+
+        if (in_array($payment, self::USER_PAYMENT_STATUSES, true)) {
+            $query->where(self::TABLE . '.payment_status', $payment);
+        }
+
+        // A date that is not a real Y-m-d day is dropped rather than failing the page.
+        $from = self::dayOrNull($filters['from'] ?? null);
+        $to = self::dayOrNull($filters['to'] ?? null);
+
+        if ($from !== null) {
+            $query->where(self::TABLE . '.order_date', '>=', $from . ' 00:00:00');
+        }
+
+        if ($to !== null) {
+            $query->where(self::TABLE . '.order_date', '<=', $to . ' 23:59:59');
+        }
+    }
+
+    // "2026-11-19" as given, or null when it is empty or not a real day.
+    protected static function dayOrNull(mixed $value): ?string
+    {
+        $value = trim((string) $value);
+
+        $date = \DateTime::createFromFormat('!Y-m-d', $value);
+
+        return $date && $date->format('Y-m-d') === $value ? $value : null;
+    }
+
+    // The page of the customer's list that holds this order (1 = the newest), or null when it
+    // is not theirs / does not exist. A notification links to "?order=ID" and this finds
+    // the page, because an anchor alone cannot reach a card that is on another page.
+    public static function pageNumberOf(int $userId, int $orderId, int $perPage = self::USER_PAGE_SIZE): ?int
+    {
+        $mine = DB::table(self::TABLE)
+            ->where('order_id', $orderId)
+            ->where('user_id', $userId)
+            ->whereNull('deleted_at')
+            ->exists();
+
+        if (! $mine) {
+            return null;
+        }
+
+        // Newest first by id: the orders above this one are the newer ones.
+        $newer = DB::table(self::TABLE)
+            ->where('user_id', $userId)
+            ->whereNull('deleted_at')
+            ->where('order_id', '>', $orderId)
+            ->count();
+
+        return intdiv($newer, $perPage) + 1;
+    }
     // Get one order, for the drawer that shows it.
     public static function findById(int $orderId): ?object
     {
