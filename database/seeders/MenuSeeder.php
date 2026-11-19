@@ -20,7 +20,9 @@ use RuntimeException;
 //
 // Re-running keeps what the app already holds: a type and a dish are looked up by
 // name and only created when missing, so prices and edits made in the app are not
-// overwritten (the CSV prices are 0.00 placeholders to be set there).
+// overwritten. The one exception is a dish still priced 0.00 (the old placeholder):
+// it gets the CSV price, because a dish nobody can pay for is never an edit. A CSV
+// price of 0 or less is refused, so the menu can never be seeded with a free dish.
 //
 // Photos: put a picture named after the dish slug in database/seeders/data/images/
 // (e.g. chicken-adobo.jpg, beef-bulgogi.webp) and it is copied to the public disk
@@ -54,16 +56,27 @@ class MenuSeeder extends Seeder
         $this->splitCombinedTypes($typeIds);
 
         foreach ($this->rows($this->csvPath()) as $row) {
+            $price = (float) $row[self::PRICE];
+
+            if ($price <= 0) {
+                throw new RuntimeException('menu.csv: "' . $row[self::NAME] . '" needs a price above 0.');
+            }
+
             $dish = Dish::firstOrCreate(
                 ['dish_name' => $row[self::NAME]],
                 [
                     'description' => $row[self::DESCRIPTION] ?: null,
-                    'price' => (float) $row[self::PRICE],
+                    'price' => $price,
                     'calories' => $row[self::CALORIES] === '' ? null : (int) $row[self::CALORIES],
                     'main_ingredients' => $row[self::INGREDIENTS] ?: null,
                     'is_active' => true,
                 ]
             );
+
+            // A dish seeded earlier with the 0.00 placeholder gets its real price.
+            if (! $dish->wasRecentlyCreated && (float) $dish->price <= 0) {
+                $dish->update(['price' => $price]);
+            }
 
             // A type missing from dish_types.csv is still created, so a typo in the
             // menu cannot silently drop a category.

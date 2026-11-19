@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 // System configuration: one row per key in `settings`. Like the other models it is a set
 // of static query builder methods. A key that was never saved falls back to DEFAULTS, so
@@ -22,18 +24,35 @@ class Setting
     // '1' = every notification is also sent by email; '0' = in-app only.
     public const EMAIL_NOTIFICATIONS = 'notifications.email_enabled';
 
+    // '1' = a customer may cancel their own pending order from My Orders; '0' = only staff can.
+    public const CUSTOMER_CANCEL = 'orders.customer_cancel';
+
     // The fewest and the most plates ONE bulk order may hold. The maximum is empty
     // when there is no limit.
     public const BULK_MIN_QUANTITY = 'bulk_orders.min_quantity';
 
     public const BULK_MAX_QUANTITY = 'bulk_orders.max_quantity';
 
+    // The name shown on every page, the title bar and the emails, and the path (on the public
+    // disk) of the uploaded logo. An empty logo = the built-in Cucina mark.
+    public const APP_NAME = 'app.name';
+
+    public const APP_LOGO = 'app.logo';
+
+    // What the name is until an admin changes it: the name of the product, not .env's APP_NAME
+    // (which is Laravel's "Laravel" on a fresh install).
+    public const DEFAULT_APP_NAME = 'Cucina';
+
     public const DEFAULTS = [
+        self::APP_NAME => self::DEFAULT_APP_NAME,
+        self::APP_LOGO => '',
         self::SESSION_START_TIME => '09:00',
         self::SESSION_END_TIME => '17:00',
         self::NOTIFICATION_WATCHERS => '[]',
         // Off until an admin turns it on: mail has to be set up in .env first.
         self::EMAIL_NOTIFICATIONS => '0',
+        // Off until an admin allows it: until now only staff cancelled an order.
+        self::CUSTOMER_CANCEL => '0',
         self::BULK_MIN_QUANTITY => '10',
         self::BULK_MAX_QUANTITY => '',
     ];
@@ -46,6 +65,60 @@ class Setting
         $value = DB::table(self::TABLE)->where('key', $key)->value('value');
 
         return $value ?? (self::DEFAULTS[$key] ?? null);
+    }
+
+    // The app's name and logo: ['name' => string, 'logo' => ?path, 'logo_url' => ?url].
+    //
+    // It is read on EVERY page (layouts, welcome, error pages, emails), so:
+    //  - the two keys come in ONE query, remembered for the rest of the web request (not in the
+    //    console: a queue worker lives for hours and must see a change; the tests count as web),
+    //    and every set() forgets it, so a save is never read back stale;
+    //  - it can never fail: an error page asks too, and a database that is down must not turn a
+    //    500 into a second error, so any problem reads as the defaults;
+    //  - a logo whose file is gone (uploads not copied to a new server) reads as "no logo" instead
+    //    of a broken picture.
+    public static function brand(): array
+    {
+        $request = app()->runningInConsole() && ! app()->runningUnitTests() ? null : request();
+
+        if ($request && $request->attributes->has('brand')) {
+            return $request->attributes->get('brand');
+        }
+
+        $brand = ['name' => self::DEFAULT_APP_NAME, 'logo' => null, 'logo_url' => null];
+
+        try {
+            $saved = DB::table(self::TABLE)->whereIn('key', [self::APP_NAME, self::APP_LOGO])->pluck('value', 'key');
+
+            $name = trim((string) ($saved[self::APP_NAME] ?? ''));
+            $logo = trim((string) ($saved[self::APP_LOGO] ?? ''));
+
+            if ($name !== '') {
+                $brand['name'] = $name;
+            }
+
+            if ($logo !== '' && Storage::disk('public')->exists($logo)) {
+                $brand['logo'] = $logo;
+                $brand['logo_url'] = Storage::disk('public')->url($logo);
+            }
+        } catch (Throwable $error) {
+            // The defaults above stand.
+        }
+
+        $request?->attributes->set('brand', $brand);
+
+        return $brand;
+    }
+
+    public static function appName(): string
+    {
+        return self::brand()['name'];
+    }
+
+    // The URL of the uploaded logo, or null when the built-in mark is used.
+    public static function appLogoUrl(): ?string
+    {
+        return self::brand()['logo_url'];
     }
 
     // The default window of a new order session, as H:i strings.
@@ -61,6 +134,13 @@ class Setting
     public static function emailNotifications(): bool
     {
         return self::get(self::EMAIL_NOTIFICATIONS) === '1';
+    }
+
+    // May a customer cancel their own pending order? Read fresh on every cancel, so switching it
+    // off stops the very next request.
+    public static function customerCancel(): bool
+    {
+        return self::get(self::CUSTOMER_CANCEL) === '1';
     }
 
     // The plates one bulk order may hold: ['min' => int >= 1, 'max' => ?int]. A max of
@@ -90,10 +170,28 @@ class Setting
 
     /* -------- Writes -------- */
 
+    // Save the app name (the caller has trimmed and validated it).
+    public static function setAppName(string $name): void
+    {
+        self::set(self::APP_NAME, $name);
+    }
+
+    // Save the logo's path on the public disk; null goes back to the built-in mark.
+    public static function setAppLogo(?string $path): void
+    {
+        self::set(self::APP_LOGO, $path ?? '');
+    }
+
     // Switch the email copy of notifications on or off.
     public static function setEmailNotifications(bool $enabled): void
     {
         self::set(self::EMAIL_NOTIFICATIONS, $enabled ? '1' : '0');
+    }
+
+    // Allow or forbid customers to cancel their own pending order.
+    public static function setCustomerCancel(bool $allowed): void
+    {
+        self::set(self::CUSTOMER_CANCEL, $allowed ? '1' : '0');
     }
 
     // Save the bulk order limits (a null maximum = no limit).
@@ -114,6 +212,9 @@ class Setting
     // Save one setting (insert, or replace the value of the existing key).
     public static function set(string $key, ?string $value): void
     {
+        // The name / logo remembered for this request (see brand()) may be the one just replaced.
+        request()->attributes->remove('brand');
+
         $now = now();
 
         // Not updateOrInsert: it would rewrite created_at on every save.

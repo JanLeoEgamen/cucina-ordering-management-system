@@ -106,6 +106,7 @@ return [
         'bulk-orders.store' => 'Placed a bulk order',
         'my-orders.payment.proof' => 'Sent a new payment proof',
         'my-orders.payment.cash' => 'Switched an order to cash on pick up',
+        'my-orders.cancel' => 'Cancelled their own order',
         'notifications.read-all' => 'Marked every notification as read',
         'settings.update' => 'Changed the system configuration',
         'profile.update' => 'Updated their profile',

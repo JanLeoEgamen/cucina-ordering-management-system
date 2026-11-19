@@ -66,8 +66,9 @@
                    data-method-label="{{ __('Payment Method') }}"
                    data-reference-label="{{ __('Reference Number') }}"
                    data-amount-label="{{ __('Amount') }}"
+                   data-actions-label="{{ __('Actions') }}"
                    data-date-range-error="{{ __('Date from cannot be later than date to.') }}"
-                   class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                   class="dt-compact min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead class="bg-gray-50/70 dark:bg-gray-900/40">
                     <tr>
                         <th scope="col" data-no-export class="{{ $th }} w-12">#</th>

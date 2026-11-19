@@ -332,15 +332,44 @@
    Desktop only (lg+): below lg the sidebar is an off-canvas drawer and always
    shows its labels.
 --------------------------------------------------------------------------- */
-/* Folded sidebar groups: <html data-nav-closed="catalog access"> (set before paint from
-   localStorage, and by toggleGroup in layouts/app.blade.php). The group's links go, its title
-   stays with the chevron turned. Plain attribute selectors, one per group, because Tailwind
-   cannot see a value that only exists at run time. */
+/* Sidebar groups (Ordering, Service, ...).
+
+   FOLDING: <html data-nav-closed="catalog access"> (set before paint from localStorage, and by
+   toggleGroup in layouts/app.blade.php) folds a group. The links slide shut instead of vanishing:
+   .nav-group-items is a one column grid whose row goes from 1fr to 0fr (the only way to animate
+   to and from "auto" height in plain CSS), and .nav-group-inner clips what is inside. A folded
+   group is also visibility:hidden (after the slide) so Tab cannot land on a link nobody can see.
+   Plain attribute selectors, one per group, because Tailwind cannot see a value that only exists
+   at run time. Nothing animates on page load: the folded state is already there at first paint.
+
+   ACTIVE GROUP: the group that holds the page you are on gets a soft gray panel and a darker
+   title (the page itself stays the ink pill, so it still stands out inside it). */
+.nav-group-items {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 0.25s ease, visibility 0s;
+}
+
+/* The 2px of padding (cancelled by the negative margin) keeps the active pill's shadow and a
+   focus ring from being cut by the clipping. */
+.nav-group-inner {
+    min-height: 0;
+    margin: -2px;
+    overflow: hidden;
+    padding: 2px;
+}
+
 html[data-nav-closed~='ordering'] [data-nav-group='ordering'] .nav-group-items,
 html[data-nav-closed~='service'] [data-nav-group='service'] .nav-group-items,
 html[data-nav-closed~='catalog'] [data-nav-group='catalog'] .nav-group-items,
 html[data-nav-closed~='access'] [data-nav-group='access'] .nav-group-items {
-    display: none;
+    grid-template-rows: 0fr;
+    visibility: hidden;
+    transition: grid-template-rows 0.25s ease, visibility 0s linear 0.25s;
+}
+
+.nav-chevron {
+    transition: transform 0.25s ease;
 }
 
 html[data-nav-closed~='ordering'] [data-nav-group='ordering'] .nav-chevron,
@@ -350,10 +379,56 @@ html[data-nav-closed~='access'] [data-nav-group='access'] .nav-chevron {
     transform: rotate(-90deg);
 }
 
+.nav-group-panel {
+    border-radius: 0.875rem;
+    transition: background-color 0.2s ease;
+}
+
+[data-nav-group][data-has-active] .nav-group-panel {
+    background-color: theme('colors.gray.100');
+    padding: 0.375rem;
+}
+
+[data-nav-group][data-has-active] .nav-group-title {
+    color: theme('colors.gray.600');
+}
+
+/* Hovering a sibling must still show, and the panel is already gray-100. */
+[data-nav-group][data-has-active] .sidebar-link:not([aria-current]):hover {
+    background-color: theme('colors.gray.200');
+}
+
+html.dark [data-nav-group][data-has-active] .nav-group-panel {
+    background-color: rgb(255 255 255 / 0.06);
+}
+
+html.dark [data-nav-group][data-has-active] .nav-group-title {
+    color: theme('colors.gray.300');
+}
+
+html.dark [data-nav-group][data-has-active] .sidebar-link:not([aria-current]):hover {
+    background-color: rgb(255 255 255 / 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nav-group-items,
+    .nav-chevron,
+    .nav-group-panel {
+        transition: none !important;
+    }
+}
+
 @media (min-width: 1024px) {
     /* The icon rail has no titles to press: every group shows its icons, folded or not. */
     html.cucina-sidebar-collapsed .nav-group-items {
-        display: block !important;
+        grid-template-rows: 1fr !important;
+        visibility: visible !important;
+    }
+
+    /* No panel in the rail: the icons stay centred under each other. */
+    html.cucina-sidebar-collapsed [data-nav-group][data-has-active] .nav-group-panel {
+        background-color: transparent;
+        padding: 0;
     }
 
     html.cucina-sidebar-collapsed #app-sidebar {
@@ -578,6 +653,7 @@ html {
     }
 
     article [data-row-action],
+    article [data-row-link],
     article a.rounded-lg {
         display: inline-flex;
         min-height: 2.5rem;
@@ -620,6 +696,61 @@ html {
 
 .dt-container .dt-layout-row:empty {
     display: none;
+}
+
+/* A table wider than its card scrolls sideways at EVERY width (it used to do so only on a phone;
+   on a desktop the card's overflow-hidden clipped the last column, Actions, instead). */
+.dt-container .dt-layout-row.dt-layout-table {
+    overflow-x: auto;
+}
+
+/* Row menu (resources/js/ui/row-menu.js): the action buttons inside the three dots dropdown lose
+   their button look (border, shadow, lift) and read as plain menu items. The selectors are long on
+   purpose: they must beat the per-action rules (and their dark twins) further up. */
+html body [data-row-menu-panel] button[data-row-action] {
+    width: 100%;
+    justify-content: flex-start;
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    border-color: transparent;
+    border-radius: 0.5rem;
+    background-color: transparent;
+    box-shadow: none;
+    font-size: 0.875rem;
+}
+
+html body [data-row-menu-panel] button[data-row-action]:hover,
+html body [data-row-menu-panel] button[data-row-action]:focus-visible {
+    background-color: theme('colors.gray.100');
+    box-shadow: none;
+    transform: none;
+}
+
+html body [data-row-menu-panel] button[data-row-action='delete']:hover,
+html body [data-row-menu-panel] button[data-row-action='delete']:focus-visible {
+    background-color: theme('colors.red.50');
+}
+
+html.dark body [data-row-menu-panel] button[data-row-action] {
+    background-color: transparent;
+    border-color: transparent;
+}
+
+html.dark body [data-row-menu-panel] button[data-row-action]:hover,
+html.dark body [data-row-menu-panel] button[data-row-action]:focus-visible {
+    background-color: theme('colors.gray.700');
+}
+
+html.dark body [data-row-menu-panel] button[data-row-action='delete']:hover,
+html.dark body [data-row-menu-panel] button[data-row-action='delete']:focus-visible {
+    background-color: rgb(127 29 29 / 0.3);
+}
+
+/* `dt-compact` on a table with many columns (Payments, 10): tighter cells, so it fits its card
+   without a scrollbar. Declared after the cell rules above, same specificity, so it wins. */
+.dt-container table.dt-compact thead th,
+.dt-container table.dt-compact tbody td {
+    @apply px-3;
 }
 
 /* ---------------------------------------------------------------------------
@@ -698,7 +829,11 @@ html {
    the controllers and the card templates, so the look lives here, keyed on
    data-row-action; the icon is a mask so it takes the text colour.
    ------------------------------------------------------------------------- */
-html button[data-row-action] {
+/* `a[data-row-link]` is the same button drawn as a plain link (View on the session tables, which
+   opens a page instead of a drawer). It carries no data-row-action on purpose: the page scripts
+   listen for that attribute. */
+html button[data-row-action],
+html a[data-row-link] {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
@@ -711,7 +846,8 @@ html button[data-row-action] {
     transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-html button[data-row-action]::before {
+html button[data-row-action]::before,
+html a[data-row-link]::before {
     content: '';
     width: 1rem;
     height: 1rem;
@@ -720,12 +856,14 @@ html button[data-row-action]::before {
     mask: var(--action-icon) center / contain no-repeat;
 }
 
-html button[data-row-action]:hover {
+html button[data-row-action]:hover,
+html a[data-row-link]:hover {
     transform: translateY(-1px);
     box-shadow: 0 6px 12px -4px rgb(0 0 0 / 0.35);
 }
 
-html button[data-row-action]:active {
+html button[data-row-action]:active,
+html a[data-row-link]:active {
     transform: translateY(0);
 }
 
@@ -737,14 +875,16 @@ html button[data-row-action='edit'] {
 }
 html button[data-row-action='edit']:hover { background-color: theme('colors.gray.500'); }
 
-html button[data-row-action='view'] {
+html button[data-row-action='view'],
+html a[data-row-link='view'] {
     --action-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
     background-color: #fff;
     border-color: theme('colors.gray.300');
     color: theme('colors.gray.800');
     box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.12);
 }
-html button[data-row-action='view']:hover { background-color: theme('colors.gray.50'); }
+html button[data-row-action='view']:hover,
+html a[data-row-link='view']:hover { background-color: theme('colors.gray.50'); }
 
 html button[data-row-action='delete'] {
     --action-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18'/%3E%3Cpath d='M8 6V4h8v2'/%3E%3Cpath d='M19 6l-1 14H6L5 6'/%3E%3Cpath d='M10 11v5M14 11v5'/%3E%3C/svg%3E");
@@ -762,12 +902,16 @@ html button[data-row-action='end'] {
 /* Dark mode: the ink button turns to mist, the paper one to a dark surface. */
 html.dark button[data-row-action='edit'] { background-color: theme('colors.mist.DEFAULT'); color: theme('colors.ink'); }
 html.dark button[data-row-action='edit']:hover { background-color: #fff; }
-html.dark button[data-row-action='view'] { background-color: theme('colors.gray.700'); border-color: theme('colors.gray.500'); color: theme('colors.gray.100'); }
-html.dark button[data-row-action='view']:hover { background-color: theme('colors.gray.600'); }
+html.dark button[data-row-action='view'],
+html.dark a[data-row-link='view'] { background-color: theme('colors.gray.700'); border-color: theme('colors.gray.500'); color: theme('colors.gray.100'); }
+html.dark button[data-row-action='view']:hover,
+html.dark a[data-row-link='view']:hover { background-color: theme('colors.gray.600'); }
 
 @media (prefers-reduced-motion: reduce) {
-    html button[data-row-action] { transition: none; }
-    html button[data-row-action]:hover { transform: none; }
+    html button[data-row-action],
+    html a[data-row-link] { transition: none; }
+    html button[data-row-action]:hover,
+    html a[data-row-link]:hover { transform: none; }
 }
 
 /* Edit and Delete share View's light surface (white, bordered); only the text and
@@ -836,7 +980,8 @@ html .dt-container table.dataTable thead > tr > th .dt-column-order::after {
 
 /* In a card the three actions share one footer: no side margins, a little less padding,
    and the row wraps (flex-wrap in the template) instead of clipping the first button. */
-html [id$='-cards'] button[data-row-action] {
+html [id$='-cards'] button[data-row-action],
+html [id$='-cards'] a[data-row-link] {
     margin: 0;
     padding: 0.4rem 0.7rem;
 }

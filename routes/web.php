@@ -135,6 +135,9 @@ Route::middleware(['auth', 'profile.complete'])->group(function () {
         ->whereNumber('id')->middleware('throttle:10,1')->name('my-orders.payment.proof');
     Route::post('/my-orders/{id}/payment/cash', [OrderController::class, 'switchToCash'])
         ->whereNumber('id')->middleware('throttle:10,1')->name('my-orders.payment.cash');
+    // The customer cancels their own pending order (only while System Configuration allows it).
+    Route::post('/my-orders/{id}/cancel', [OrderController::class, 'cancelMine'])
+        ->whereNumber('id')->middleware('throttle:10,1')->name('my-orders.cancel');
 
     // The signed-in user's own notifications. No permission (like the profile): every
     // query is scoped to the user. The feed is what the bell polls.

@@ -146,6 +146,22 @@ class BulkSession extends Model
         return self::getAll()->first(fn (object $session) => $session->status === 'live');
     }
 
+    // The fewest / most plates one order of this session may hold: the session's own
+    // minimum, raised to the System Configuration minimum, and never above the
+    // configured maximum. The bulk menu, the order check and the public welcome page
+    // all read it from here, so they cannot disagree.
+    public static function limitsFor(object $session): array
+    {
+        $limits = Setting::bulkLimits();
+        $min = max((int) $session->min_quantity, $limits['min']);
+
+        if ($limits['max'] !== null) {
+            $min = min($min, $limits['max']);
+        }
+
+        return ['min' => $min, 'max' => $limits['max']];
+    }
+
     // The session's state: scheduled before it starts, live inside its window,
     // ended once it was closed by hand or its end time went past. Same rule as
     // OrderSession::statusOf, so nothing needs a scheduler.

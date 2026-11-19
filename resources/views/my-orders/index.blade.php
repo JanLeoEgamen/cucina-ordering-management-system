@@ -27,9 +27,74 @@
     <div id="my-orders-root" class="container mx-auto max-w-3xl px-4 py-6 sm:px-6 lg:px-8"
          data-failed="{{ __('Your request could not be sent. Please try again.') }}"
          data-pick-proof="{{ __('Choose the image of your new proof of payment.') }}">
+        {{-- Search and filters: a plain GET form, so the pager keeps them (withQueryString) and a
+             filtered list can be bookmarked. Shown while there is anything to filter. --}}
+        @if ($orders->total() > 0 || $filtered)
+            <form method="GET" action="{{ route('my-orders.index') }}" role="search" aria-label="{{ __('Search and filter my orders') }}"
+                  class="mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <label for="orders-q" class="sr-only">{{ __('Search my orders') }}</label>
+                <input type="search" id="orders-q" name="q" value="{{ $filters['q'] }}" maxlength="100"
+                       placeholder="{{ __('Search order number, dish, payment method or reference') }}"
+                       class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 placeholder-gray-400 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400">
+
+                <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                        <label for="orders-status" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Order status') }}</label>
+                        <select id="orders-status" name="status"
+                                class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                            <option value="">{{ __('All') }}</option>
+                            @foreach (\App\Models\Order::USER_ORDER_STATUSES as $value)
+                                <option value="{{ $value }}" @selected($filters['status'] === $value)>{{ __(ucfirst($value)) }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="orders-payment" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Payment status') }}</label>
+                        <select id="orders-payment" name="payment"
+                                class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                            <option value="">{{ __('All') }}</option>
+                            @foreach (\App\Models\Order::USER_PAYMENT_STATUSES as $value)
+                                <option value="{{ $value }}" @selected($filters['payment'] === $value)>{{ __(ucfirst($value)) }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="orders-from" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Placed from') }}</label>
+                        <input type="date" id="orders-from" name="from" value="{{ $filters['from'] }}"
+                               class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                    </div>
+
+                    <div>
+                        <label for="orders-to" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Placed until') }}</label>
+                        <input type="date" id="orders-to" name="to" value="{{ $filters['to'] }}"
+                               class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                    </div>
+                </div>
+
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                    <button type="submit"
+                            class="inline-flex items-center justify-center rounded-full bg-indigo-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-800">
+                        {{ __('Search') }}
+                    </button>
+
+                    @if ($filtered)
+                        <a href="{{ route('my-orders.index') }}"
+                           class="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                            {{ __('Clear filters') }}
+                        </a>
+                    @endif
+                </div>
+            </form>
+        @endif
+
         @forelse ($orders as $order)
             {{-- id: a notification about this order opens My Orders at this card. scroll-mt clears the phone's top bar. --}}
-            <article id="order-{{ $order->order_id }}" class="mb-4 scroll-mt-20 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm target:ring-2 target:ring-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:target:ring-gray-100">
+            {{-- data-order: what the order popup shows (resources/js/ui/order-cards.js). A click on the
+                 card outside its links, forms and the Fix your payment panel opens it; the Details
+                 button is the same thing for the keyboard. --}}
+            <article id="order-{{ $order->order_id }}" data-order="{{ json_encode($order->popup) }}" class="mb-4 scroll-mt-20 cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md target:ring-2 target:ring-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:target:ring-gray-100">
                 {{-- Order number, when it was placed, and where it stands --}}
                 <div class="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 px-5 py-3 dark:border-gray-700">
                     <div>
@@ -50,6 +115,11 @@
                         <span class="{{ $order->order_status === 'completed' ? 'inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/40 dark:text-green-300' : ($order->order_status === 'cancelled' ? 'inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800 dark:bg-red-900/40 dark:text-red-300' : 'inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300') }}">
                             {{ __('Order') }}: {{ __(ucfirst($order->order_status)) }}
                         </span>
+                        <button type="button" data-order-open aria-haspopup="dialog"
+                                aria-label="{{ __('Details of order :number', ['number' => $order->order_number]) }}"
+                                class="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:border-gray-600 dark:text-slate-400 dark:hover:bg-slate-700/40 dark:hover:text-slate-200">
+                            {{ __('Details') }}
+                        </button>
                     </div>
                 </div>
 
@@ -89,6 +159,33 @@
 
                     <p class="text-base font-semibold tabular-nums text-gray-900 dark:text-white">₱{{ number_format((float) $order->total_amount, 2) }}</p>
                 </div>
+
+                {{-- Cancel your own pending order: only set while System Configuration allows it and the
+                     payment is not verified. Asks first, inline; my-orders.js sends it. --}}
+                @if ($order->cancel_url)
+                    <div class="border-t border-gray-200 px-5 py-3 dark:border-gray-700" data-cancel-order>
+                        <div data-fix-errors role="alert" class="mb-2 hidden rounded-lg bg-red-50 p-2 text-xs text-red-800 dark:bg-red-900/30 dark:text-red-200"></div>
+
+                        <button type="button" data-cancel-ask
+                                class="inline-flex w-full items-center justify-center rounded-full border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 sm:w-auto dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                            {{ __('Cancel order') }}
+                        </button>
+
+                        <div data-cancel-confirm class="hidden">
+                            <p class="text-sm text-gray-800 dark:text-gray-200">{{ __('Cancel order :number? Its plates go back on the menu.', ['number' => $order->order_number]) }}</p>
+                            <div class="mt-2 flex flex-wrap gap-2">
+                                <button type="button" data-cancel-yes data-url="{{ $order->cancel_url }}" data-loading-label="{{ __('Cancelling…') }}"
+                                        class="inline-flex items-center justify-center rounded-full bg-indigo-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-indigo-800">
+                                    {{ __('Yes, cancel my order') }}
+                                </button>
+                                <button type="button" data-cancel-no
+                                        class="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                                    {{ __('Keep it') }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                @endif
 
                 {{-- A rejected payment on an order that is still waiting: its plates are
                      still reserved, and the customer can send a new proof or pay with cash
@@ -147,6 +244,13 @@
                 @endif
             </article>
         @empty
+            @if ($filtered)
+                {{-- Orders exist, none matches: say so, and the way back is the Clear filters button. --}}
+                <div class="rounded-xl border border-gray-200 bg-white p-10 text-center dark:border-gray-700 dark:bg-gray-800">
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ __('No orders match') }}</h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('Try a different search or clear the filters.') }}</p>
+                </div>
+            @else
             {{-- Nothing ordered yet: point at the menu. --}}
             <div class="rounded-xl border border-gray-200 bg-white p-10 text-center dark:border-gray-700 dark:bg-gray-800">
                 <svg class="mx-auto h-10 w-10 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
@@ -159,8 +263,15 @@
                     {{ __('Go to Menu') }}
                 </a>
             </div>
+            @endif
         @endforelse
+
+        {{-- Ten orders a page; nothing when they all fit on one. --}}
+        {{ $orders->links('pagination.numbered') }}
     </div>
+
+    {{-- The order popup: filled from the card's data-order, read only here (no staff actions). --}}
+    <x-ui.order-popup />
 
     @push('scripts')
         {{-- Page behaviour lives in resources/js/pages/my-orders.js; see vite.config.js. --}}

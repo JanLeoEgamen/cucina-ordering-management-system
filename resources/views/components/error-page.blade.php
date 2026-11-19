@@ -82,7 +82,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="robots" content="noindex">
 
-        <title>{{ $code }} · {{ $title }} · {{ config('app.name', 'Cucina') }}</title>
+        <title>{{ $code }} · {{ $title }} · {{ \App\Models\Setting::appName() }}</title>
 
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700&display=swap" rel="stylesheet" />
@@ -104,7 +104,7 @@
         <main class="mx-auto flex min-h-screen max-w-xl flex-col items-center justify-center px-5 py-12 text-center">
             <a href="{{ $homeUrl }}" class="mb-10 inline-flex items-center gap-2.5">
                 <x-application-logo class="h-9 w-9 fill-current text-gray-900 dark:text-mist" />
-                <span class="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Cucina</span>
+                <span class="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">{{ \App\Models\Setting::appName() }}</span>
             </a>
 
             <div class="w-full animate-fade-up rounded-2xl bg-white p-8 shadow-card sm:p-10 dark:bg-gray-800">
@@ -134,7 +134,7 @@
                 </div>
             </div>
 
-            <p class="mt-6 text-xs text-gray-400 dark:text-gray-500">&copy; {{ date('Y') }} Cucina</p>
+            <p class="mt-6 text-xs text-gray-400 dark:text-gray-500">&copy; {{ date('Y') }} {{ \App\Models\Setting::appName() }}</p>
         </main>
     </body>
 </html>

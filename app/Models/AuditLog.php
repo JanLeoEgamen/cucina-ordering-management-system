@@ -17,6 +17,12 @@ class AuditLog
 
     public const OUTCOMES = ['success', 'failed', 'denied', 'error'];
 
+    // Rows per page on the viewer: the choices offered under the table, and the one used until
+    // somebody picks another (the same 10 / 25 / 50 / 100 family as the app's other tables).
+    public const PAGE_SIZES = [10, 25, 50, 100];
+
+    public const DEFAULT_PAGE_SIZE = 25;
+
     // The most rows one CSV export writes (the page is for reading; a bigger dump is a database job).
     public const EXPORT_LIMIT = 10000;
 
@@ -102,7 +108,7 @@ class AuditLog
     }
 
     // One page for the viewer. The COUNT(*) follows the filters, so a narrow filter is cheap.
-    public static function page(array $filters, int $perPage = 25): LengthAwarePaginator
+    public static function page(array $filters, int $perPage = self::DEFAULT_PAGE_SIZE): LengthAwarePaginator
     {
         return self::filtered($filters)->paginate($perPage);
     }

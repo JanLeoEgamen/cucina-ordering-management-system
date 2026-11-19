@@ -82,10 +82,10 @@ class OrderNotifier
         self::later($orderId, self::COMPLETED);
     }
 
-    // Staff called the order off.
-    public static function cancelled(int $orderId): void
+    // Staff called the order off, or (System Configuration allows it) the customer did.
+    public static function cancelled(int $orderId, bool $byCustomer = false): void
     {
-        self::later($orderId, self::CANCELLED);
+        self::later($orderId, self::CANCELLED, ['by_customer' => $byCustomer]);
     }
 
     // The customer fixed a rejected payment: a new proof, or cash on pickup.
@@ -298,8 +298,10 @@ class OrderNotifier
         $number = $order->order_number;
         $method = $order->method_name ?: __('your payment method');
         $cash = $order->method_name === PaymentMethod::CASH_ON_PICKUP;
+        // "?order=ID": My Orders is paginated, and that finds the page the order is on (the
+        // #anchor then scrolls to its card).
         $url = $person->can('view my orders')
-            ? route('my-orders.index', [], false) . '#order-' . $order->order_id
+            ? route('my-orders.index', ['order' => $order->order_id], false) . '#order-' . $order->order_id
             : null;
 
         $text = match ($event) {
@@ -325,7 +327,9 @@ class OrderNotifier
             ],
             self::CANCELLED => [
                 __('Order :number cancelled', ['number' => $number]),
-                __('Your order was cancelled.'),
+                ($context['by_customer'] ?? false)
+                    ? __('You cancelled your order. Its plates went back on the menu.')
+                    : __('Your order was cancelled.'),
             ],
             default => [__('Order :number updated', ['number' => $number]), null],
         };
@@ -371,7 +375,9 @@ class OrderNotifier
             ],
             self::CANCELLED => [
                 __('Order :number cancelled', ['number' => $number]),
-                __(":who's order (:total) was cancelled.", ['who' => $who, 'total' => $total]),
+                ($context['by_customer'] ?? false)
+                    ? __(':who cancelled their order (:total).', ['who' => $who, 'total' => $total])
+                    : __(":who's order (:total) was cancelled.", ['who' => $who, 'total' => $total]),
             ],
             self::PAYMENT_RESENT => ($context['cash'] ?? false)
                 ? [__(':who will pay :number in cash', ['who' => $who, 'number' => $number]), __('Payment changed to Cash on Pick up after a rejection. Complete the order when it is collected.')]

@@ -102,6 +102,32 @@ abstract class Controller
         ]);
     }
 
+    // What the order popup shows for a customer's OWN order (My Orders / My Bulk Orders): one
+    // JSON object on the card, so opening it costs no request. Deliberately NOT the staff row
+    // (orderRow): no customer name, no verifier and no action URLs, so the popup hides those
+    // rows and offers no Complete / Cancel / Verify / Reject, whatever permissions the viewer
+    // holds as staff. `$order` needs status_badge, payment_badge and proof_url set first.
+    protected function customerOrderPopup(object $order, string $sessionLabel): array
+    {
+        return [
+            'order_number' => $order->order_number,
+            'order_date' => $order->order_date,
+            'session_label' => $sessionLabel,
+            'method_name' => $order->method_name,
+            'reference_number' => $order->reference_number,
+            'total_amount' => (float) $order->total_amount,
+            'status_badge' => $order->status_badge,
+            'payment_badge' => $order->payment_badge,
+            'proof_url' => $order->proof_url,
+            'items' => array_map(fn (array $item) => [
+                'dish_name' => $item['dish_name'],
+                'quantity' => (int) $item['quantity'],
+                'unit_price' => (float) $item['unit_price'],
+                'sub_total' => (float) $item['sub_total'],
+            ], $order->items),
+        ];
+    }
+
     // Failure response for the AJAX forms: {status, message}, with the HTTP code.
     protected function errorResponse(string $message, int $status = 422): JsonResponse
     {

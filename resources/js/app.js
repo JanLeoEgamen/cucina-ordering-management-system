@@ -1,6 +1,9 @@
 import './bootstrap';
 
 import Alpine from 'alpinejs';
+// Registers Alpine.data('passwordField') for <x-password-input>. Imports run before the lines
+// below, so it is registered before Alpine.start() walks the page.
+import './ui/password-field';
 
 window.Alpine = Alpine;
 

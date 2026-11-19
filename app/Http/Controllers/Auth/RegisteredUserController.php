@@ -55,6 +55,8 @@ class RegisteredUserController extends Controller
 
         Auth::login($user);
 
-        return redirect(route('dashboard', absolute: false));
+        // Back to the page they were sent away from (the welcome page's "order" buttons
+        // lead through the menu's login), else the dashboard.
+        return redirect()->intended(route('dashboard', absolute: false));
     }
 }

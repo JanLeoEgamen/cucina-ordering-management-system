@@ -22,7 +22,7 @@
             <meta name="login-url" content="{{ route('login') }}">
         @endauth
 
-        <title>{{ config('app.name', 'Cucina') }}</title>
+        <title>{{ \App\Models\Setting::appName() }}</title>
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
@@ -58,7 +58,7 @@
 
                 <a href="/" class="relative z-10 inline-flex items-center gap-3 self-start">
                     <x-application-logo class="h-10 w-10 fill-current text-mist" />
-                    <span class="text-xl font-semibold tracking-tight">Cucina</span>
+                    <span class="text-xl font-semibold tracking-tight">{{ \App\Models\Setting::appName() }}</span>
                 </a>
 
                 <div class="relative z-10 {{ $collage ? 'max-w-lg' : 'max-w-md' }}">
@@ -97,7 +97,7 @@
                     @endunless
                 </div>
 
-                <p class="relative z-10 text-xs text-white/40">&copy; {{ date('Y') }} Cucina</p>
+                <p class="relative z-10 text-xs text-white/40">&copy; {{ date('Y') }} {{ \App\Models\Setting::appName() }}</p>
 
                 @unless ($collage)
                     {{-- A soft ring behind the text, so the panel is not a flat block. --}}
@@ -110,7 +110,7 @@
             <main class="flex min-h-screen flex-col items-center justify-center px-5 py-12 sm:px-8">
                 <a href="/" class="mb-8 inline-flex items-center gap-2.5 lg:hidden">
                     <x-application-logo class="h-9 w-9 fill-current text-gray-900 dark:text-mist" />
-                    <span class="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Cucina</span>
+                    <span class="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">{{ \App\Models\Setting::appName() }}</span>
                 </a>
 
                 <div class="w-full max-w-md animate-fade-up">

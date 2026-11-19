@@ -17,6 +17,7 @@ import DataTable from 'datatables.net-dt';
 import { initTableToolbar } from '../ui/table-toolbar';
 import { showToast } from '../ui/toast';
 import { initPaymentPopup } from '../ui/payment-popup';
+import { initRowMenus, rowMenuHtml } from '../ui/row-menu';
 
 const start = () => {
     const tableElement = document.querySelector('#payments-table');
@@ -122,7 +123,8 @@ const start = () => {
     };
 
     const orderCell = (value, type) => (type === 'display'
-        ? '<span class="font-medium text-gray-900 dark:text-white">' + escapeHtml(value) + '</span>'
+        // nowrap: ORD-20261119-0002 must not break at its hyphens.
+        ? '<span class="whitespace-nowrap font-medium text-gray-900 dark:text-white">' + escapeHtml(value) + '</span>'
         : value ?? '');
 
     const amountCell = (value, type) => (type === 'display'
@@ -134,6 +136,8 @@ const start = () => {
     const dateCell = (value, type) => (type === 'display'
         ? '<span class="whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">' + escapeHtml(prettyDateTime(value)) + '</span>'
         : value ?? '');
+
+    const actionsCell = (value, type) => (type === 'display' ? rowMenuHtml(value, copy.actionsLabel) : value);
 
     const table = new DataTable(tableElement, {
         processing: true,
@@ -171,12 +175,15 @@ const start = () => {
             { data: null, orderable: false, searchable: false, className: 'hidden sm:table-cell', render: proofCell },
             { data: 'status' },
             { data: 'created_at', className: 'hidden lg:table-cell', render: dateCell },
-            { data: 'action', orderable: false, searchable: false, className: 'whitespace-nowrap text-right' },
+            // The table keeps the row's buttons behind a three dots menu (ten columns are too wide
+            // for the buttons); the cards below still draw them as they are.
+            { data: 'action', orderable: false, searchable: false, className: 'whitespace-nowrap text-right', render: actionsCell },
         ],
     });
 
     // Search, sort and the filter dropdown above the table.
     initTableToolbar(table);
+    initRowMenus();
 
     const reload = () => table.ajax.reload(null, false);
 

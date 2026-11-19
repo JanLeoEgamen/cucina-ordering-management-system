@@ -9,7 +9,7 @@
             <meta name="login-url" content="{{ route('login') }}">
         @endauth
 
-        <title>{{ config('app.name', 'Cucina') }}</title>
+        <title>{{ \App\Models\Setting::appName() }}</title>
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">

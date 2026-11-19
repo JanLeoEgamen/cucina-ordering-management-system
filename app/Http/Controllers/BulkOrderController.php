@@ -8,11 +8,11 @@ use App\Models\BulkSession;
 use App\Models\BulkSessionDish;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
-use App\Models\Setting;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -59,15 +59,38 @@ class BulkOrderController extends Controller implements HasMiddleware
     }
 
     // The orders the signed-in customer placed in bulk sessions, newest first.
-    public function mine()
+    public function mine(Request $request)
     {
-        $orders = BulkOrder::ofUser((int) auth()->id());
+        $userId = (int) auth()->id();
+
+        // "?order=ID" goes to the page that holds that order, at its card (the way a
+        // notification links to one; an id that is not the customer's is ignored).
+        if ($request->filled('order')) {
+            $orderId = (int) $request->query('order');
+            $page = BulkOrder::pageNumberOf($userId, $orderId);
+
+            if ($page !== null) {
+                return redirect(route('bulk-my-orders.index', $page > 1 ? ['page' => $page] : []) . '#bulk-order-' . $orderId);
+            }
+        }
+
+        $orders = BulkOrder::pageOfUser($userId);
+
+        // A page past the end (an old link, orders deleted): the last one.
+        if ($orders->currentPage() > $orders->lastPage()) {
+            return redirect($orders->url($orders->lastPage()));
+        }
 
         foreach ($orders as $order) {
             $order->status_badge = $this->orderStatusBadge($order->order_status);
             $order->payment_badge = $this->paymentStatusBadge($order->payment_status);
             $order->proof_url = Payment::proofUrl($order->proof_of_payment);
             $order->plates = array_sum(array_column($order->items, 'quantity'));
+
+            // What a click on the card opens (the order popup).
+            $order->popup = $this->customerOrderPopup($order, ($order->session_title ?: __('Bulk session'))
+                . ' · ' . Carbon::parse($order->session_date)->format('M j, Y')
+                . ' · ' . substr((string) $order->start_time, 0, 5) . ' – ' . substr((string) $order->end_time, 0, 5));
         }
 
         return view('bulk-my-orders.index', [
@@ -286,14 +309,7 @@ class BulkOrderController extends Controller implements HasMiddleware
     // session never becomes impossible to order from.
     protected function limitsFor(object $session): array
     {
-        $limits = Setting::bulkLimits();
-        $min = max((int) $session->min_quantity, $limits['min']);
-
-        if ($limits['max'] !== null) {
-            $min = min($min, $limits['max']);
-        }
-
-        return ['min' => $min, 'max' => $limits['max']];
+        return BulkSession::limitsFor($session);
     }
 
     // Remove an uploaded proof when its order was not written.

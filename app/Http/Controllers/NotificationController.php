@@ -87,6 +87,10 @@ class NotificationController extends Controller
         // redirect to anywhere else would be an open redirect if that ever changed.
         $url = (string) $notification->url;
 
+        // Notifications saved before My Orders was paginated point at "/my-orders#order-ID",
+        // which only reaches a card on the first page: send them through "?order=ID" too.
+        $url = preg_replace('~^(/my-orders)#order-(\d+)$~', '$1?order=$2#order-$2', $url) ?? $url;
+
         return redirect($url !== '' && str_starts_with($url, '/') && ! str_starts_with($url, '//')
             ? $url
             : route('notifications.index'));

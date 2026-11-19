@@ -35,7 +35,7 @@
                                 @else
                                     {{-- No photo yet: the dish as a typographic tile. --}}
                                     <div class="flex h-full flex-col justify-end p-4 {{ $tone }}">
-                                        <x-application-logo class="absolute right-3.5 top-3.5 h-6 w-6 fill-current text-white/20" />
+                                        <x-application-logo :custom="false" class="absolute right-3.5 top-3.5 h-6 w-6 fill-current text-white/20" />
                                         @if ($tile['type'])
                                             <span class="text-[11px] font-semibold uppercase tracking-wider text-white/50">{{ $tile['type'] }}</span>
                                         @endif

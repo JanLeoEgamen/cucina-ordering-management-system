@@ -1,7 +1,7 @@
 {{--
     The public landing page (WelcomeController). A visitor learns what Cucina is for, whether
     ordering is open right now, and how to start; someone signed in gets their way back in.
-    Nothing private is on it: dish names and photos only, no prices or stock.
+    Nothing private is on it: dish names, photos and prices of what is on offer, never stock numbers.
 --}}
 @php
     $signedIn = auth()->check();
@@ -13,6 +13,39 @@
 
     $window = fn ($session) => substr($session->start_time, 0, 5) . ' – ' . substr($session->end_time, 0, 5);
     $day = fn ($session) => \Illuminate\Support\Carbon::parse($session->order_date)->translatedFormat('D, M j');
+
+    // What is on offer right now, for the preview under the hero: the live order session
+    // and the running bulk session, each only when it has dishes. Prices and photos are
+    // public here; stock is not (a dish is either orderable or "Sold out").
+    $previews = [];
+
+    if ($menuDishes->isNotEmpty()) {
+        $previews[] = [
+            'title' => __('On the menu now'),
+            'note' => __('Open until :time', ['time' => substr($live->end_time, 0, 5)]),
+            'dishes' => $menuDishes,
+            'unit' => __('each'),
+            'soldOut' => fn ($dish) => $dish->available_stock <= 0,
+            'url' => route('menu.index'),
+            'cta' => __('Order from the menu'),
+            'guestCta' => __('Log in to order'),
+            'allowed' => auth()->user()?->can('view menu') ?? false,
+        ];
+    }
+
+    if ($bulkDishes->isNotEmpty()) {
+        $previews[] = [
+            'title' => __('Bulk orders are open'),
+            'note' => __('For events and big groups: at least :min plates per order. Open until :time', ['min' => $bulkLimits['min'], 'time' => substr($bulk->end_time, 0, 5)]),
+            'dishes' => $bulkDishes,
+            'unit' => __('per plate'),
+            'soldOut' => fn ($dish) => false,
+            'url' => route('bulk-menu.index'),
+            'cta' => __('Order in bulk'),
+            'guestCta' => __('Log in to order in bulk'),
+            'allowed' => auth()->user()?->can('view bulk-menu') ?? false,
+        ];
+    }
 @endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
@@ -21,7 +54,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ config('app.name', 'Cucina') }} &middot; {{ __('Order fresh, pick up fast') }}</title>
+        <title>{{ \App\Models\Setting::appName() }} &middot; {{ __('Order fresh, pick up fast') }}</title>
         <meta name="description" content="{{ __('Order from the live menu, pay cash on pickup or online, and follow your order.') }}">
 
         <!-- Fonts -->
@@ -38,7 +71,7 @@
         <header class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-5 sm:px-6 lg:px-8">
             <a href="{{ route('welcome') }}" class="inline-flex items-center gap-2.5">
                 <x-application-logo class="h-9 w-9 fill-current text-gray-900 dark:text-mist" />
-                <span class="text-lg font-semibold tracking-tight">Cucina</span>
+                <span class="text-lg font-semibold tracking-tight">{{ \App\Models\Setting::appName() }}</span>
             </a>
 
             <nav class="flex items-center gap-2 sm:gap-3" aria-label="{{ __('Account') }}">
@@ -95,7 +128,7 @@
                             {{ __('Order fresh,') }}<br>{{ __('pick up fast.') }}
                         </h1>
                         <p class="mt-5 max-w-xl animate-fade-up text-base text-white/70 sm:text-lg" style="animation-delay: 120ms">
-                            {{ __('Cucina serves in ordering sessions. Pick from the live menu while a session is open, pay cash on pickup or online, and follow your order until it is ready.') }}
+                            {{ __(':app serves in ordering sessions. Pick from the live menu while a session is open, pay cash on pickup or online, and follow your order until it is ready.', ['app' => \App\Models\Setting::appName()]) }}
                         </p>
 
                         <div class="mt-8 flex animate-fade-up flex-wrap gap-3" style="animation-delay: 180ms">
@@ -159,6 +192,62 @@
                 @endunless
             </section>
 
+            {{-- What is on offer right now (only while a session has dishes). Looking is public;
+                 ordering needs an account, so a visitor's button goes through the menu's login and
+                 comes back to the menu afterwards. --}}
+            @foreach ($previews as $preview)
+                <section aria-labelledby="preview-title-{{ $loop->index }}" class="rounded-2xl bg-white p-5 shadow-card sm:p-6 dark:bg-gray-800">
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h2 id="preview-title-{{ $loop->index }}" class="text-lg font-bold">{{ $preview['title'] }}</h2>
+                            <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{{ $preview['note'] }}</p>
+                        </div>
+
+                        @if ($signedIn)
+                            @if ($preview['allowed'])
+                                <a href="{{ $preview['url'] }}" class="{{ $primary }} shrink-0 !px-5 !py-2.5">{{ $preview['cta'] }}</a>
+                            @endif
+                        @else
+                            <div class="flex shrink-0 flex-wrap gap-2">
+                                <a href="{{ $preview['url'] }}" class="{{ $primary }} !px-5 !py-2.5">{{ $preview['guestCta'] }}</a>
+                                @if (Route::has('register'))
+                                    <a href="{{ route('register') }}" class="{{ $outline }} !px-5 !py-2.5">{{ __('Create an account') }}</a>
+                                @endif
+                            </div>
+                        @endif
+                    </div>
+
+                    <ul class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        @foreach ($preview['dishes']->take($previewLimit) as $dish)
+                            @php($soldOut = $preview['soldOut']($dish))
+                            <li data-preview-dish class="flex items-center gap-3 rounded-xl border border-gray-100 p-2.5 dark:border-gray-700 {{ $soldOut ? 'opacity-60' : '' }}">
+                                <div class="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-700">
+                                    <span class="absolute inset-0 flex items-center justify-center text-xl font-bold text-gray-300 dark:text-gray-500" aria-hidden="true">{{ mb_strtoupper(mb_substr($dish->dish_name, 0, 1)) }}</span>
+                                    @if ($dish->image)
+                                        <img src="{{ $dish->image }}" alt="" loading="lazy" class="absolute inset-0 h-full w-full object-cover" onerror="this.remove()">
+                                    @endif
+                                </div>
+
+                                <div class="min-w-0">
+                                    <h3 class="truncate text-sm font-semibold">{{ $dish->dish_name }}</h3>
+                                    <p class="text-sm tabular-nums text-gray-600 dark:text-gray-300">
+                                        ₱{{ number_format((float) $dish->price, 2) }}
+                                        <span class="text-gray-400 dark:text-gray-500">{{ $preview['unit'] }}</span>
+                                    </p>
+                                    @if ($soldOut)
+                                        <span class="mt-0.5 inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ __('Sold out') }}</span>
+                                    @endif
+                                </div>
+                            </li>
+                        @endforeach
+                    </ul>
+
+                    @if ($preview['dishes']->count() > $previewLimit)
+                        <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">{{ __('and :count more on the full menu', ['count' => $preview['dishes']->count() - $previewLimit]) }}</p>
+                    @endif
+                </section>
+            @endforeach
+
             {{-- How ordering works --}}
             <section aria-labelledby="how-title">
                 <h2 id="how-title" class="mb-4 text-sm font-semibold text-gray-500 dark:text-gray-400">{{ __('How ordering works') }}</h2>
@@ -203,7 +292,7 @@
             @unless ($signedIn)
                 <section class="rounded-3xl border border-gray-200 px-6 py-10 text-center dark:border-gray-700">
                     <h2 class="text-2xl font-bold tracking-tight">{{ __('Ready for your first order?') }}</h2>
-                    <p class="mx-auto mt-2 max-w-md text-sm text-gray-500 dark:text-gray-400">{{ __('It takes a minute to sign up. An administrator will give your account access to the menu.') }}</p>
+                    <p class="mx-auto mt-2 max-w-md text-sm text-gray-500 dark:text-gray-400">{{ __('It takes a minute to sign up, and then the menu is yours to order from.') }}</p>
                     <div class="mt-6 flex flex-wrap justify-center gap-3">
                         @if (Route::has('register'))
                             <a href="{{ route('register') }}" class="{{ $primary }}">{{ __('Create an account') }}</a>
@@ -215,7 +304,7 @@
         </main>
 
         <footer class="border-t border-gray-200 py-6 text-center text-xs text-gray-400 dark:border-gray-800 dark:text-gray-500">
-            &copy; {{ date('Y') }} Cucina
+            &copy; {{ date('Y') }} {{ \App\Models\Setting::appName() }}
         </footer>
     </body>
 </html>

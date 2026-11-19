@@ -47,6 +47,7 @@ class BulkSessionController extends Controller implements HasMiddleware
                     // A button only shows when the matching permission lets the click through.
                     if (auth()->user()->can('view bulk-sessions')) {
                         $buttons .= '<a href="' . e(route('bulk-sessions.show', $session->bulk_session_id)) . '"'
+                            . ' data-row-link="view"'
                             . ' class="' . $view . '">' . e(__('View')) . '</a>';
                     }
 

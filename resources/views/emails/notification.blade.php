@@ -11,5 +11,5 @@
 </x-mail::button>
 @endif
 
-{{ config('app.name') }}
+{{ \App\Models\Setting::appName() }}
 </x-mail::message>

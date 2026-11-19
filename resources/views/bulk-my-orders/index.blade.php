@@ -24,7 +24,9 @@
     <div id="bulk-my-orders-root" class="container mx-auto max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
         @forelse ($orders as $order)
             {{-- id: a notification about this order opens this page at this card. scroll-mt clears the phone's top bar. --}}
-            <article id="bulk-order-{{ $order->bulk_order_id }}" class="mb-4 scroll-mt-20 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm target:ring-2 target:ring-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:target:ring-gray-100">
+            {{-- data-order: what the order popup shows (resources/js/ui/order-cards.js). A click on the
+                 card outside its links opens it; the Details button is the same thing for the keyboard. --}}
+            <article id="bulk-order-{{ $order->bulk_order_id }}" data-order="{{ json_encode($order->popup) }}" class="mb-4 scroll-mt-20 cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md target:ring-2 target:ring-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:target:ring-gray-100">
                 {{-- Order number, when it was placed, and where it stands --}}
                 <div class="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 px-5 py-3 dark:border-gray-700">
                     <div>
@@ -40,6 +42,11 @@
                     <div class="flex flex-wrap items-center gap-2">
                         <span class="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">{{ __('Payment') }} {!! $order->payment_badge !!}</span>
                         <span class="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">{{ __('Order') }} {!! $order->status_badge !!}</span>
+                        <button type="button" data-order-open aria-haspopup="dialog"
+                                aria-label="{{ __('Details of order :number', ['number' => $order->order_number]) }}"
+                                class="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:border-gray-600 dark:text-slate-400 dark:hover:bg-slate-700/40 dark:hover:text-slate-200">
+                            {{ __('Details') }}
+                        </button>
                     </div>
                 </div>
 
@@ -98,5 +105,16 @@
                 @endcan
             </div>
         @endforelse
+
+        {{-- Ten orders a page; nothing when they all fit on one. --}}
+        {{ $orders->links('pagination.numbered') }}
     </div>
+
+    {{-- The order popup: filled from the card's data-order, read only here (no staff actions). --}}
+    <x-ui.order-popup />
+
+    @push('scripts')
+        {{-- Page behaviour lives in resources/js/pages/bulk-my-orders.js; see vite.config.js. --}}
+        @vite('resources/js/pages/bulk-my-orders.js')
+    @endpush
 </x-app-layout>

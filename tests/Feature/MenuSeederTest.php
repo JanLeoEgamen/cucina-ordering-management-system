@@ -35,8 +35,11 @@ class MenuSeederTest extends TestCase
         $this->assertSame('Korean-style marinated beef', $dish->description);
         $this->assertSame('Beef; soy sauce; garlic; sesame oil', $dish->main_ingredients);
         $this->assertNull($dish->calories);
-        $this->assertEquals(0, $dish->price);
+        $this->assertEquals(165, $dish->price);
         $this->assertTrue((bool) $dish->is_active);
+
+        // No dish is free: an order total of 0.00 makes no sense.
+        $this->assertSame(0, Dish::where('price', '<=', 0)->count());
         $this->assertSame(['Beef'], $dish->dishTypes()->pluck('type_name')->all());
     }
 
@@ -83,6 +86,20 @@ class MenuSeederTest extends TestCase
             $dish->fresh()->dishTypes()->pluck('type_name')->all()
         );
         $this->assertSame(1, Dish::where('dish_name', 'Tapsilog')->count());
+    }
+
+    public function test_a_dish_left_at_the_zero_placeholder_gets_the_csv_price(): void
+    {
+        $this->seed(MenuSeeder::class);
+
+        Dish::where('dish_name', 'Mechado')->update(['price' => 0]);
+        Dish::where('dish_name', 'Bistek')->update(['price' => 9.50]);
+
+        $this->seed(MenuSeeder::class);
+
+        $this->assertEquals(170, Dish::where('dish_name', 'Mechado')->value('price'));
+        // A price set in the app is not a placeholder and stays.
+        $this->assertEquals(9.5, Dish::where('dish_name', 'Bistek')->value('price'));
     }
 
     public function test_running_it_again_adds_nothing_and_keeps_edits_made_in_the_app(): void

@@ -103,7 +103,7 @@ class NotificationTest extends TestCase
         $this->assertSame("Order {$number} placed", $row->title);
         $this->assertStringContainsString('₱100.00', $row->body);
         $this->assertStringContainsString('GCash', $row->body);
-        $this->assertSame('/my-orders#order-' . $orderId, $row->url);
+        $this->assertSame('/my-orders?order=' . $orderId . '#order-' . $orderId, $row->url);
         $this->assertSame($orderId, (int) $row->order_id);
         $this->assertNull($row->read_at);
     }
@@ -257,7 +257,7 @@ class NotificationTest extends TestCase
         // The reason, and the way out, are in the customer's notification.
         $this->assertStringContainsString('Amount does not match.', $rejected->body);
         $this->assertStringContainsString('send a new proof', $rejected->body);
-        $this->assertSame('/my-orders#order-' . $second, $rejected->url);
+        $this->assertSame('/my-orders?order=' . $second . '#order-' . $second, $rejected->url);
 
         $this->assertStringContainsString("{$customer->name}'s payment", $this->rowsFor($watcher, OrderNotifier::PAYMENT_VERIFIED)->first()->body);
         $this->assertStringContainsString('Amount does not match.', $this->rowsFor($watcher, OrderNotifier::PAYMENT_REJECTED)->first()->body);
@@ -573,13 +573,28 @@ class NotificationTest extends TestCase
     public function test_opening_one_marks_it_read_and_goes_to_its_page(): void
     {
         $user = $this->customer();
+        $id = $this->note($user, ['url' => '/my-orders?order=9#order-9']);
+
+        $this->actingAs($user)
+            ->get(route('notifications.open', $id))
+            ->assertRedirect('/my-orders?order=9#order-9');
+
+        $this->assertNotNull(DB::table('user_notifications')->where('id', $id)->value('read_at'));
+    }
+
+    public function test_an_old_my_orders_link_is_sent_through_the_page_finder(): void
+    {
+        // Saved before My Orders was paginated: "#order-9" alone only reaches a card on page one.
+        $user = $this->customer();
         $id = $this->note($user, ['url' => '/my-orders#order-9']);
 
         $this->actingAs($user)
             ->get(route('notifications.open', $id))
-            ->assertRedirect('/my-orders#order-9');
+            ->assertRedirect('/my-orders?order=9#order-9');
 
-        $this->assertNotNull(DB::table('user_notifications')->where('id', $id)->value('read_at'));
+        // Every other link is followed exactly as saved.
+        $other = $this->note($user, ['url' => '/menu#top']);
+        $this->actingAs($user)->get(route('notifications.open', $other))->assertRedirect('/menu#top');
     }
 
     public function test_opening_one_again_keeps_the_first_read_time(): void
