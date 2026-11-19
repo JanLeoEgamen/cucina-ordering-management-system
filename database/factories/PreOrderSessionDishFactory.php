@@ -2,22 +2,22 @@
 
 namespace Database\Factories;
 
-use App\Models\BulkSession;
-use App\Models\BulkSessionDish;
+use App\Models\PreOrderSession;
+use App\Models\PreOrderSessionDish;
 use App\Models\Dish;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\BulkSessionDish>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\PreOrderSessionDish>
  */
-class BulkSessionDishFactory extends Factory
+class PreOrderSessionDishFactory extends Factory
 {
     /**
      * The name of the factory's corresponding model.
      *
      * @var string
      */
-    protected $model = BulkSessionDish::class;
+    protected $model = PreOrderSessionDish::class;
 
     /**
      * Define the model's default state.
@@ -27,7 +27,7 @@ class BulkSessionDishFactory extends Factory
     public function definition(): array
     {
         return [
-            'bulk_session_id' => BulkSession::factory(),
+            'pre_order_session_id' => PreOrderSession::factory(),
             'dish_id' => Dish::factory(),
             'is_available' => true,
             'is_active' => true,

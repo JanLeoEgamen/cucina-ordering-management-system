@@ -88,6 +88,7 @@ class Order extends Model
                 self::TABLE . '.total_amount',
                 self::TABLE . '.order_status',
                 self::TABLE . '.payment_status',
+                self::TABLE . '.ready_at',
                 DB::raw(User::fullNameSql('users') . ' as customer_name'),
                 'payments.payment_method_id',
                 'payments.reference_number',
@@ -129,6 +130,7 @@ class Order extends Model
                 self::TABLE . '.total_amount',
                 self::TABLE . '.order_status',
                 self::TABLE . '.payment_status',
+                self::TABLE . '.ready_at',
                 'order_sessions.order_date as session_date',
                 'order_sessions.start_time',
                 'order_sessions.end_time',
@@ -311,6 +313,40 @@ class Order extends Model
             ]);
     }
 
+    // The same summary for several orders at once (one query), keyed by order id: what the
+    // "ready for pick up" notification of a whole session needs.
+    public static function notificationSummaries(array $orderIds): Collection
+    {
+        if ($orderIds === []) {
+            return collect();
+        }
+
+        return DB::table(self::TABLE)
+            ->join('users', 'users.id', '=', self::TABLE . '.user_id')
+            ->leftJoin('payments', 'payments.order_id', '=', self::TABLE . '.order_id')
+            ->leftJoin('payment_methods', 'payment_methods.method_id', '=', 'payments.payment_method_id')
+            ->whereIn(self::TABLE . '.order_id', $orderIds)
+            ->get([
+                self::TABLE . '.order_id',
+                self::TABLE . '.session_id',
+                self::TABLE . '.user_id',
+                self::TABLE . '.order_number',
+                self::TABLE . '.total_amount',
+                DB::raw(User::fullNameSql('users') . ' as customer_name'),
+                'payment_methods.method_name',
+            ])
+            ->keyBy('order_id');
+    }
+
+    // When the order was announced as ready for pick up (null = not yet, or no such order).
+    public static function readyAtOf(int $orderId): ?string
+    {
+        return DB::table(self::TABLE)
+            ->where('order_id', $orderId)
+            ->whereNull('deleted_at')
+            ->value('ready_at');
+    }
+
     // The status of a live order, read WITH a row lock. Call it first inside a
     // transaction: two staff members acting on the same order at the same time
     // then queue up, and the second one sees the status the first one left
@@ -394,6 +430,50 @@ class Order extends Model
             ->where('order_id', $orderId)
             ->whereNull('deleted_at')
             ->update(['payment_status' => $status, 'updated_at' => now()]);
+    }
+
+    // Announce orders as ready for pick up; returns the ids that were announced just now.
+    // An order qualifies when it is pending, was not announced before and its payment is
+    // settled the way completing needs it (verified, or cash that is still to be paid at the
+    // counter) - the same rule as Controller::orderRow()'s complete_url. The rest are skipped,
+    // so a whole session can be passed in. The qualifying rows are locked first, so two
+    // people pressing the button together announce (and notify) each order once.
+    public static function announceReady(array $orderIds): array
+    {
+        $orderIds = array_values(array_unique(array_map('intval', $orderIds)));
+
+        if ($orderIds === []) {
+            return [];
+        }
+
+        return DB::transaction(function () use ($orderIds) {
+            $ids = DB::table(self::TABLE)
+                ->join('payments', 'payments.order_id', '=', self::TABLE . '.order_id')
+                ->leftJoin('payment_methods', 'payment_methods.method_id', '=', 'payments.payment_method_id')
+                ->whereIn(self::TABLE . '.order_id', $orderIds)
+                ->where(self::TABLE . '.order_status', 'pending')
+                ->whereNull(self::TABLE . '.ready_at')
+                ->whereNull(self::TABLE . '.deleted_at')
+                ->whereNull('payments.deleted_at')
+                ->where(function (Builder $settled) {
+                    $settled->where('payments.payment_status', 'verified')
+                        ->orWhere(fn (Builder $cash) => $cash
+                            ->where('payments.payment_status', 'pending')
+                            ->where('payment_methods.method_name', PaymentMethod::CASH_ON_PICKUP));
+                })
+                ->lockForUpdate()
+                ->pluck(self::TABLE . '.order_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            if ($ids !== []) {
+                DB::table(self::TABLE)
+                    ->whereIn('order_id', $ids)
+                    ->update(['ready_at' => now(), 'updated_at' => now()]);
+            }
+
+            return $ids;
+        });
     }
 
     /* -------- Internals -------- */

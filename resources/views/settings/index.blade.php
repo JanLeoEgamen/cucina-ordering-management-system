@@ -18,7 +18,7 @@
         --}}
         <form id="settings-form" method="POST" action="{{ route('settings.update') }}" enctype="multipart/form-data"
               data-confirm-title="{{ __('Confirm Save') }}"
-              data-confirm-message="{{ __('Are you sure you want to save the system configuration? The app name and logo change on every page, new order sessions will start from these times, and the bulk order limits apply to every new bulk order.') }}"
+              data-confirm-message="{{ __('Are you sure you want to save the system configuration? The app name and logo change on every page, new order sessions will start from these times, and the pre-order limits apply to every new pre-order.') }}"
               data-confirm-label="{{ __('Save Configuration') }}"
               data-label-edited="{{ __('Edited') }}"
               data-label-was="{{ __('Was') }}"
@@ -144,31 +144,31 @@
                 </div>
             </section>
 
-            {{-- The size of a bulk order, for every bulk session. Saved with the rest of the form. --}}
+            {{-- The size of a pre-order, for every pre-order session. Saved with the rest of the form. --}}
             <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
                 <div class="border-b border-gray-100 px-6 py-4 dark:border-gray-700">
-                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ __('Bulk orders') }}</h3>
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ __('Pre-orders') }}</h3>
                     <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {{ __('How many plates one bulk order may hold, whatever the mix of dishes. A bulk session can ask for more than the minimum, never for less.') }}
+                        {{ __('How many plates one pre-order may hold, whatever the mix of dishes. A pre-order session can ask for more than the minimum, never for less.') }}
                     </p>
                 </div>
 
                 <div class="p-6">
                     <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
                         <div>
-                            <label for="bulk-min-quantity" class="{{ $label }}">{{ __('Minimum plates per order') }}</label>
+                            <label for="pre-order-min-quantity" class="{{ $label }}">{{ __('Minimum plates per order') }}</label>
                             <div class="mt-1">
-                                <input type="number" name="bulk_min_quantity" id="bulk-min-quantity" min="1" max="100000" step="1" required
-                                       value="{{ $bulkLimits['min'] }}" @disabled(! $canEdit)
+                                <input type="number" name="pre_order_min_quantity" id="pre-order-min-quantity" min="1" max="100000" step="1" required
+                                       value="{{ $preOrderLimits['min'] }}" @disabled(! $canEdit)
                                        class="{{ $input }}">
                             </div>
                         </div>
 
                         <div>
-                            <label for="bulk-max-quantity" class="{{ $label }}">{{ __('Maximum plates per order') }}</label>
+                            <label for="pre-order-max-quantity" class="{{ $label }}">{{ __('Maximum plates per order') }}</label>
                             <div class="mt-1">
-                                <input type="number" name="bulk_max_quantity" id="bulk-max-quantity" min="1" max="100000" step="1"
-                                       value="{{ $bulkLimits['max'] }}" placeholder="{{ __('No limit') }}" @disabled(! $canEdit)
+                                <input type="number" name="pre_order_max_quantity" id="pre-order-max-quantity" min="1" max="100000" step="1"
+                                       value="{{ $preOrderLimits['max'] }}" placeholder="{{ __('No limit') }}" @disabled(! $canEdit)
                                        class="{{ $input }}">
                             </div>
                             <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('Leave empty for no maximum.') }}</p>
@@ -209,6 +209,28 @@
                         <label class="relative mt-1 inline-flex shrink-0 cursor-pointer items-center">
                             <input type="checkbox" role="switch" name="email_notifications" id="email-notifications" value="1"
                                    class="peer sr-only" @checked($emailNotifications) @disabled(! $canEdit)>
+                            <span class="h-6 w-11 rounded-full bg-gray-300 transition peer-checked:bg-indigo-600 peer-focus-visible:ring-4 peer-focus-visible:ring-gray-300 peer-disabled:opacity-60 dark:bg-gray-600 dark:peer-focus-visible:ring-gray-600"></span>
+                            <span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5 motion-reduce:transition-none"></span>
+                        </label>
+                    </div>
+
+                    {{-- On / off for the Google Chat copy (a direct message from the Chat app). --}}
+                    <div class="mb-6 flex items-start justify-between gap-4">
+                        <div>
+                            <label for="google-chat-notifications" class="{{ $label }}">{{ __('Send notifications to Google Chat') }}</label>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                {{ __('Everyone who gets a notification also gets it as a Google Chat direct message. Only people who signed in with Google and added the Chat app can be reached; the others still get the bell. Needs a running queue worker.') }}
+                            </p>
+                            @if ($googleChatNotifications && ! $googleChatReady)
+                                <p class="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
+                                    {{ __('The Chat app key is not set up on the server (GOOGLE_CHAT_CREDENTIALS), so nothing is sent.') }}
+                                </p>
+                            @endif
+                        </div>
+                        <input type="hidden" name="google_chat_notifications" value="0">
+                        <label class="relative mt-1 inline-flex shrink-0 cursor-pointer items-center">
+                            <input type="checkbox" role="switch" name="google_chat_notifications" id="google-chat-notifications" value="1"
+                                   class="peer sr-only" @checked($googleChatNotifications) @disabled(! $canEdit)>
                             <span class="h-6 w-11 rounded-full bg-gray-300 transition peer-checked:bg-indigo-600 peer-focus-visible:ring-4 peer-focus-visible:ring-gray-300 peer-disabled:opacity-60 dark:bg-gray-600 dark:peer-focus-visible:ring-gray-600"></span>
                             <span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5 motion-reduce:transition-none"></span>
                         </label>

@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\BulkOrder;
-use App\Models\BulkSession;
+use App\Models\PreOrder;
+use App\Models\PreOrderSession;
 use App\Models\Dish;
 use App\Models\Setting;
 use Illuminate\Http\Request;
@@ -12,20 +12,20 @@ use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Validation\ValidationException;
 use Yajra\DataTables\Facades\DataTables;
 
-// Bulk sessions, the staff side: the windows in which customers may place big
-// orders from the bulk menu. Same shape as OrderSessionController, minus the
-// stock (a bulk session has none) and plus a minimum quantity per order.
-class BulkSessionController extends Controller implements HasMiddleware
+// Pre-order sessions, the staff side: the windows in which customers may place big
+// orders from the pre-order menu. Same shape as OrderSessionController, minus the
+// stock (a pre-order session has none) and plus a minimum quantity per order.
+class PreOrderSessionController extends Controller implements HasMiddleware
 {
     // Each method only runs with the matching permission.
     public static function middleware(): array
     {
         return [
-            new Middleware('permission:view bulk-sessions', only: ['index', 'show']),
-            new Middleware('permission:create bulk-sessions', only: ['store']),
-            new Middleware('permission:edit bulk-sessions', only: ['edit', 'update']),
-            new Middleware('permission:delete bulk-sessions', only: ['destroy']),
-            new Middleware('permission:end bulk-sessions', only: ['end']),
+            new Middleware('permission:view pre-order-sessions', only: ['index', 'show']),
+            new Middleware('permission:create pre-order-sessions', only: ['store']),
+            new Middleware('permission:edit pre-order-sessions', only: ['edit', 'update']),
+            new Middleware('permission:delete pre-order-sessions', only: ['destroy']),
+            new Middleware('permission:end pre-order-sessions', only: ['end']),
         ];
     }
 
@@ -33,7 +33,7 @@ class BulkSessionController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            return DataTables::collection(BulkSession::getAll())
+            return DataTables::collection(PreOrderSession::getAll())
                 ->skipPaging()
                 ->addColumn('status', fn (object $session) => $this->sessionBadge($session->status))
                 ->addColumn('action', function (object $session) {
@@ -45,34 +45,34 @@ class BulkSessionController extends Controller implements HasMiddleware
                     $buttons = '';
 
                     // A button only shows when the matching permission lets the click through.
-                    if (auth()->user()->can('view bulk-sessions')) {
-                        $buttons .= '<a href="' . e(route('bulk-sessions.show', $session->bulk_session_id)) . '"'
+                    if (auth()->user()->can('view pre-order-sessions')) {
+                        $buttons .= '<a href="' . e(route('pre-order-sessions.show', $session->pre_order_session_id)) . '"'
                             . ' data-row-link="view"'
                             . ' class="' . $view . '">' . e(__('View')) . '</a>';
                     }
 
-                    if (auth()->user()->can('edit bulk-sessions')) {
+                    if (auth()->user()->can('edit pre-order-sessions')) {
                         $buttons .= '<button type="button" data-row-action="edit"'
-                            . ' data-id="' . (int) $session->bulk_session_id . '"'
+                            . ' data-id="' . (int) $session->pre_order_session_id . '"'
                             . ' data-loading-label="' . e(__('Loading...')) . '"'
-                            . ' data-edit-url="' . e(route('bulk-sessions.edit', $session->bulk_session_id)) . '"'
-                            . ' data-update-url="' . e(route('bulk-sessions.update', $session->bulk_session_id)) . '"'
+                            . ' data-edit-url="' . e(route('pre-order-sessions.edit', $session->pre_order_session_id)) . '"'
+                            . ' data-update-url="' . e(route('pre-order-sessions.update', $session->pre_order_session_id)) . '"'
                             . ' class="' . $edit . '">' . e(__('Edit')) . '</button>';
                     }
 
                     // Ending is the creator's call, so the button is theirs too.
                     if ($this->canEnd($session)) {
                         $buttons .= '<button type="button" data-row-action="end"'
-                            . ' data-id="' . (int) $session->bulk_session_id . '"'
+                            . ' data-id="' . (int) $session->pre_order_session_id . '"'
                             . ' data-subject="' . e($session->order_date) . '"'
-                            . ' data-end-url="' . e(route('bulk-sessions.end', $session->bulk_session_id)) . '"'
+                            . ' data-end-url="' . e(route('pre-order-sessions.end', $session->pre_order_session_id)) . '"'
                             . ' class="' . $end . '">' . e(__('End')) . '</button>';
                     }
 
-                    if (auth()->user()->can('delete bulk-sessions')) {
+                    if (auth()->user()->can('delete pre-order-sessions')) {
                         $buttons .= '<button type="button" data-row-action="delete"'
-                            . ' data-id="' . (int) $session->bulk_session_id . '"'
-                            . ' data-delete-url="' . e(route('bulk-sessions.destroy', $session->bulk_session_id)) . '"'
+                            . ' data-id="' . (int) $session->pre_order_session_id . '"'
+                            . ' data-delete-url="' . e(route('pre-order-sessions.destroy', $session->pre_order_session_id)) . '"'
                             . ' class="' . $delete . '">' . e(__('Delete')) . '</button>';
                     }
 
@@ -84,71 +84,71 @@ class BulkSessionController extends Controller implements HasMiddleware
                 ->toJson();
         }
 
-        return view('bulk-sessions.index', [
+        return view('pre-order-sessions.index', [
             // The dish list in the create and edit drawers offers every live dish.
             'dishes' => Dish::getAll(),
             // The times a new session starts with (System Configuration): the same
             // defaults as an order session.
             'sessionWindow' => Setting::sessionWindow(),
-            // The size limits of a bulk order (System Configuration): the new-session
+            // The size limits of a pre-order (System Configuration): the new-session
             // drawer starts from the minimum and its number boxes stay inside them.
-            'bulkLimits' => Setting::bulkLimits(),
+            'preOrderLimits' => Setting::preOrderLimits(),
         ]);
     }
 
-    // One bulk session on a page of its own: its facts and the dishes it offers.
+    // One pre-order session on a page of its own: its facts and the dishes it offers.
     // (Its orders join this page with the order lifecycle.)
     public function show($id)
     {
-        $session = BulkSession::findById((int) $id);
+        $session = PreOrderSession::findById((int) $id);
 
         if (! $session) {
             abort(404);
         }
 
-        return view('bulk-sessions.show', [
+        return view('pre-order-sessions.show', [
             'session' => $session,
             'statusBadge' => $this->sessionBadge($session->status),
             'canEnd' => $this->canEnd($session),
-            'ordersCount' => (int) (BulkSession::getAll()
-                ->firstWhere('bulk_session_id', (int) $id)->orders_count ?? 0),
+            'ordersCount' => (int) (PreOrderSession::getAll()
+                ->firstWhere('pre_order_session_id', (int) $id)->orders_count ?? 0),
         ]);
     }
 
-    // Get one bulk session with its dishes, for the edit drawer.
+    // Get one pre-order session with its dishes, for the edit drawer.
     public function edit($id)
     {
-        $session = BulkSession::findById((int) $id);
+        $session = PreOrderSession::findById((int) $id);
 
         if (! $session) {
-            return $this->errorResponse('Bulk session not found.', 404);
+            return $this->errorResponse('Pre-order session not found.', 404);
         }
 
         return response()->json($session);
     }
 
-    // Create a bulk session with the dishes it offers.
+    // Create a pre-order session with the dishes it offers.
     public function store(Request $request)
     {
         $validated = $this->validateSession($request);
 
         $this->refuseOverlap($validated);
 
-        BulkSession::createSession(
+        PreOrderSession::createSession(
             $validated + ['created_by' => auth()->id()],
             $validated['dish_ids']
         );
 
-        return $this->successResponse('Bulk session created successfully.');
+        return $this->successResponse('Pre-order session created successfully.');
     }
 
-    // Update a bulk session and replace the dishes it offers.
+    // Update a pre-order session and replace the dishes it offers.
     public function update(Request $request, $id)
     {
-        $session = BulkSession::findById((int) $id);
+        $session = PreOrderSession::findById((int) $id);
 
         if (! $session) {
-            return $this->errorResponse('Bulk session not found.', 404);
+            return $this->errorResponse('Pre-order session not found.', 404);
         }
 
         $validated = $this->validateSession($request);
@@ -158,48 +158,48 @@ class BulkSessionController extends Controller implements HasMiddleware
             $this->refuseOverlap($validated, (int) $id);
         }
 
-        BulkSession::updateSession((int) $id, $validated, $validated['dish_ids']);
+        PreOrderSession::updateSession((int) $id, $validated, $validated['dish_ids']);
 
-        return $this->successResponse('Bulk session updated successfully.');
+        return $this->successResponse('Pre-order session updated successfully.');
     }
 
-    // End a bulk session by hand. Only the user who created it may do this.
+    // End a pre-order session by hand. Only the user who created it may do this.
     public function end($id)
     {
-        $session = BulkSession::findById((int) $id);
+        $session = PreOrderSession::findById((int) $id);
 
         if (! $session) {
-            return $this->errorResponse('Bulk session not found.', 404);
+            return $this->errorResponse('Pre-order session not found.', 404);
         }
 
         if ($session->status === 'ended') {
-            return $this->errorResponse('This bulk session has already ended.', 422);
+            return $this->errorResponse('This pre-order session has already ended.', 422);
         }
 
         if (! $this->canEnd($session)) {
-            return $this->errorResponse('Only the user who created this bulk session can end it.', 403);
+            return $this->errorResponse('Only the user who created this pre-order session can end it.', 403);
         }
 
-        BulkSession::endSession((int) $id);
+        PreOrderSession::endSession((int) $id);
 
-        return $this->successResponse('Bulk session ended successfully.');
+        return $this->successResponse('Pre-order session ended successfully.');
     }
 
-    // Soft delete a bulk session. Refused while it holds orders: they are the
+    // Soft delete a pre-order session. Refused while it holds orders: they are the
     // record of what was sold, and they point at the session's dishes.
     public function destroy($id)
     {
-        if (! BulkSession::existsById((int) $id)) {
-            return $this->errorResponse('Bulk session not found.', 404);
+        if (! PreOrderSession::existsById((int) $id)) {
+            return $this->errorResponse('Pre-order session not found.', 404);
         }
 
-        if (BulkOrder::existsForSession((int) $id)) {
-            return $this->errorResponse('Cannot delete this bulk session because it has orders.', 422);
+        if (PreOrder::existsForSession((int) $id)) {
+            return $this->errorResponse('Cannot delete this pre-order session because it has orders.', 422);
         }
 
-        BulkSession::deleteSession((int) $id);
+        PreOrderSession::deleteSession((int) $id);
 
-        return $this->successResponse('Bulk session deleted successfully.');
+        return $this->successResponse('Pre-order session deleted successfully.');
     }
 
     // Rules and normalisation shared by create and update.
@@ -210,8 +210,8 @@ class BulkSessionController extends Controller implements HasMiddleware
         ]);
 
         // A session's own minimum stays inside what System Configuration allows for a
-        // bulk order: not below the system minimum, not above the system maximum.
-        $limits = Setting::bulkLimits();
+        // pre-order: not below the system minimum, not above the system maximum.
+        $limits = Setting::preOrderLimits();
 
         return $request->validate([
             'title' => ['nullable', 'string', 'max:120'],
@@ -227,18 +227,18 @@ class BulkSessionController extends Controller implements HasMiddleware
             'end_time.after' => 'The end time must be after the start time.',
             'min_quantity.min' => 'The minimum quantity must be at least ' . $limits['min'] . ' (System Configuration).',
             'min_quantity.max' => 'The minimum quantity cannot be more than ' . ($limits['max'] ?? 100000)
-                . ($limits['max'] !== null ? ', the most plates System Configuration allows in a bulk order.' : '.'),
+                . ($limits['max'] !== null ? ', the most plates System Configuration allows in a pre-order.' : '.'),
         ]);
     }
 
-    // The bulk menu shows ONE live session, so a window may not overlap another
+    // The pre-order menu shows ONE live session, so a window may not overlap another
     // one that is still open. A validation error, so the drawer prints it like
     // any other field error (422).
     protected function refuseOverlap(array $validated, ?int $ignoreId = null): void
     {
-        if (BulkSession::overlaps($validated['order_date'], $validated['start_time'], $validated['end_time'], $ignoreId)) {
+        if (PreOrderSession::overlaps($validated['order_date'], $validated['start_time'], $validated['end_time'], $ignoreId)) {
             throw ValidationException::withMessages([
-                'start_time' => 'Another bulk session is already open in this time window.',
+                'start_time' => 'Another pre-order session is already open in this time window.',
             ]);
         }
     }
@@ -249,6 +249,6 @@ class BulkSessionController extends Controller implements HasMiddleware
     {
         return $session->status !== 'ended'
             && (int) $session->created_by === (int) auth()->id()
-            && auth()->user()->can('end bulk-sessions');
+            && auth()->user()->can('end pre-order-sessions');
     }
 }

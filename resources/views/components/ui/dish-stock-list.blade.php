@@ -26,7 +26,7 @@
 @props([
     'prefix',
     'dishes',
-    // false for a session with no stock (bulk sessions): the same picker, without the number boxes.
+    // false for a session with no stock (pre-order sessions): the same picker, without the number boxes.
     'stock' => true,
 ])
 

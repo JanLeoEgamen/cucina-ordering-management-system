@@ -1,7 +1,7 @@
 {{--
     Order popup: one order's details with its actions (Complete / Cancel / Verify inline, Reject with
     its own reason popup). Shared by the order session page and the Orders page (staff, with actions)
-    and by My Orders / My Bulk Orders (a customer's own order: read only, see order-cards.js); wired by
+    and by My Orders / My Pre-Orders (a customer's own order: read only, see order-cards.js); wired by
     resources/js/ui/order-popup.js (`initOrderPopup({ onChange }).open(row)`). The copy the script
     needs sits in #order-popup-copy, so the page does not have to pass it.
 --}}
@@ -108,6 +108,17 @@
                         data-label="{{ __('Cancel Order') }}"
                         class="hidden rounded-full border border-red-300 bg-white px-5 py-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-4 focus:ring-red-200 dark:border-red-800 dark:bg-gray-800 dark:text-red-400 dark:hover:bg-red-900/20 dark:focus:ring-red-900">
                     {{ __('Cancel Order') }}
+                </button>
+            @endcan
+
+            {{-- Tell the customer it can be collected (the order stays pending until handed over). --}}
+            @can('complete orders')
+                <button type="button" id="order-details-ready"
+                        data-title="{{ __('Confirm Ready') }}"
+                        data-message="{{ __('Tell the customer this order is ready for pick up?') }}"
+                        data-label="{{ __('Announce Ready') }}"
+                        class="hidden rounded-full border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                    {{ __('Ready for Pick up') }}
                 </button>
             @endcan
 

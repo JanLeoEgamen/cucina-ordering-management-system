@@ -10,14 +10,14 @@
     <x-slot name="header">
         <div class="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
             <div>
-                <a href="{{ route('bulk-sessions.index') }}"
+                <a href="{{ route('pre-order-sessions.index') }}"
                    class="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
-                    {{ __('Bulk Sessions') }}
+                    {{ __('Pre-Order Sessions') }}
                 </a>
 
                 <h2 class="mt-1 flex flex-wrap items-center gap-2 text-xl font-semibold text-gray-900 dark:text-white">
-                    {{ $session->title ?: __('Bulk Session') }} · {{ $date }}
+                    {{ $session->title ?: __('Pre-Order Session') }} · {{ $date }}
                     {!! $statusBadge !!}
                 </h2>
             </div>
@@ -26,7 +26,7 @@
                  them, and only while the session is still open. --}}
             @if ($canEnd)
                 <button type="button" id="end-session"
-                        data-end-url="{{ route('bulk-sessions.end', $session->bulk_session_id) }}"
+                        data-end-url="{{ route('pre-order-sessions.end', $session->pre_order_session_id) }}"
                         data-subject="{{ $date }}"
                         class="inline-flex w-full items-center justify-center rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-amber-600 focus:outline-none focus:ring-4 focus:ring-amber-300 sm:w-auto dark:focus:ring-amber-800">
                     {{ __('End Session') }}
@@ -60,7 +60,7 @@
             </div>
         </section>
 
-        {{-- The dishes of the session. No stock column: a bulk session has no limit. --}}
+        {{-- The dishes of the session. No stock column: a pre-order session has no limit. --}}
         <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
             <h3 class="flex flex-wrap items-center gap-2 px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">
                 {{ __('Dishes') }}
@@ -83,7 +83,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="2" class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ __('This bulk session offers no dishes.') }}</td>
+                                <td colspan="2" class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ __('This pre-order session offers no dishes.') }}</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -93,17 +93,17 @@
     </div>
 
     @if ($canEnd)
-        {{-- The confirmation for End Session; resources/js/pages/bulk-session-show.js sends it. --}}
+        {{-- The confirmation for End Session; resources/js/pages/pre-order-session-show.js sends it. --}}
         <x-edit-confirmation-modal
             title="{{ __('Confirm End') }}"
-            message="{{ __('Are you sure you want to end this bulk session? Orders already placed are kept, and customers can no longer order from it.') }}"
+            message="{{ __('Are you sure you want to end this pre-order session? Orders already placed are kept, and customers can no longer order from it.') }}"
             confirm-label="{{ __('End Session') }}"
         />
     @endif
 
     @push('scripts')
         @if ($canEnd)
-            @vite('resources/js/pages/bulk-session-show.js')
+            @vite('resources/js/pages/pre-order-session-show.js')
         @endif
     @endpush
 </x-app-layout>

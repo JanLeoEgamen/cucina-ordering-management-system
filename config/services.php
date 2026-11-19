@@ -37,6 +37,15 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
     ],
 
+    // Google Chat direct messages (App\Support\GoogleChat). The path of the Chat app's service
+    // account key (JSON), absolute or relative to the project, kept OUT of the repo and of the
+    // database. Empty = the Google Chat switch in System Configuration does nothing.
+    'google_chat' => [
+        'credentials' => env('GOOGLE_CHAT_CREDENTIALS'),
+        // Must match "Markup syntax" in the Chat API configuration: 'markdown' (default) or 'legacy'.
+        'markup' => env('GOOGLE_CHAT_MARKUP', 'markdown'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

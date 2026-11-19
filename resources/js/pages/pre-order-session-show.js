@@ -1,9 +1,9 @@
 /**
- * Bulk session page (staff): the End Session button.
+ * Pre-order session page (staff): the End Session button.
  *
  * Flow:
  *   #end-session  -> the shared confirmation modal, then POST .../end, reload the page
- * (The orders table and its actions join this page with the bulk order lifecycle.)
+ * (The orders table and its actions join this page with the pre-order lifecycle.)
  */
 import { post } from '../ui/order-popup';
 import { showToast } from '../ui/toast';

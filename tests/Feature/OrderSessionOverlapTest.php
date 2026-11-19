@@ -8,7 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 // Known-issues F3: the menu offers ONE live order session, so two open windows may not
-// overlap. Same rule as the bulk sessions (BulkSessionTest), plus the legacy-data case.
+// overlap. Same rule as the pre-order sessions (PreOrderSessionTest), plus the legacy-data case.
 class OrderSessionOverlapTest extends TestCase
 {
     use RefreshDatabase;

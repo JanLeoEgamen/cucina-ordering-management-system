@@ -7,7 +7,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 // System configuration: the default start / end time of a new order session, and the
-// minimum / maximum plates of a bulk order.
+// minimum / maximum plates of a pre-order.
 class SettingTest extends TestCase
 {
     use RefreshDatabase;
@@ -93,37 +93,37 @@ class SettingTest extends TestCase
             ->assertOk()->assertDontSee('id="settings-changes"', false);
     }
 
-    /* -------- bulk order limits -------- */
+    /* -------- pre-order limits -------- */
 
-    public function test_the_bulk_limits_default_to_a_minimum_of_ten_and_no_maximum(): void
+    public function test_the_pre_order_limits_default_to_a_minimum_of_ten_and_no_maximum(): void
     {
-        $this->assertSame(['min' => 10, 'max' => null], Setting::bulkLimits());
+        $this->assertSame(['min' => 10, 'max' => null], Setting::preOrderLimits());
     }
 
-    public function test_the_page_shows_the_bulk_limits(): void
+    public function test_the_page_shows_the_pre_order_limits(): void
     {
-        Setting::setBulkLimits(25, 400);
+        Setting::setPreOrderLimits(25, 400);
 
         $this->actingAs($this->userWith('view settings'))->get(route('settings.index'))
             ->assertOk()
-            ->assertSee('name="bulk_min_quantity"', false)
-            ->assertSee('name="bulk_max_quantity"', false)
+            ->assertSee('name="pre_order_min_quantity"', false)
+            ->assertSee('name="pre_order_max_quantity"', false)
             ->assertSee('value="25"', false)
             ->assertSee('value="400"', false);
     }
 
-    public function test_saving_stores_the_bulk_limits_and_an_empty_maximum_means_no_limit(): void
+    public function test_saving_stores_the_pre_order_limits_and_an_empty_maximum_means_no_limit(): void
     {
         $admin = $this->superAdmin();
 
-        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['bulk_min_quantity' => 20, 'bulk_max_quantity' => 300]))
+        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['pre_order_min_quantity' => 20, 'pre_order_max_quantity' => 300]))
             ->assertOk();
-        $this->assertSame(['min' => 20, 'max' => 300], Setting::bulkLimits());
+        $this->assertSame(['min' => 20, 'max' => 300], Setting::preOrderLimits());
 
         // The form sends an empty box when the maximum is cleared.
-        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['bulk_min_quantity' => 20, 'bulk_max_quantity' => '']))
+        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['pre_order_min_quantity' => 20, 'pre_order_max_quantity' => '']))
             ->assertOk();
-        $this->assertSame(['min' => 20, 'max' => null], Setting::bulkLimits());
+        $this->assertSame(['min' => 20, 'max' => null], Setting::preOrderLimits());
     }
 
     public function test_customer_cancel_is_off_until_switched_on_and_saved_from_the_page(): void
@@ -148,50 +148,50 @@ class SettingTest extends TestCase
         $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['customer_cancel' => 'maybe']))->assertStatus(422);
     }
 
-    public function test_saving_without_the_bulk_fields_leaves_the_limits_alone(): void
+    public function test_saving_without_the_pre_order_fields_leaves_the_limits_alone(): void
     {
-        Setting::setBulkLimits(30, 90);
+        Setting::setPreOrderLimits(30, 90);
 
         $this->actingAs($this->superAdmin())->putJson(route('settings.update'), $this->payload())->assertOk();
 
-        $this->assertSame(['min' => 30, 'max' => 90], Setting::bulkLimits());
+        $this->assertSame(['min' => 30, 'max' => 90], Setting::preOrderLimits());
     }
 
-    public function test_the_bulk_limits_are_validated(): void
+    public function test_the_pre_order_limits_are_validated(): void
     {
         $admin = $this->superAdmin();
 
         foreach ([0, -5, 'many', '', 100001] as $bad) {
-            $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['bulk_min_quantity' => $bad]))
-                ->assertStatus(422)->assertJsonValidationErrors('bulk_min_quantity');
+            $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['pre_order_min_quantity' => $bad]))
+                ->assertStatus(422)->assertJsonValidationErrors('pre_order_min_quantity');
         }
 
         // The maximum cannot be below the minimum (equal is fine).
-        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['bulk_min_quantity' => 50, 'bulk_max_quantity' => 49]))
-            ->assertStatus(422)->assertJsonValidationErrors('bulk_max_quantity');
-        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['bulk_min_quantity' => 50, 'bulk_max_quantity' => 'lots']))
-            ->assertStatus(422)->assertJsonValidationErrors('bulk_max_quantity');
-        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['bulk_min_quantity' => 50, 'bulk_max_quantity' => 50]))
+        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['pre_order_min_quantity' => 50, 'pre_order_max_quantity' => 49]))
+            ->assertStatus(422)->assertJsonValidationErrors('pre_order_max_quantity');
+        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['pre_order_min_quantity' => 50, 'pre_order_max_quantity' => 'lots']))
+            ->assertStatus(422)->assertJsonValidationErrors('pre_order_max_quantity');
+        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['pre_order_min_quantity' => 50, 'pre_order_max_quantity' => 50]))
             ->assertOk();
 
         // A refused save changes nothing, not even the times (08:30 is the last good save).
-        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['session_start_time' => '05:00', 'bulk_min_quantity' => 0]))
+        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['session_start_time' => '05:00', 'pre_order_min_quantity' => 0]))
             ->assertStatus(422);
         $this->assertSame('08:30', Setting::get(Setting::SESSION_START_TIME));
     }
 
     public function test_a_damaged_maximum_reads_as_no_limit(): void
     {
-        Setting::setBulkLimits(10, null);
-        Setting::set(Setting::BULK_MAX_QUANTITY, 'abc');
-        $this->assertNull(Setting::bulkLimits()['max']);
+        Setting::setPreOrderLimits(10, null);
+        Setting::set(Setting::PRE_ORDER_MAX_QUANTITY, 'abc');
+        $this->assertNull(Setting::preOrderLimits()['max']);
 
         // A maximum below the minimum would make ordering impossible: ignored.
-        Setting::set(Setting::BULK_MAX_QUANTITY, '5');
-        $this->assertNull(Setting::bulkLimits()['max']);
+        Setting::set(Setting::PRE_ORDER_MAX_QUANTITY, '5');
+        $this->assertNull(Setting::preOrderLimits()['max']);
 
-        Setting::set(Setting::BULK_MIN_QUANTITY, '0');
-        $this->assertSame(10, Setting::bulkLimits()['min']);
+        Setting::set(Setting::PRE_ORDER_MIN_QUANTITY, '0');
+        $this->assertSame(10, Setting::preOrderLimits()['min']);
     }
 
     public function test_a_new_order_session_starts_from_the_configured_times(): void

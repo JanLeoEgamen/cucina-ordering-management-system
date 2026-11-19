@@ -9,28 +9,28 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
-// The lines of a bulk order. Same shape as OrderItem, pointing at
-// bulk_session_dishes instead of session_dishes.
-class BulkOrderItem extends Model
+// The lines of a pre-order. Same shape as OrderItem, pointing at
+// pre_order_session_dishes instead of session_dishes.
+class PreOrderItem extends Model
 {
     use HasFactory, SoftDeletes;
 
     // Table names, used by the query builder methods and by Eloquent.
-    protected const TABLE = 'bulk_order_items';
+    protected const TABLE = 'pre_order_items';
 
-    protected const TABLE_SESSION_DISH = 'bulk_session_dishes';
+    protected const TABLE_SESSION_DISH = 'pre_order_session_dishes';
 
     protected const TABLE_DISH = 'dishes';
 
     protected $table = self::TABLE;
 
     // Primary key of the table.
-    protected $primaryKey = 'bulk_order_item_id';
+    protected $primaryKey = 'pre_order_item_id';
 
     // Insertable and updatable columns.
     protected const COLUMNS = [
-        'bulk_order_id',
-        'bulk_session_dish_id',
+        'pre_order_id',
+        'pre_order_session_dish_id',
         'quantity',
         'unit_price',
         'sub_total',
@@ -52,53 +52,53 @@ class BulkOrderItem extends Model
 
     /* -------- Reads -------- */
 
-    // The lines of every given order, keyed by bulk order id: the orders feed
+    // The lines of every given order, keyed by pre-order id: the orders feed
     // needs them all in one query. A dish that left the session is still named,
     // so an old order keeps reading the way it was placed.
-    public static function itemsByOrder(array $bulkOrderIds): Collection
+    public static function itemsByOrder(array $preOrderOrderIds): Collection
     {
-        if ($bulkOrderIds === []) {
+        if ($preOrderOrderIds === []) {
             return collect();
         }
 
         return DB::table(self::TABLE)
-            ->join(self::TABLE_SESSION_DISH, self::TABLE_SESSION_DISH . '.bulk_session_dish_id', '=', self::TABLE . '.bulk_session_dish_id')
+            ->join(self::TABLE_SESSION_DISH, self::TABLE_SESSION_DISH . '.pre_order_session_dish_id', '=', self::TABLE . '.pre_order_session_dish_id')
             ->join(self::TABLE_DISH, self::TABLE_DISH . '.dish_id', '=', self::TABLE_SESSION_DISH . '.dish_id')
-            ->whereIn(self::TABLE . '.bulk_order_id', $bulkOrderIds)
+            ->whereIn(self::TABLE . '.pre_order_id', $preOrderOrderIds)
             ->whereNull(self::TABLE . '.deleted_at')
-            ->orderBy(self::TABLE . '.bulk_order_item_id')
+            ->orderBy(self::TABLE . '.pre_order_item_id')
             ->get([
-                self::TABLE . '.bulk_order_id',
-                self::TABLE . '.bulk_session_dish_id',
+                self::TABLE . '.pre_order_id',
+                self::TABLE . '.pre_order_session_dish_id',
                 self::TABLE . '.quantity',
                 self::TABLE . '.unit_price',
                 self::TABLE . '.sub_total',
                 self::TABLE_DISH . '.dish_name',
             ])
             ->map(fn (object $item) => [
-                'bulk_order_id' => (int) $item->bulk_order_id,
-                'bulk_session_dish_id' => (int) $item->bulk_session_dish_id,
+                'pre_order_id' => (int) $item->pre_order_id,
+                'pre_order_session_dish_id' => (int) $item->pre_order_session_dish_id,
                 'dish_name' => $item->dish_name,
                 'quantity' => (int) $item->quantity,
                 'unit_price' => (float) $item->unit_price,
                 'sub_total' => (float) $item->sub_total,
             ])
-            ->groupBy('bulk_order_id')
+            ->groupBy('pre_order_id')
             ->map(fn (Collection $rows) => $rows->values()->all());
     }
 
     /* -------- Writes -------- */
 
     // Write the lines of an order. Each line is
-    // [bulk_session_dish_id, quantity, unit_price, sub_total].
-    public static function createItems(int $bulkOrderId, array $lines): void
+    // [pre_order_session_dish_id, quantity, unit_price, sub_total].
+    public static function createItems(int $preOrderOrderId, array $lines): void
     {
         $now = now();
         $rows = [];
 
         foreach ($lines as $line) {
             $rows[] = Arr::only($line, self::COLUMNS) + [
-                'bulk_order_id' => $bulkOrderId,
+                'pre_order_id' => $preOrderOrderId,
                 'is_active' => 1,
                 'created_at' => $now,
                 'updated_at' => $now,

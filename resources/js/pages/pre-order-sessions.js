@@ -1,14 +1,14 @@
 /**
- * Bulk sessions list page (staff).
+ * Pre-order sessions list page (staff).
  *
  * One self contained script: table, drawer wiring, confirmations, requests. The
  * same flow as resources/js/pages/order-sessions.js without the card and calendar
- * views, and without stock boxes (a bulk session has no stock). Everything the
+ * views, and without stock boxes (a pre-order session has no stock). Everything the
  * page needs - copy, URLs - comes from the Blade view through `data-*`.
  *
  * Flow:
- *   #create-bulk-session         -> reset the create form, open its drawer
- *   View                         -> a plain link to the bulk session page
+ *   #create-pre-order-session         -> reset the create form, open its drawer
+ *   View                         -> a plain link to the pre-order session page
  *   [data-row-action=edit]       -> GET the session, fill the edit form, open it
  *   [data-row-action=end]        -> confirmation, then POST .../end
  *   [data-row-action=delete]     -> delete form points at the record, open modal
@@ -20,12 +20,12 @@ import { initTableToolbar } from '../ui/table-toolbar';
 import { showToast } from '../ui/toast';
 
 const start = () => {
-    const tableElement = document.querySelector('#bulk-sessions-table');
-    const createButton = document.querySelector('#create-bulk-session');
-    const createForm = document.querySelector('#create-bulk-session-form');
-    const createErrors = document.querySelector('#create-bulk-session-errors');
-    const editForm = document.querySelector('#edit-bulk-session-form');
-    const editErrors = document.querySelector('#edit-bulk-session-errors');
+    const tableElement = document.querySelector('#pre-order-sessions-table');
+    const createButton = document.querySelector('#create-pre-order-session');
+    const createForm = document.querySelector('#create-pre-order-session-form');
+    const createErrors = document.querySelector('#create-pre-order-session-errors');
+    const editForm = document.querySelector('#edit-pre-order-session-form');
+    const editErrors = document.querySelector('#edit-pre-order-session-errors');
     const endForm = document.querySelector('#end-session-form');
     const deleteForm = document.querySelector('#delete-modal-form');
     const deleteErrors = document.querySelector('#delete-modal-errors');
@@ -36,7 +36,7 @@ const start = () => {
     const confirmSubject = document.querySelector('#save-modal-subject');
 
     if (!tableElement || !createForm || !editForm) {
-        console.warn('The bulk sessions page is incomplete; nothing was wired.');
+        console.warn('The pre-order sessions page is incomplete; nothing was wired.');
 
         return;
     }
@@ -467,7 +467,7 @@ const start = () => {
                 if (errors) {
                     showErrors(errors, messages(payload));
                 } else {
-                    showToast(messages(payload).join(' ') || 'The bulk session could not be ended.', 'error');
+                    showToast(messages(payload).join(' ') || 'The pre-order session could not be ended.', 'error');
                 }
 
                 return;

@@ -2,21 +2,21 @@
 
 namespace Database\Factories;
 
-use App\Models\BulkSession;
+use App\Models\PreOrderSession;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\BulkSession>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\PreOrderSession>
  */
-class BulkSessionFactory extends Factory
+class PreOrderSessionFactory extends Factory
 {
     /**
      * The name of the factory's corresponding model.
      *
      * @var string
      */
-    protected $model = BulkSession::class;
+    protected $model = PreOrderSession::class;
 
     /**
      * Define the model's default state.

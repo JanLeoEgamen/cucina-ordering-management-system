@@ -10,27 +10,27 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
-// Bulk sessions: the window in which customers may place big orders (a minimum
+// Pre-order sessions: the window in which customers may place big orders (a minimum
 // number of plates each) from their own menu. It is deliberately NOT an
 // OrderSession with a type flag: the regular menu, the dashboard and the orders
-// pages all assume one kind of session, and a bulk session has no stock.
+// pages all assume one kind of session, and a pre-order session has no stock.
 // Same shape as OrderSession: query builder reads and writes, with the soft
 // delete filter written in every method.
-class BulkSession extends Model
+class PreOrderSession extends Model
 {
     use HasFactory, SoftDeletes;
 
     // Table names, used by the query builder methods and by Eloquent.
-    protected const TABLE = 'bulk_sessions';
+    protected const TABLE = 'pre_order_sessions';
 
-    protected const TABLE_DISH = 'bulk_session_dishes';
+    protected const TABLE_DISH = 'pre_order_session_dishes';
 
-    protected const TABLE_ORDER = 'bulk_orders';
+    protected const TABLE_ORDER = 'pre_orders';
 
     protected $table = self::TABLE;
 
     // Primary key of the table.
-    protected $primaryKey = 'bulk_session_id';
+    protected $primaryKey = 'pre_order_session_id';
 
     // Insertable and updatable columns.
     protected const COLUMNS = [
@@ -56,18 +56,18 @@ class BulkSession extends Model
 
     /* -------- Reads -------- */
 
-    // Every bulk session with its dish and order counts and its status, for the
+    // Every pre-order session with its dish and order counts and its status, for the
     // table feed.
     public static function getAll(): Collection
     {
         $dishes = DB::table(self::TABLE_DISH)
             ->selectRaw('count(*)')
-            ->whereColumn('bulk_session_id', self::TABLE . '.bulk_session_id')
+            ->whereColumn('pre_order_session_id', self::TABLE . '.pre_order_session_id')
             ->whereNull('deleted_at');
 
         $orders = DB::table(self::TABLE_ORDER)
             ->selectRaw('count(*)')
-            ->whereColumn('bulk_session_id', self::TABLE . '.bulk_session_id')
+            ->whereColumn('pre_order_session_id', self::TABLE . '.pre_order_session_id')
             ->whereNull('deleted_at');
 
         return DB::table(self::TABLE)
@@ -86,12 +86,12 @@ class BulkSession extends Model
             });
     }
 
-    // One bulk session with its dishes, for the edit and view drawers.
-    public static function findById(int $bulkSessionId): ?object
+    // One pre-order session with its dishes, for the edit and view drawers.
+    public static function findById(int $preOrderSessionId): ?object
     {
         $session = DB::table(self::TABLE)
             ->leftJoin('users', 'users.id', '=', self::TABLE . '.created_by')
-            ->where(self::TABLE . '.bulk_session_id', $bulkSessionId)
+            ->where(self::TABLE . '.pre_order_session_id', $preOrderSessionId)
             ->whereNull(self::TABLE . '.deleted_at')
             ->first(self::selectColumns());
 
@@ -100,38 +100,38 @@ class BulkSession extends Model
         }
 
         $session->status = self::statusOf($session);
-        $session->dishes = self::dishesOfSession($bulkSessionId);
+        $session->dishes = self::dishesOfSession($preOrderSessionId);
 
         return $session;
     }
 
-    // Check whether a live bulk session exists (before updating or deleting it).
-    public static function existsById(int $bulkSessionId): bool
+    // Check whether a live pre-order session exists (before updating or deleting it).
+    public static function existsById(int $preOrderSessionId): bool
     {
         return DB::table(self::TABLE)
-            ->where('bulk_session_id', $bulkSessionId)
+            ->where('pre_order_session_id', $preOrderSessionId)
             ->whereNull('deleted_at')
             ->exists();
     }
 
-    // The dishes of a bulk session, for the edit and view drawers. Dishes that
+    // The dishes of a pre-order session, for the edit and view drawers. Dishes that
     // left the session are not listed here (the order history reads them through
-    // BulkOrderItem, which keeps the name).
-    public static function dishesOfSession(int $bulkSessionId): array
+    // PreOrderItem, which keeps the name).
+    public static function dishesOfSession(int $preOrderSessionId): array
     {
         return DB::table(self::TABLE_DISH)
             ->join('dishes', 'dishes.dish_id', '=', self::TABLE_DISH . '.dish_id')
-            ->where(self::TABLE_DISH . '.bulk_session_id', $bulkSessionId)
+            ->where(self::TABLE_DISH . '.pre_order_session_id', $preOrderSessionId)
             ->whereNull(self::TABLE_DISH . '.deleted_at')
             ->orderBy('dishes.dish_name')
             ->get([
-                self::TABLE_DISH . '.bulk_session_dish_id',
+                self::TABLE_DISH . '.pre_order_session_dish_id',
                 self::TABLE_DISH . '.dish_id',
                 'dishes.dish_name',
                 'dishes.price',
             ])
             ->map(fn (object $dish) => [
-                'bulk_session_dish_id' => (int) $dish->bulk_session_dish_id,
+                'pre_order_session_dish_id' => (int) $dish->pre_order_session_dish_id,
                 'dish_id' => (int) $dish->dish_id,
                 'dish_name' => $dish->dish_name,
                 'price' => (float) $dish->price,
@@ -140,7 +140,7 @@ class BulkSession extends Model
             ->all();
     }
 
-    // The bulk session the bulk menu offers right now, or null.
+    // The pre-order session the pre-order menu offers right now, or null.
     public static function live(): ?object
     {
         return self::getAll()->first(fn (object $session) => $session->status === 'live');
@@ -148,11 +148,11 @@ class BulkSession extends Model
 
     // The fewest / most plates one order of this session may hold: the session's own
     // minimum, raised to the System Configuration minimum, and never above the
-    // configured maximum. The bulk menu, the order check and the public welcome page
+    // configured maximum. The pre-order menu, the order check and the public welcome page
     // all read it from here, so they cannot disagree.
     public static function limitsFor(object $session): array
     {
-        $limits = Setting::bulkLimits();
+        $limits = Setting::preOrderLimits();
         $min = max((int) $session->min_quantity, $limits['min']);
 
         if ($limits['max'] !== null) {
@@ -181,8 +181,8 @@ class BulkSession extends Model
         return now()->gt($end) ? 'ended' : 'live';
     }
 
-    // Does another bulk session that is still open overlap this window? The menu
-    // shows ONE live bulk session, so two windows must never run together (the
+    // Does another pre-order session that is still open overlap this window? The menu
+    // shows ONE live pre-order session, so two windows must never run together (the
     // regular order sessions follow the same rule: OrderSession::overlaps()).
     // $ignoreId is the session being edited.
     public static function overlaps(string $orderDate, string $startTime, string $endTime, ?int $ignoreId = null): bool
@@ -195,7 +195,7 @@ class BulkSession extends Model
             ->whereNull('ended_at')
             ->where('is_active', 1)
             ->whereDate('order_date', $orderDate)
-            ->when($ignoreId !== null, fn ($query) => $query->where('bulk_session_id', '!=', $ignoreId))
+            ->when($ignoreId !== null, fn ($query) => $query->where('pre_order_session_id', '!=', $ignoreId))
             ->get(['order_date', 'start_time', 'end_time'])
             ->contains(function (object $other) use ($start, $end) {
                 $otherStart = Carbon::parse($other->order_date . ' ' . $other->start_time);
@@ -207,51 +207,51 @@ class BulkSession extends Model
 
     /* -------- Writes -------- */
 
-    // Create a bulk session with its dishes and return its id. $dishIds is a list
+    // Create a pre-order session with its dishes and return its id. $dishIds is a list
     // of dish ids.
     public static function createSession(array $attributes, array $dishIds): int
     {
         $now = now();
 
-        $bulkSessionId = (int) DB::table(self::TABLE)->insertGetId(self::values($attributes) + [
+        $preOrderSessionId = (int) DB::table(self::TABLE)->insertGetId(self::values($attributes) + [
             'created_by' => (int) $attributes['created_by'],
             'is_active' => 1,
             'created_at' => $now,
             'updated_at' => $now,
         ]);
 
-        self::syncDishes($bulkSessionId, $dishIds);
+        self::syncDishes($preOrderSessionId, $dishIds);
 
-        return $bulkSessionId;
+        return $preOrderSessionId;
     }
 
-    // Update a bulk session and replace its dish list; returns the number of
+    // Update a pre-order session and replace its dish list; returns the number of
     // changed rows.
-    public static function updateSession(int $bulkSessionId, array $attributes, array $dishIds): int
+    public static function updateSession(int $preOrderSessionId, array $attributes, array $dishIds): int
     {
         $changed = DB::table(self::TABLE)
-            ->where('bulk_session_id', $bulkSessionId)
+            ->where('pre_order_session_id', $preOrderSessionId)
             ->whereNull('deleted_at')
             ->update(self::values($attributes) + ['updated_at' => now()]);
 
-        self::syncDishes($bulkSessionId, $dishIds);
+        self::syncDishes($preOrderSessionId, $dishIds);
 
         return $changed;
     }
 
-    // Soft delete a bulk session and its dish list; false when it was already deleted.
-    public static function deleteSession(int $bulkSessionId): bool
+    // Soft delete a pre-order session and its dish list; false when it was already deleted.
+    public static function deleteSession(int $preOrderSessionId): bool
     {
         $now = now();
 
         $deleted = DB::table(self::TABLE)
-            ->where('bulk_session_id', $bulkSessionId)
+            ->where('pre_order_session_id', $preOrderSessionId)
             ->whereNull('deleted_at')
             ->update(['deleted_at' => $now, 'updated_at' => $now]) === 1;
 
         if ($deleted) {
             DB::table(self::TABLE_DISH)
-                ->where('bulk_session_id', $bulkSessionId)
+                ->where('pre_order_session_id', $preOrderSessionId)
                 ->whereNull('deleted_at')
                 ->update(['is_available' => 0, 'is_active' => 0, 'deleted_at' => $now, 'updated_at' => $now]);
         }
@@ -259,13 +259,13 @@ class BulkSession extends Model
         return $deleted;
     }
 
-    // End a bulk session by hand: stamped as ended, and closed for ordering.
-    public static function endSession(int $bulkSessionId): bool
+    // End a pre-order session by hand: stamped as ended, and closed for ordering.
+    public static function endSession(int $preOrderSessionId): bool
     {
         $now = now();
 
         return DB::table(self::TABLE)
-            ->where('bulk_session_id', $bulkSessionId)
+            ->where('pre_order_session_id', $preOrderSessionId)
             ->whereNull('deleted_at')
             ->whereNull('ended_at')
             ->update(['ended_at' => $now, 'is_active' => 0, 'updated_at' => $now]) === 1;
@@ -275,7 +275,7 @@ class BulkSession extends Model
     // session, but its row stays (soft deleted) because the order lines point at
     // it. Re-offering a dish restores its row. No stock to carry, unlike
     // OrderSession::syncStocks.
-    public static function syncDishes(int $bulkSessionId, array $dishIds): void
+    public static function syncDishes(int $preOrderSessionId, array $dishIds): void
     {
         $now = now();
         $posted = [];
@@ -290,13 +290,13 @@ class BulkSession extends Model
             $posted[] = $dishId;
 
             $existing = DB::table(self::TABLE_DISH)
-                ->where('bulk_session_id', $bulkSessionId)
+                ->where('pre_order_session_id', $preOrderSessionId)
                 ->where('dish_id', $dishId)
                 ->first();
 
             if ($existing) {
                 DB::table(self::TABLE_DISH)
-                    ->where('bulk_session_dish_id', $existing->bulk_session_dish_id)
+                    ->where('pre_order_session_dish_id', $existing->pre_order_session_dish_id)
                     ->update([
                         'is_available' => 1,
                         'is_active' => 1,
@@ -308,7 +308,7 @@ class BulkSession extends Model
             }
 
             DB::table(self::TABLE_DISH)->insert([
-                'bulk_session_id' => $bulkSessionId,
+                'pre_order_session_id' => $preOrderSessionId,
                 'dish_id' => $dishId,
                 'is_available' => 1,
                 'is_active' => 1,
@@ -318,7 +318,7 @@ class BulkSession extends Model
         }
 
         $removed = DB::table(self::TABLE_DISH)
-            ->where('bulk_session_id', $bulkSessionId)
+            ->where('pre_order_session_id', $preOrderSessionId)
             ->whereNull('deleted_at');
 
         if ($posted) {
@@ -334,7 +334,7 @@ class BulkSession extends Model
     protected static function selectColumns(): array
     {
         return [
-            self::TABLE . '.bulk_session_id',
+            self::TABLE . '.pre_order_session_id',
             self::TABLE . '.title',
             self::TABLE . '.order_date',
             self::TABLE . '.start_time',

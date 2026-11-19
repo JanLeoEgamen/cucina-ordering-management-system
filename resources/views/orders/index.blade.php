@@ -26,6 +26,7 @@
                     <select id="orders-status-filter" aria-label="{{ __('Order status') }}" class="{{ $filter }} sm:!w-full">
                         <option value="">{{ __('All statuses') }}</option>
                         <option value="pending">{{ __('Pending') }}</option>
+                        <option value="ready">{{ __('Ready for pick up') }}</option>
                         <option value="completed">{{ __('Completed') }}</option>
                         <option value="cancelled">{{ __('Cancelled') }}</option>
                     </select>

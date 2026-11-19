@@ -2,22 +2,22 @@
 
 namespace Database\Factories;
 
-use App\Models\BulkOrder;
-use App\Models\BulkOrderItem;
-use App\Models\BulkSessionDish;
+use App\Models\PreOrder;
+use App\Models\PreOrderItem;
+use App\Models\PreOrderSessionDish;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\BulkOrderItem>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\PreOrderItem>
  */
-class BulkOrderItemFactory extends Factory
+class PreOrderItemFactory extends Factory
 {
     /**
      * The name of the factory's corresponding model.
      *
      * @var string
      */
-    protected $model = BulkOrderItem::class;
+    protected $model = PreOrderItem::class;
 
     /**
      * Define the model's default state.
@@ -30,8 +30,8 @@ class BulkOrderItemFactory extends Factory
         $unitPrice = fake()->randomFloat(2, 5, 50);
 
         return [
-            'bulk_order_id' => BulkOrder::factory(),
-            'bulk_session_dish_id' => BulkSessionDish::factory(),
+            'pre_order_id' => PreOrder::factory(),
+            'pre_order_session_dish_id' => PreOrderSessionDish::factory(),
             'quantity' => $quantity,
             'unit_price' => $unitPrice,
             'sub_total' => round($quantity * $unitPrice, 2),

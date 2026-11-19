@@ -1,5 +1,5 @@
 /**
- * Clickable order cards (My Orders, My Bulk Orders): a click opens the order popup.
+ * Clickable order cards (My Orders, My Pre-Orders): a click opens the order popup.
  *
  *   initOrderCards(document.querySelector('#my-orders-root'));
  *

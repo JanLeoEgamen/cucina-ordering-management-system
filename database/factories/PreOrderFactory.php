@@ -2,23 +2,23 @@
 
 namespace Database\Factories;
 
-use App\Models\BulkOrder;
-use App\Models\BulkSession;
+use App\Models\PreOrder;
+use App\Models\PreOrderSession;
 use App\Models\PaymentMethod;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\BulkOrder>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\PreOrder>
  */
-class BulkOrderFactory extends Factory
+class PreOrderFactory extends Factory
 {
     /**
      * The name of the factory's corresponding model.
      *
      * @var string
      */
-    protected $model = BulkOrder::class;
+    protected $model = PreOrder::class;
 
     /**
      * Define the model's default state.
@@ -28,9 +28,9 @@ class BulkOrderFactory extends Factory
     public function definition(): array
     {
         return [
-            'bulk_session_id' => BulkSession::factory(),
+            'pre_order_session_id' => PreOrderSession::factory(),
             'user_id' => User::factory(),
-            'order_number' => 'BLK-' . now()->format('Ymd') . '-' . fake()->unique()->numerify('####'),
+            'order_number' => 'PRE-' . now()->format('Ymd') . '-' . fake()->unique()->numerify('####'),
             'order_date' => now(),
             'total_amount' => fake()->randomFloat(2, 500, 5000),
             'order_status' => 'pending',

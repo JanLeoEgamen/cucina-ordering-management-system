@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="{{ __('Bulk Sessions') }}" action-label="{{ __('Add Bulk Session') }}" action-id="create-bulk-session" />
+        <x-page-header title="{{ __('Pre-Order Sessions') }}" action-label="{{ __('Add Pre-Order Session') }}" action-id="create-pre-order-session" />
     </x-slot>
 
     @php
@@ -17,10 +17,10 @@
 
     <div class="container mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
-            {{-- Search, sort and filter (resources/js/ui/table-toolbar.js). A bulk session is scheduled
+            {{-- Search, sort and filter (resources/js/ui/table-toolbar.js). A pre-order session is scheduled
                  before its window opens, live inside it, and ended once its end time went past or its
                  creator closed it by hand. The column numbers below are the table's columns. --}}
-            <x-ui.table-toolbar :export-title="__('Bulk Sessions')" :views="['table']" :sorts="[
+            <x-ui.table-toolbar :export-title="__('Pre-Order Sessions')" :views="['table']" :sorts="[
                 [__('Date: newest first'), 1, 'desc'],
                 [__('Date: oldest first'), 1, 'asc'],
                 [__('Most orders'), 6, 'desc'],
@@ -39,9 +39,9 @@
             </x-ui.table-toolbar>
 
             {{-- Rows come from this route's AJAX response (client side table);
-                 `data-endpoint` is read by resources/js/pages/bulk-sessions.js. --}}
-            <table id="bulk-sessions-table"
-                   data-endpoint="{{ route('bulk-sessions.index') }}"
+                 `data-endpoint` is read by resources/js/pages/pre-order-sessions.js. --}}
+            <table id="pre-order-sessions-table"
+                   data-endpoint="{{ route('pre-order-sessions.index') }}"
                    class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead class="bg-gray-50/70 dark:bg-gray-900/40">
                     <tr>
@@ -63,9 +63,9 @@
     </div>
 
     {{-- Create drawer --}}
-    <x-ui.drawer name="create-bulk-session-drawer" placement="right" size="lg">
+    <x-ui.drawer name="create-pre-order-session-drawer" placement="right" size="lg">
         <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-700">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Create Bulk Session') }}</h3>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Create Pre-Order Session') }}</h3>
             <button type="button" class="{{ $closeButton }}" x-on:click="show = false">
                 <span class="sr-only">{{ __('Close') }}</span>
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -75,19 +75,19 @@
         </div>
 
         <div class="flex-1 overflow-y-auto p-6">
-            <div id="create-bulk-session-errors" class="{{ $errorBox }}"></div>
+            <div id="create-pre-order-session-errors" class="{{ $errorBox }}"></div>
 
-            {{-- The `data-*` attributes carry the page wiring to resources/js/pages/bulk-sessions.js:
+            {{-- The `data-*` attributes carry the page wiring to resources/js/pages/pre-order-sessions.js:
                  which drawer the form lives in, the field used as the confirmation subject and the copy. --}}
-            <form id="create-bulk-session-form" method="POST" action="{{ route('bulk-sessions.store') }}"
-                  data-drawer="create-bulk-session-drawer"
+            <form id="create-pre-order-session-form" method="POST" action="{{ route('pre-order-sessions.store') }}"
+                  data-drawer="create-pre-order-session-drawer"
                   data-subject-field="order_date"
                   data-default-start="{{ $sessionWindow['start_time'] }}"
                   data-default-end="{{ $sessionWindow['end_time'] }}"
-                  data-default-min="{{ $bulkLimits['min'] }}"
+                  data-default-min="{{ $preOrderLimits['min'] }}"
                   data-confirm-title="{{ __('Confirm Create') }}"
-                  data-confirm-message="{{ __('Are you sure you want to create this bulk session?') }}"
-                  data-confirm-label="{{ __('Create Bulk Session') }}"
+                  data-confirm-message="{{ __('Are you sure you want to create this pre-order session?') }}"
+                  data-confirm-label="{{ __('Create Pre-Order Session') }}"
                   class="space-y-5">
                 @csrf
 
@@ -123,32 +123,32 @@
 
                 <div>
                     <label for="create-min-quantity" class="{{ $label }}">{{ __('Minimum plates per order') }}</label>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('All dishes together: an order smaller than this is refused.') }} {{ __('Allowed by System Configuration:') }} {{ $bulkLimits['min'] }}{{ $bulkLimits['max'] ? ' – ' . $bulkLimits['max'] : '+' }}</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('All dishes together: an order smaller than this is refused.') }} {{ __('Allowed by System Configuration:') }} {{ $preOrderLimits['min'] }}{{ $preOrderLimits['max'] ? ' – ' . $preOrderLimits['max'] : '+' }}</p>
                     <div class="mt-1">
-                        <input type="number" name="min_quantity" id="create-min-quantity" min="{{ $bulkLimits['min'] }}" @if ($bulkLimits['max']) max="{{ $bulkLimits['max'] }}" @endif step="1" required class="{{ $input }}">
+                        <input type="number" name="min_quantity" id="create-min-quantity" min="{{ $preOrderLimits['min'] }}" @if ($preOrderLimits['max']) max="{{ $preOrderLimits['max'] }}" @endif step="1" required class="{{ $input }}">
                     </div>
                 </div>
 
                 <div>
                     <span class="{{ $label }}">{{ __('Dishes') }}</span>
                     <p class="mb-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        {{ __('Tick the dishes this bulk session offers. There is no stock limit.') }}
+                        {{ __('Tick the dishes this pre-order session offers. There is no stock limit.') }}
                     </p>
                     <x-ui.dish-stock-list prefix="create" :dishes="$dishes" :stock="false" />
                 </div>
 
                 <div class="flex justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
                     <button type="button" class="{{ $cancelButton }}" x-on:click="show = false">{{ __('Cancel') }}</button>
-                    <button type="submit" id="create-bulk-session-submit" class="{{ $submitButton }}">{{ __('Create Bulk Session') }}</button>
+                    <button type="submit" id="create-pre-order-session-submit" class="{{ $submitButton }}">{{ __('Create Pre-Order Session') }}</button>
                 </div>
             </form>
         </div>
     </x-ui.drawer>
 
     {{-- Edit drawer --}}
-    <x-ui.drawer name="edit-bulk-session-drawer" placement="right" size="lg">
+    <x-ui.drawer name="edit-pre-order-session-drawer" placement="right" size="lg">
         <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-700">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Edit Bulk Session') }}</h3>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Edit Pre-Order Session') }}</h3>
             <button type="button" class="{{ $closeButton }}" x-on:click="show = false">
                 <span class="sr-only">{{ __('Close') }}</span>
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -158,15 +158,15 @@
         </div>
 
         <div class="flex-1 overflow-y-auto p-6">
-            <div id="edit-bulk-session-errors" class="{{ $errorBox }}"></div>
+            <div id="edit-pre-order-session-errors" class="{{ $errorBox }}"></div>
 
-            <form id="edit-bulk-session-form" method="POST" action=""
-                  data-drawer="edit-bulk-session-drawer"
-                  data-load-error="{{ __('Unable to load this bulk session.') }}"
+            <form id="edit-pre-order-session-form" method="POST" action=""
+                  data-drawer="edit-pre-order-session-drawer"
+                  data-load-error="{{ __('Unable to load this pre-order session.') }}"
                   data-subject-field="order_date"
                   data-confirm-title="{{ __('Confirm Update') }}"
-                  data-confirm-message="{{ __('Are you sure you want to save the changes to this bulk session?') }}"
-                  data-confirm-label="{{ __('Update Bulk Session') }}"
+                  data-confirm-message="{{ __('Are you sure you want to save the changes to this pre-order session?') }}"
+                  data-confirm-label="{{ __('Update Pre-Order Session') }}"
                   class="space-y-5">
                 @csrf
                 @method('PUT')
@@ -205,21 +205,21 @@
                     <label for="edit-min-quantity" class="{{ $label }}">{{ __('Minimum plates per order') }}</label>
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Applies to orders placed from now on; orders already placed are kept.') }}</p>
                     <div class="mt-1">
-                        <input type="number" name="min_quantity" id="edit-min-quantity" min="{{ $bulkLimits['min'] }}" @if ($bulkLimits['max']) max="{{ $bulkLimits['max'] }}" @endif step="1" required class="{{ $input }}">
+                        <input type="number" name="min_quantity" id="edit-min-quantity" min="{{ $preOrderLimits['min'] }}" @if ($preOrderLimits['max']) max="{{ $preOrderLimits['max'] }}" @endif step="1" required class="{{ $input }}">
                     </div>
                 </div>
 
                 <div>
                     <span class="{{ $label }}">{{ __('Dishes') }}</span>
                     <p class="mb-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        {{ __('A dish you untick leaves the bulk session. Orders already placed keep it.') }}
+                        {{ __('A dish you untick leaves the pre-order session. Orders already placed keep it.') }}
                     </p>
                     <x-ui.dish-stock-list prefix="edit" :dishes="$dishes" :stock="false" />
                 </div>
 
                 <div class="flex justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
                     <button type="button" class="{{ $cancelButton }}" x-on:click="show = false">{{ __('Cancel') }}</button>
-                    <button type="submit" id="edit-bulk-session-submit" class="{{ $submitButton }}">{{ __('Update Bulk Session') }}</button>
+                    <button type="submit" id="edit-pre-order-session-submit" class="{{ $submitButton }}">{{ __('Update Pre-Order Session') }}</button>
                 </div>
             </form>
         </div>
@@ -227,7 +227,7 @@
 
     <x-delete-confirmation-modal
         title="{{ __('Confirm Delete') }}"
-        message="{{ __('Are you sure you want to delete this bulk session? This will soft-delete it and take its dishes off the bulk menu.') }}"
+        message="{{ __('Are you sure you want to delete this pre-order session? This will soft-delete it and take its dishes off the pre-order menu.') }}"
         confirm-label="{{ __('Delete') }}"
     />
 
@@ -235,22 +235,22 @@
          sets its copy and the form to send before opening it. --}}
     <x-edit-confirmation-modal
         title="{{ __('Confirm Create') }}"
-        message="{{ __('Are you sure you want to create this bulk session?') }}"
-        confirm-label="{{ __('Create Bulk Session') }}"
+        message="{{ __('Are you sure you want to create this pre-order session?') }}"
+        confirm-label="{{ __('Create Pre-Order Session') }}"
     />
 
     {{-- The end action has no form of its own: the page script points this one at
          the session before opening the confirmation modal. --}}
     <form id="end-session-form" method="POST" action=""
           data-confirm-title="{{ __('Confirm End') }}"
-          data-confirm-message="{{ __('Are you sure you want to end this bulk session? Orders already placed are kept, and customers can no longer order from it.') }}"
+          data-confirm-message="{{ __('Are you sure you want to end this pre-order session? Orders already placed are kept, and customers can no longer order from it.') }}"
           data-confirm-label="{{ __('End Session') }}"
           class="hidden">
         @csrf
     </form>
 
     @push('scripts')
-        {{-- Page behaviour lives in resources/js/pages/bulk-sessions.js; see vite.config.js. --}}
-        @vite('resources/js/pages/bulk-sessions.js')
+        {{-- Page behaviour lives in resources/js/pages/pre-order-sessions.js; see vite.config.js. --}}
+        @vite('resources/js/pages/pre-order-sessions.js')
     @endpush
 </x-app-layout>

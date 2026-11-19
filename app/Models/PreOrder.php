@@ -11,26 +11,26 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
-// Orders placed inside a bulk session. Unlike Order, the payment is part of the
-// row (a bulk order has exactly one), so there is no Payment model to keep in
+// Orders placed inside a pre-order session. Unlike Order, the payment is part of the
+// row (a pre-order has exactly one), so there is no Payment model to keep in
 // step: the order and its payment status move under the same row lock.
 // Same shape as Order: query builder reads and writes, with the soft delete
 // filter written in every method.
-class BulkOrder extends Model
+class PreOrder extends Model
 {
     use HasFactory, SoftDeletes;
 
     // Table name, used by the query builder methods and by Eloquent.
-    protected const TABLE = 'bulk_orders';
+    protected const TABLE = 'pre_orders';
 
     protected $table = self::TABLE;
 
     // Primary key of the table.
-    protected $primaryKey = 'bulk_order_id';
+    protected $primaryKey = 'pre_order_id';
 
     // Insertable and updatable columns.
     protected const COLUMNS = [
-        'bulk_session_id',
+        'pre_order_session_id',
         'user_id',
         'order_number',
         'order_date',
@@ -58,25 +58,25 @@ class BulkOrder extends Model
 
     /* -------- Reads -------- */
 
-    // The orders of one bulk session, with the customer, the payment and the
-    // lines, for the orders list of the bulk session page.
-    public static function ofSession(int $bulkSessionId): array
+    // The orders of one pre-order session, with the customer, the payment and the
+    // lines, for the orders list of the pre-order session page.
+    public static function ofSession(int $preOrderSessionId): array
     {
         $orders = DB::table(self::TABLE)
             ->join('users', 'users.id', '=', self::TABLE . '.user_id')
-            ->join('bulk_sessions', 'bulk_sessions.bulk_session_id', '=', self::TABLE . '.bulk_session_id')
+            ->join('pre_order_sessions', 'pre_order_sessions.pre_order_session_id', '=', self::TABLE . '.pre_order_session_id')
             ->leftJoin('payment_methods', 'payment_methods.method_id', '=', self::TABLE . '.payment_method_id')
             ->leftJoin('users as verifiers', 'verifiers.id', '=', self::TABLE . '.verified_by')
-            ->where(self::TABLE . '.bulk_session_id', $bulkSessionId)
+            ->where(self::TABLE . '.pre_order_session_id', $preOrderSessionId)
             ->whereNull(self::TABLE . '.deleted_at')
-            ->orderByDesc(self::TABLE . '.bulk_order_id')
+            ->orderByDesc(self::TABLE . '.pre_order_id')
             ->get([
-                self::TABLE . '.bulk_order_id',
-                self::TABLE . '.bulk_session_id',
-                'bulk_sessions.title as session_title',
-                'bulk_sessions.order_date as session_date',
-                'bulk_sessions.start_time as session_start',
-                'bulk_sessions.end_time as session_end',
+                self::TABLE . '.pre_order_id',
+                self::TABLE . '.pre_order_session_id',
+                'pre_order_sessions.title as session_title',
+                'pre_order_sessions.order_date as session_date',
+                'pre_order_sessions.start_time as session_start',
+                'pre_order_sessions.end_time as session_end',
                 self::TABLE . '.order_number',
                 self::TABLE . '.order_date',
                 self::TABLE . '.total_amount',
@@ -93,16 +93,16 @@ class BulkOrder extends Model
             ]);
 
         // One query for the lines of every order in the list.
-        $items = BulkOrderItem::itemsByOrder($orders->pluck('bulk_order_id')->all());
+        $items = PreOrderItem::itemsByOrder($orders->pluck('pre_order_id')->all());
 
         return $orders->map(function (object $order) use ($items) {
-            $order->items = $items[$order->bulk_order_id] ?? [];
+            $order->items = $items[$order->pre_order_id] ?? [];
 
             return $order;
         })->values()->all();
     }
 
-    // Bulk orders on one page of a customer's own list (My Bulk Orders).
+    // Pre-orders on one page of a customer's own list (My Pre-Orders).
     public const USER_PAGE_SIZE = 10;
 
     // The customer's own list as a query: newest first, with the session they were placed
@@ -110,13 +110,13 @@ class BulkOrder extends Model
     protected static function userListQuery(int $userId): Builder
     {
         return DB::table(self::TABLE)
-            ->join('bulk_sessions', 'bulk_sessions.bulk_session_id', '=', self::TABLE . '.bulk_session_id')
+            ->join('pre_order_sessions', 'pre_order_sessions.pre_order_session_id', '=', self::TABLE . '.pre_order_session_id')
             ->leftJoin('payment_methods', 'payment_methods.method_id', '=', self::TABLE . '.payment_method_id')
             ->where(self::TABLE . '.user_id', $userId)
             ->whereNull(self::TABLE . '.deleted_at')
-            ->orderByDesc(self::TABLE . '.bulk_order_id')
+            ->orderByDesc(self::TABLE . '.pre_order_id')
             ->select([
-                self::TABLE . '.bulk_order_id',
+                self::TABLE . '.pre_order_id',
                 self::TABLE . '.order_number',
                 self::TABLE . '.order_date',
                 self::TABLE . '.total_amount',
@@ -125,10 +125,10 @@ class BulkOrder extends Model
                 self::TABLE . '.reference_number',
                 self::TABLE . '.proof_of_payment',
                 self::TABLE . '.rejection_reason',
-                'bulk_sessions.title as session_title',
-                'bulk_sessions.order_date as session_date',
-                'bulk_sessions.start_time',
-                'bulk_sessions.end_time',
+                'pre_order_sessions.title as session_title',
+                'pre_order_sessions.order_date as session_date',
+                'pre_order_sessions.start_time',
+                'pre_order_sessions.end_time',
                 'payment_methods.method_name',
             ]);
     }
@@ -136,10 +136,10 @@ class BulkOrder extends Model
     // One query for the lines of every order of the list, put on each order as `items`.
     protected static function withItems(Collection $orders): Collection
     {
-        $items = BulkOrderItem::itemsByOrder($orders->pluck('bulk_order_id')->all());
+        $items = PreOrderItem::itemsByOrder($orders->pluck('pre_order_id')->all());
 
         return $orders->map(function (object $order) use ($items) {
-            $order->items = $items[$order->bulk_order_id] ?? [];
+            $order->items = $items[$order->pre_order_id] ?? [];
 
             return $order;
         })->values();
@@ -162,10 +162,10 @@ class BulkOrder extends Model
 
     // The page of the customer's list that holds this order (1 = the newest), or null when it
     // is not theirs / does not exist ("?order=ID" on the page jumps to it).
-    public static function pageNumberOf(int $userId, int $bulkOrderId, int $perPage = self::USER_PAGE_SIZE): ?int
+    public static function pageNumberOf(int $userId, int $preOrderOrderId, int $perPage = self::USER_PAGE_SIZE): ?int
     {
         $mine = DB::table(self::TABLE)
-            ->where('bulk_order_id', $bulkOrderId)
+            ->where('pre_order_id', $preOrderOrderId)
             ->where('user_id', $userId)
             ->whereNull('deleted_at')
             ->exists();
@@ -177,26 +177,26 @@ class BulkOrder extends Model
         $newer = DB::table(self::TABLE)
             ->where('user_id', $userId)
             ->whereNull('deleted_at')
-            ->where('bulk_order_id', '>', $bulkOrderId)
+            ->where('pre_order_id', '>', $preOrderOrderId)
             ->count();
 
         return intdiv($newer, $perPage) + 1;
     }
     // Get one live order without its lines (the controllers need its owner,
     // its states and its method).
-    public static function findById(int $bulkOrderId): ?object
+    public static function findById(int $preOrderOrderId): ?object
     {
         return DB::table(self::TABLE)
-            ->where('bulk_order_id', $bulkOrderId)
+            ->where('pre_order_id', $preOrderOrderId)
             ->whereNull('deleted_at')
             ->first();
     }
 
     // Check whether a live order exists.
-    public static function existsById(int $bulkOrderId): bool
+    public static function existsById(int $preOrderOrderId): bool
     {
         return DB::table(self::TABLE)
-            ->where('bulk_order_id', $bulkOrderId)
+            ->where('pre_order_id', $preOrderOrderId)
             ->whereNull('deleted_at')
             ->exists();
     }
@@ -206,29 +206,29 @@ class BulkOrder extends Model
     // queue up, and the second sees what the first left. Returns
     // {order_status, payment_status, payment_method_id} or null. SQLite has no row
     // locks and ignores the hint; it serialises writers anyway.
-    public static function lockedState(int $bulkOrderId): ?object
+    public static function lockedState(int $preOrderOrderId): ?object
     {
         return DB::table(self::TABLE)
-            ->where('bulk_order_id', $bulkOrderId)
+            ->where('pre_order_id', $preOrderOrderId)
             ->whereNull('deleted_at')
             ->lockForUpdate()
             ->first(['order_status', 'payment_status', 'payment_method_id']);
     }
 
-    // Check whether a bulk session already has orders (then it cannot be deleted).
-    public static function existsForSession(int $bulkSessionId): bool
+    // Check whether a pre-order session already has orders (then it cannot be deleted).
+    public static function existsForSession(int $preOrderSessionId): bool
     {
         return DB::table(self::TABLE)
-            ->where('bulk_session_id', $bulkSessionId)
+            ->where('pre_order_session_id', $preOrderSessionId)
             ->whereNull('deleted_at')
             ->exists();
     }
 
     // The next order number: the day it was placed and a counter, e.g.
-    // BLK-20261110-0004. A separate prefix, so it never competes with ORD-.
+    // PRE-20261110-0004. A separate prefix, so it never competes with ORD-.
     public static function nextOrderNumber(): string
     {
-        $prefix = 'BLK-' . now()->format('Ymd') . '-';
+        $prefix = 'PRE-' . now()->format('Ymd') . '-';
 
         $last = DB::table(self::TABLE)
             ->where('order_number', 'like', $prefix . '%')
@@ -240,7 +240,7 @@ class BulkOrder extends Model
         return $prefix . str_pad((string) $next, 4, '0', STR_PAD_LEFT);
     }
 
-    // The bulk orders awaiting a payment decision, for the dashboard.
+    // The pre-orders awaiting a payment decision, for the dashboard.
     public static function pendingPaymentCount(): int
     {
         return DB::table(self::TABLE)
@@ -265,10 +265,10 @@ class BulkOrder extends Model
     }
 
     // Set the order status; returns the number of changed rows.
-    public static function updateStatus(int $bulkOrderId, string $status): int
+    public static function updateStatus(int $preOrderOrderId, string $status): int
     {
         return DB::table(self::TABLE)
-            ->where('bulk_order_id', $bulkOrderId)
+            ->where('pre_order_id', $preOrderOrderId)
             ->whereNull('deleted_at')
             ->update([
                 'order_status' => $status,
@@ -282,10 +282,10 @@ class BulkOrder extends Model
     // moment are stamped (and cleared again for pending, when $verifiedBy is
     // null); the reason belongs to a rejection only. Returns the number of
     // changed rows.
-    public static function setPaymentStatus(int $bulkOrderId, string $status, ?int $verifiedBy, ?string $reason = null): int
+    public static function setPaymentStatus(int $preOrderOrderId, string $status, ?int $verifiedBy, ?string $reason = null): int
     {
         return DB::table(self::TABLE)
-            ->where('bulk_order_id', $bulkOrderId)
+            ->where('pre_order_id', $preOrderOrderId)
             ->whereNull('deleted_at')
             ->update([
                 'payment_status' => $status,
@@ -299,10 +299,10 @@ class BulkOrder extends Model
     // The customer fixes a rejected payment: a new proof (same or another
     // method) and the payment is pending again, for staff to check. The old
     // reviewer, moment and reason are cleared. Returns the number of changed rows.
-    public static function resubmitPayment(int $bulkOrderId, int $methodId, ?string $referenceNumber, ?string $proofOfPayment): int
+    public static function resubmitPayment(int $preOrderOrderId, int $methodId, ?string $referenceNumber, ?string $proofOfPayment): int
     {
         return DB::table(self::TABLE)
-            ->where('bulk_order_id', $bulkOrderId)
+            ->where('pre_order_id', $preOrderOrderId)
             ->whereNull('deleted_at')
             ->update([
                 'payment_method_id' => $methodId,

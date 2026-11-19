@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\BulkOrder;
-use App\Models\BulkSession;
-use App\Models\BulkSessionDish;
+use App\Models\PreOrder;
+use App\Models\PreOrderSession;
+use App\Models\PreOrderSessionDish;
 use App\Models\Dish;
 use App\Models\Order;
 use App\Models\PaymentMethod;
@@ -18,36 +18,36 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
-// The customer side of Bulk Orders: the bulk menu, placing an order (minimum plates,
+// The customer side of Pre-Orders: the pre-order menu, placing an order (minimum plates,
 // prices, session state, payment proof, idempotency, the per-customer lock), and
-// My Bulk Orders. There is no stock, so there is nothing to reserve or run out of.
-class BulkCheckoutTest extends TestCase
+// My Pre-Orders. There is no stock, so there is nothing to reserve or run out of.
+class PreOrderCheckoutTest extends TestCase
 {
     use RefreshDatabase;
 
     private function customer(): User
     {
-        return $this->userWith('view bulk-menu', 'create bulk-orders', 'view my bulk-orders');
+        return $this->userWith('view pre-order-menu', 'create pre-orders', 'view my pre-orders');
     }
 
     /**
-     * A live bulk session (minimum 10) with one dish at ₱100.
+     * A live pre-order session (minimum 10) with one dish at ₱100.
      *
-     * @return array{0: BulkSession, 1: BulkSessionDish}
+     * @return array{0: PreOrderSession, 1: PreOrderSessionDish}
      */
     private function liveSession(int $minimum = 10, float $price = 100): array
     {
-        $session = BulkSession::factory()->create(['min_quantity' => $minimum]);
-        $line = BulkSessionDish::factory()->create([
-            'bulk_session_id' => $session->bulk_session_id,
+        $session = PreOrderSession::factory()->create(['min_quantity' => $minimum]);
+        $line = PreOrderSessionDish::factory()->create([
+            'pre_order_session_id' => $session->pre_order_session_id,
             'dish_id' => Dish::factory()->create(['price' => $price])->dish_id,
         ]);
 
         return [$session, $line];
     }
 
-    // Change the masterlist dish behind a bulk session line (an admin editing it).
-    private function updateDish(BulkSessionDish $line, array $attributes): void
+    // Change the masterlist dish behind a pre-order session line (an admin editing it).
+    private function updateDish(PreOrderSessionDish $line, array $attributes): void
     {
         DB::table('dishes')->where('dish_id', $line->dish_id)->update($attributes);
     }
@@ -57,10 +57,10 @@ class BulkCheckoutTest extends TestCase
         return PaymentMethod::factory()->create(['method_name' => PaymentMethod::CASH_ON_PICKUP]);
     }
 
-    private function order(BulkSession $session, array $items, PaymentMethod $method, array $extra = []): array
+    private function order(PreOrderSession $session, array $items, PaymentMethod $method, array $extra = []): array
     {
         return array_merge([
-            'bulk_session_id' => $session->bulk_session_id,
+            'pre_order_session_id' => $session->pre_order_session_id,
             'payment_method_id' => $method->method_id,
             'items' => $items,
         ], $extra);
@@ -70,9 +70,9 @@ class BulkCheckoutTest extends TestCase
 
     public function test_guests_are_sent_to_login(): void
     {
-        $this->get(route('bulk-menu.index'))->assertRedirect(route('login'));
-        $this->get(route('bulk-my-orders.index'))->assertRedirect(route('login'));
-        $this->post(route('bulk-orders.store'), [])->assertRedirect(route('login'));
+        $this->get(route('pre-order-menu.index'))->assertRedirect(route('login'));
+        $this->get(route('my-pre-orders.index'))->assertRedirect(route('login'));
+        $this->post(route('pre-orders.store'), [])->assertRedirect(route('login'));
     }
 
     public function test_each_page_and_the_order_need_their_own_permission(): void
@@ -82,45 +82,45 @@ class BulkCheckoutTest extends TestCase
 
         $nobody = $this->userWith('view menu', 'create orders', 'view my orders');
         $this->actingAs($nobody);
-        $this->get(route('bulk-menu.index'))->assertForbidden();
-        $this->get(route('bulk-my-orders.index'))->assertForbidden();
-        $this->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 10], $cash))->assertForbidden();
+        $this->get(route('pre-order-menu.index'))->assertForbidden();
+        $this->get(route('my-pre-orders.index'))->assertForbidden();
+        $this->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 10], $cash))->assertForbidden();
 
         // Seeing the menu is not ordering from it.
-        $this->actingAs($this->userWith('view bulk-menu'));
-        $this->get(route('bulk-menu.index'))->assertOk();
-        $this->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 10], $cash))->assertForbidden();
+        $this->actingAs($this->userWith('view pre-order-menu'));
+        $this->get(route('pre-order-menu.index'))->assertOk();
+        $this->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 10], $cash))->assertForbidden();
 
-        $this->assertDatabaseCount('bulk_orders', 0);
+        $this->assertDatabaseCount('pre_orders', 0);
     }
 
-    /* -------- the bulk menu -------- */
+    /* -------- the pre-order menu -------- */
 
-    public function test_the_menu_says_so_when_no_bulk_session_is_running(): void
+    public function test_the_menu_says_so_when_no_pre_order_session_is_running(): void
     {
-        BulkSession::factory()->ended()->create();
+        PreOrderSession::factory()->ended()->create();
 
         $this->actingAs($this->customer())
-            ->get(route('bulk-menu.index'))
+            ->get(route('pre-order-menu.index'))
             ->assertOk()
-            ->assertSee('No bulk session is running')
-            ->assertDontSee('id="bulk-summary"', false);
+            ->assertSee('No pre-order session is running')
+            ->assertDontSee('id="pre-order-summary"', false);
     }
 
-    public function test_the_menu_lists_the_dishes_of_the_live_bulk_session_with_its_minimum(): void
+    public function test_the_menu_lists_the_dishes_of_the_live_pre_order_session_with_its_minimum(): void
     {
         [$session, $line] = $this->liveSession(25);
         $this->updateDish($line, ['dish_name' => 'Pork Sisig']);
         $this->cash();
 
         $this->actingAs($this->customer())
-            ->get(route('bulk-menu.index'))
+            ->get(route('pre-order-menu.index'))
             ->assertOk()
             ->assertSee('Pork Sisig')
-            ->assertSee('id="bulk-summary"', false)
+            ->assertSee('id="pre-order-summary"', false)
             ->assertSee('data-min-quantity="25"', false)
-            ->assertSee('data-dish-card="' . $line->bulk_session_dish_id . '"', false)
-            // No stock anywhere on a bulk menu.
+            ->assertSee('data-dish-card="' . $line->pre_order_session_dish_id . '"', false)
+            // No stock anywhere on a pre-order menu.
             ->assertDontSee('Sold out')
             ->assertDontSee('data-stock-url', false)
             ->assertSee('data-cash-tile', false);
@@ -129,35 +129,35 @@ class BulkCheckoutTest extends TestCase
     public function test_a_dish_that_left_the_session_or_the_masterlist_is_not_offered(): void
     {
         [$session, $line] = $this->liveSession();
-        $gone = BulkSessionDish::factory()->create([
-            'bulk_session_id' => $session->bulk_session_id,
+        $gone = PreOrderSessionDish::factory()->create([
+            'pre_order_session_id' => $session->pre_order_session_id,
             'dish_id' => Dish::factory()->create(['dish_name' => 'Hidden Dish'])->dish_id,
             'is_available' => false,
         ]);
 
         $this->actingAs($this->customer())
-            ->get(route('bulk-menu.index'))
+            ->get(route('pre-order-menu.index'))
             ->assertOk()
             ->assertDontSee('Hidden Dish')
-            ->assertDontSee('data-dish-card="' . $gone->bulk_session_dish_id . '"', false);
+            ->assertDontSee('data-dish-card="' . $gone->pre_order_session_dish_id . '"', false);
     }
 
-    public function test_the_regular_menu_and_the_bulk_menu_do_not_share_sessions(): void
+    public function test_the_regular_menu_and_the_pre_order_menu_do_not_share_sessions(): void
     {
-        // A live BULK session must not turn the regular menu on...
+        // A live PRE-ORDER session must not turn the regular menu on...
         $this->liveSession();
         $this->actingAs($this->userWith('view menu'))
             ->get(route('menu.index'))
             ->assertOk()
             ->assertSee('No order session is running');
 
-        // ...and a live ORDER session must not turn the bulk menu on.
-        BulkSession::query()->delete();
+        // ...and a live ORDER session must not turn the pre-order menu on.
+        PreOrderSession::query()->delete();
         \App\Models\OrderSession::factory()->create();
         $this->actingAs($this->customer())
-            ->get(route('bulk-menu.index'))
+            ->get(route('pre-order-menu.index'))
             ->assertOk()
-            ->assertSee('No bulk session is running');
+            ->assertSee('No pre-order session is running');
     }
 
     /* -------- placing an order -------- */
@@ -169,15 +169,15 @@ class BulkCheckoutTest extends TestCase
         $customer = $this->customer();
 
         $this->actingAs($customer)
-            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 12], $cash))
+            ->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 12], $cash))
             ->assertOk()
             ->assertJsonPath('status', 'success')
             ->assertJsonPath('total_amount', 1440)
             ->assertJsonPath('plates', 12);
 
-        $order = BulkOrder::ofUser($customer->id)[0];
+        $order = PreOrder::ofUser($customer->id)[0];
 
-        $this->assertSame('BLK-' . now()->format('Ymd') . '-0001', $order->order_number);
+        $this->assertSame('PRE-' . now()->format('Ymd') . '-0001', $order->order_number);
         $this->assertSame('pending', $order->order_status);
         $this->assertSame('pending', $order->payment_status);
         $this->assertSame(PaymentMethod::CASH_ON_PICKUP, $order->method_name);
@@ -198,34 +198,34 @@ class BulkCheckoutTest extends TestCase
         $customer = $this->customer();
 
         $this->actingAs($customer)
-            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 10], $this->cash()))
+            ->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 10], $this->cash()))
             ->assertOk();
 
         $this->updateDish($line, ['price' => 999]);
 
-        $this->assertSame(50.0, BulkOrder::ofUser($customer->id)[0]->items[0]['unit_price']);
+        $this->assertSame(50.0, PreOrder::ofUser($customer->id)[0]->items[0]['unit_price']);
     }
 
     public function test_the_order_can_mix_dishes_and_the_minimum_counts_all_of_them(): void
     {
         [$session, $first] = $this->liveSession(10, 100);
-        $second = BulkSessionDish::factory()->create([
-            'bulk_session_id' => $session->bulk_session_id,
+        $second = PreOrderSessionDish::factory()->create([
+            'pre_order_session_id' => $session->pre_order_session_id,
             'dish_id' => Dish::factory()->create(['price' => 30.1])->dish_id,
         ]);
         $customer = $this->customer();
 
         $this->actingAs($customer)
-            ->postJson(route('bulk-orders.store'), $this->order($session, [
-                $first->bulk_session_dish_id => 4,
-                $second->bulk_session_dish_id => 6,
+            ->postJson(route('pre-orders.store'), $this->order($session, [
+                $first->pre_order_session_dish_id => 4,
+                $second->pre_order_session_dish_id => 6,
             ], $this->cash()))
             ->assertOk()
             ->assertJsonPath('plates', 10)
             // 4 x 100 + 6 x 30.10, in cents.
             ->assertJsonPath('total_amount', 580.6);
 
-        $this->assertCount(2, BulkOrder::ofUser($customer->id)[0]->items);
+        $this->assertCount(2, PreOrder::ofUser($customer->id)[0]->items);
     }
 
     public function test_an_order_below_the_minimum_is_refused_and_leaves_nothing_behind(): void
@@ -235,15 +235,15 @@ class BulkCheckoutTest extends TestCase
         $gcash = PaymentMethod::factory()->create(['method_name' => 'GCash']);
 
         $this->actingAs($this->customer())
-            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 19], $gcash, [
+            ->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 19], $gcash, [
                 'proof_of_payment' => UploadedFile::fake()->image('proof.jpg'),
             ]))
             ->assertStatus(422)
             ->assertJsonPath('min_quantity', 20)
-            ->assertJsonPath('prices.' . $line->bulk_session_dish_id, 100);
+            ->assertJsonPath('prices.' . $line->pre_order_session_dish_id, 100);
 
-        $this->assertDatabaseCount('bulk_orders', 0);
-        $this->assertDatabaseCount('bulk_order_items', 0);
+        $this->assertDatabaseCount('pre_orders', 0);
+        $this->assertDatabaseCount('pre_order_items', 0);
         // The picture was not stored.
         $this->assertSame([], Storage::disk('public')->allFiles());
     }
@@ -253,12 +253,12 @@ class BulkCheckoutTest extends TestCase
     public function test_an_order_above_the_system_maximum_is_refused_and_leaves_nothing_behind(): void
     {
         Storage::fake('public');
-        Setting::setBulkLimits(10, 50);
+        Setting::setPreOrderLimits(10, 50);
         [$session, $line] = $this->liveSession(10);
         $gcash = PaymentMethod::factory()->create(['method_name' => 'GCash']);
 
         $response = $this->actingAs($this->customer())
-            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 51], $gcash, [
+            ->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 51], $gcash, [
                 'proof_of_payment' => UploadedFile::fake()->image('proof.jpg'),
             ]))
             ->assertStatus(422)
@@ -266,17 +266,17 @@ class BulkCheckoutTest extends TestCase
             ->assertJsonPath('max_quantity', 50);
 
         $this->assertStringContainsString('at most 50 plates', $response->json('message'));
-        $this->assertDatabaseCount('bulk_orders', 0);
+        $this->assertDatabaseCount('pre_orders', 0);
         $this->assertSame([], Storage::disk('public')->allFiles());
     }
 
     public function test_exactly_the_system_maximum_is_enough(): void
     {
-        Setting::setBulkLimits(10, 50);
+        Setting::setPreOrderLimits(10, 50);
         [$session, $line] = $this->liveSession(10);
 
         $this->actingAs($this->customer())
-            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 50], $this->cash()))
+            ->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 50], $this->cash()))
             ->assertOk()->assertJsonPath('plates', 50);
     }
 
@@ -284,25 +284,25 @@ class BulkCheckoutTest extends TestCase
     {
         [$session, $line] = $this->liveSession(10);
 
-        $this->assertNull(Setting::bulkLimits()['max']);
+        $this->assertNull(Setting::preOrderLimits()['max']);
 
         $this->actingAs($this->customer())
-            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 5000], $this->cash()))
+            ->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 5000], $this->cash()))
             ->assertOk();
     }
 
     public function test_the_system_minimum_beats_a_smaller_session_minimum(): void
     {
         // A session made before the floor was raised.
-        $session = BulkSession::factory()->create(['min_quantity' => 5]);
-        $line = BulkSessionDish::factory()->create([
-            'bulk_session_id' => $session->bulk_session_id,
+        $session = PreOrderSession::factory()->create(['min_quantity' => 5]);
+        $line = PreOrderSessionDish::factory()->create([
+            'pre_order_session_id' => $session->pre_order_session_id,
             'dish_id' => Dish::factory()->create(['price' => 100])->dish_id,
         ]);
-        Setting::setBulkLimits(20, null);
+        Setting::setPreOrderLimits(20, null);
 
         $response = $this->actingAs($this->customer())
-            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 10], $this->cash()))
+            ->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 10], $this->cash()))
             ->assertStatus(422)
             ->assertJsonPath('min_quantity', 20);
 
@@ -313,21 +313,21 @@ class BulkCheckoutTest extends TestCase
     {
         [$session, $line] = $this->liveSession(40);
         // The maximum was lowered after the session was made: it must stay orderable.
-        Setting::setBulkLimits(10, 30);
+        Setting::setPreOrderLimits(10, 30);
 
         $this->actingAs($this->customer())
-            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 30], $this->cash()))
+            ->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 30], $this->cash()))
             ->assertOk();
     }
 
     public function test_the_menu_shows_the_limits_to_the_customer(): void
     {
-        Setting::setBulkLimits(15, 80);
+        Setting::setPreOrderLimits(15, 80);
         $this->liveSession(10);
         $this->cash();
 
         $this->actingAs($this->customer())
-            ->get(route('bulk-menu.index'))
+            ->get(route('pre-order-menu.index'))
             ->assertOk()
             ->assertSee('data-min-quantity="15"', false)
             ->assertSee('data-max-quantity="80"', false);
@@ -338,7 +338,7 @@ class BulkCheckoutTest extends TestCase
         [$session, $line] = $this->liveSession(20);
 
         $this->actingAs($this->customer())
-            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 20], $this->cash()))
+            ->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 20], $this->cash()))
             ->assertOk();
     }
 
@@ -347,10 +347,10 @@ class BulkCheckoutTest extends TestCase
         [$session, $line] = $this->liveSession(10);
         $cash = $this->cash();
 
-        BulkSession::updateSession($session->bulk_session_id, ['min_quantity' => 30], [$line->dish_id]);
+        PreOrderSession::updateSession($session->pre_order_session_id, ['min_quantity' => 30], [$line->dish_id]);
 
         $response = $this->actingAs($this->customer())
-            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 10], $cash))
+            ->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 10], $cash))
             ->assertStatus(422);
 
         $this->assertStringContainsString('at least 30 plates', $response->json('message'));
@@ -362,27 +362,27 @@ class BulkCheckoutTest extends TestCase
         $cash = $this->cash();
         $customer = $this->customer();
 
-        $ended = BulkSession::factory()->ended()->create();
-        $scheduled = BulkSession::factory()->scheduled()->create();
-        $manual = BulkSession::factory()->create();
-        BulkSession::endSession($manual->bulk_session_id);
+        $ended = PreOrderSession::factory()->ended()->create();
+        $scheduled = PreOrderSession::factory()->scheduled()->create();
+        $manual = PreOrderSession::factory()->create();
+        PreOrderSession::endSession($manual->pre_order_session_id);
 
         foreach ([$ended, $scheduled, $manual] as $session) {
-            $line = BulkSessionDish::factory()->create(['bulk_session_id' => $session->bulk_session_id]);
+            $line = PreOrderSessionDish::factory()->create(['pre_order_session_id' => $session->pre_order_session_id]);
 
             $this->actingAs($customer)
-                ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 50], $cash))
+                ->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 50], $cash))
                 ->assertStatus(422)
-                ->assertJsonPath('message', 'This bulk session is not running.');
+                ->assertJsonPath('message', 'This pre-order session is not running.');
         }
 
         $this->actingAs($customer)
-            ->postJson(route('bulk-orders.store'), [
-                'bulk_session_id' => 999999, 'payment_method_id' => $cash->method_id, 'items' => [1 => 50],
+            ->postJson(route('pre-orders.store'), [
+                'pre_order_session_id' => 999999, 'payment_method_id' => $cash->method_id, 'items' => [1 => 50],
             ])
             ->assertNotFound();
 
-        $this->assertDatabaseCount('bulk_orders', 0);
+        $this->assertDatabaseCount('pre_orders', 0);
     }
 
     public function test_a_dish_from_another_session_or_a_removed_one_is_refused(): void
@@ -393,16 +393,16 @@ class BulkCheckoutTest extends TestCase
 
         // Another session's dish id must not be orderable here.
         $this->actingAs($this->customer())
-            ->postJson(route('bulk-orders.store'), $this->order($session, [$foreign->bulk_session_dish_id => 50], $cash))
+            ->postJson(route('pre-orders.store'), $this->order($session, [$foreign->pre_order_session_dish_id => 50], $cash))
             ->assertStatus(422)
-            ->assertJsonPath('prices.' . $line->bulk_session_dish_id, 100);
+            ->assertJsonPath('prices.' . $line->pre_order_session_dish_id, 100);
 
         // A dish an admin took out of the session while the customer was browsing.
-        BulkSession::syncDishes($session->bulk_session_id, []);
-        $this->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 50], $cash))
+        PreOrderSession::syncDishes($session->pre_order_session_id, []);
+        $this->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 50], $cash))
             ->assertStatus(422);
 
-        $this->assertDatabaseCount('bulk_orders', 0);
+        $this->assertDatabaseCount('pre_orders', 0);
     }
 
     public function test_a_changed_price_refuses_the_order_and_carries_the_new_price(): void
@@ -411,14 +411,14 @@ class BulkCheckoutTest extends TestCase
         $this->updateDish($line, ['price' => 125]);
 
         $response = $this->actingAs($this->customer())
-            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 10], $this->cash(), [
-                'expected_prices' => [$line->bulk_session_dish_id => 100],
+            ->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 10], $this->cash(), [
+                'expected_prices' => [$line->pre_order_session_dish_id => 100],
             ]))
             ->assertStatus(422)
-            ->assertJsonPath('prices.' . $line->bulk_session_dish_id, 125);
+            ->assertJsonPath('prices.' . $line->pre_order_session_dish_id, 125);
 
         $this->assertStringContainsString('now ₱125.00 (was ₱100.00)', $response->json('message'));
-        $this->assertDatabaseCount('bulk_orders', 0);
+        $this->assertDatabaseCount('pre_orders', 0);
     }
 
     public function test_cents_compare_equal_and_a_missing_expected_price_is_not_checked(): void
@@ -428,15 +428,15 @@ class BulkCheckoutTest extends TestCase
         $customer = $this->customer();
 
         $this->actingAs($customer)
-            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 10], $cash, [
-                'expected_prices' => [$line->bulk_session_dish_id => '99.90'],
+            ->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 10], $cash, [
+                'expected_prices' => [$line->pre_order_session_dish_id => '99.90'],
                 'idempotency_key' => 'a',
             ]))
             ->assertOk();
 
         $this->updateDish($line, ['price' => 150]);
 
-        $this->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 10], $cash, [
+        $this->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 10], $cash, [
             'idempotency_key' => 'b',
         ]))->assertOk()->assertJsonPath('total_amount', 1500);
     }
@@ -449,20 +449,20 @@ class BulkCheckoutTest extends TestCase
         [$session, $line] = $this->liveSession();
         $gcash = PaymentMethod::factory()->create(['method_name' => 'GCash']);
         $customer = $this->customer();
-        $items = [$line->bulk_session_dish_id => 10];
+        $items = [$line->pre_order_session_dish_id => 10];
 
         $this->actingAs($customer)
-            ->postJson(route('bulk-orders.store'), $this->order($session, $items, $gcash))
+            ->postJson(route('pre-orders.store'), $this->order($session, $items, $gcash))
             ->assertStatus(422)
             ->assertJsonValidationErrors('proof_of_payment');
-        $this->assertDatabaseCount('bulk_orders', 0);
+        $this->assertDatabaseCount('pre_orders', 0);
 
-        $this->postJson(route('bulk-orders.store'), $this->order($session, $items, $gcash, [
+        $this->postJson(route('pre-orders.store'), $this->order($session, $items, $gcash, [
             'proof_of_payment' => UploadedFile::fake()->image('proof.jpg'),
             'reference_number' => 'REF-123',
         ]))->assertOk();
 
-        $order = BulkOrder::ofUser($customer->id)[0];
+        $order = PreOrder::ofUser($customer->id)[0];
 
         $this->assertSame('GCash', $order->method_name);
         $this->assertSame('REF-123', $order->reference_number);
@@ -478,15 +478,15 @@ class BulkCheckoutTest extends TestCase
         $gcash = PaymentMethod::factory()->create(['method_name' => 'GCash']);
         $this->actingAs($this->customer());
 
-        $this->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 10], $gcash, [
+        $this->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 10], $gcash, [
             'proof_of_payment' => UploadedFile::fake()->create('proof.pdf', 100, 'application/pdf'),
         ]))->assertStatus(422)->assertJsonValidationErrors('proof_of_payment');
 
-        $this->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 10], $gcash, [
+        $this->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 10], $gcash, [
             'proof_of_payment' => UploadedFile::fake()->image('proof.jpg')->size(3000),
         ]))->assertStatus(422)->assertJsonValidationErrors('proof_of_payment');
 
-        $this->assertDatabaseCount('bulk_orders', 0);
+        $this->assertDatabaseCount('pre_orders', 0);
     }
 
     public function test_an_inactive_or_unknown_payment_method_is_refused(): void
@@ -495,10 +495,10 @@ class BulkCheckoutTest extends TestCase
         $off = PaymentMethod::factory()->create(['method_name' => 'Old Wallet', 'is_active' => false]);
         $this->actingAs($this->customer());
 
-        $this->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 10], $off))
+        $this->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 10], $off))
             ->assertStatus(422)->assertJsonValidationErrors('payment_method_id');
-        $this->postJson(route('bulk-orders.store'), [
-            'bulk_session_id' => $session->bulk_session_id, 'items' => [$line->bulk_session_dish_id => 10],
+        $this->postJson(route('pre-orders.store'), [
+            'pre_order_session_id' => $session->pre_order_session_id, 'items' => [$line->pre_order_session_dish_id => 10],
         ])->assertStatus(422)->assertJsonValidationErrors('payment_method_id');
     }
 
@@ -510,18 +510,18 @@ class BulkCheckoutTest extends TestCase
         $cash = $this->cash();
         $this->actingAs($this->customer());
 
-        $this->postJson(route('bulk-orders.store'), $this->order($session, [], $cash))
+        $this->postJson(route('pre-orders.store'), $this->order($session, [], $cash))
             ->assertStatus(422)->assertJsonValidationErrors('items');
         // Zero and negative plates are dropped, which leaves nothing.
-        $this->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 0], $cash))
+        $this->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 0], $cash))
             ->assertStatus(422)->assertJsonValidationErrors('items');
-        $this->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => -5], $cash))
+        $this->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => -5], $cash))
             ->assertStatus(422)->assertJsonValidationErrors('items');
         // An absurd line is refused rather than stored.
-        $this->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 10001], $cash))
-            ->assertStatus(422)->assertJsonValidationErrors('items.' . $line->bulk_session_dish_id);
+        $this->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 10001], $cash))
+            ->assertStatus(422)->assertJsonValidationErrors('items.' . $line->pre_order_session_dish_id);
 
-        $this->assertDatabaseCount('bulk_orders', 0);
+        $this->assertDatabaseCount('pre_orders', 0);
     }
 
     /* -------- double taps and retries -------- */
@@ -531,25 +531,25 @@ class BulkCheckoutTest extends TestCase
         [$session, $line] = $this->liveSession();
         $cash = $this->cash();
         $customer = $this->customer();
-        $body = $this->order($session, [$line->bulk_session_dish_id => 10], $cash, ['idempotency_key' => 'abc-123']);
+        $body = $this->order($session, [$line->pre_order_session_dish_id => 10], $cash, ['idempotency_key' => 'abc-123']);
 
-        $first = $this->actingAs($customer)->postJson(route('bulk-orders.store'), $body)->assertOk()->json();
-        $second = $this->postJson(route('bulk-orders.store'), $body)->assertOk()->json();
+        $first = $this->actingAs($customer)->postJson(route('pre-orders.store'), $body)->assertOk()->json();
+        $second = $this->postJson(route('pre-orders.store'), $body)->assertOk()->json();
 
         $this->assertSame($first, $second);
-        $this->assertDatabaseCount('bulk_orders', 1);
+        $this->assertDatabaseCount('pre_orders', 1);
     }
 
     public function test_the_same_key_from_another_customer_is_a_different_order(): void
     {
         [$session, $line] = $this->liveSession();
         $cash = $this->cash();
-        $body = $this->order($session, [$line->bulk_session_dish_id => 10], $cash, ['idempotency_key' => 'shared-key']);
+        $body = $this->order($session, [$line->pre_order_session_dish_id => 10], $cash, ['idempotency_key' => 'shared-key']);
 
-        $this->actingAs($this->customer())->postJson(route('bulk-orders.store'), $body)->assertOk();
-        $this->actingAs($this->customer())->postJson(route('bulk-orders.store'), $body)->assertOk();
+        $this->actingAs($this->customer())->postJson(route('pre-orders.store'), $body)->assertOk();
+        $this->actingAs($this->customer())->postJson(route('pre-orders.store'), $body)->assertOk();
 
-        $this->assertDatabaseCount('bulk_orders', 2);
+        $this->assertDatabaseCount('pre_orders', 2);
     }
 
     public function test_a_customer_with_an_order_in_flight_gets_409_and_the_lock_is_released_after(): void
@@ -557,22 +557,22 @@ class BulkCheckoutTest extends TestCase
         [$session, $line] = $this->liveSession();
         $cash = $this->cash();
         $customer = $this->customer();
-        $body = $this->order($session, [$line->bulk_session_dish_id => 10], $cash);
+        $body = $this->order($session, [$line->pre_order_session_dish_id => 10], $cash);
 
-        $held = Cache::lock('place-bulk-order:' . $customer->id, 30);
+        $held = Cache::lock('place-pre-order:' . $customer->id, 30);
         $this->assertTrue($held->get());
 
-        $this->actingAs($customer)->postJson(route('bulk-orders.store'), $body)->assertStatus(409);
-        $this->assertDatabaseCount('bulk_orders', 0);
+        $this->actingAs($customer)->postJson(route('pre-orders.store'), $body)->assertStatus(409);
+        $this->assertDatabaseCount('pre_orders', 0);
 
         $held->release();
 
-        $this->postJson(route('bulk-orders.store'), $body)->assertOk();
+        $this->postJson(route('pre-orders.store'), $body)->assertOk();
         // And it let go again, so the next order is not blocked.
-        $this->postJson(route('bulk-orders.store'), $body)->assertOk();
+        $this->postJson(route('pre-orders.store'), $body)->assertOk();
     }
 
-    public function test_a_regular_order_in_flight_does_not_block_a_bulk_order(): void
+    public function test_a_regular_order_in_flight_does_not_block_a_pre_order(): void
     {
         [$session, $line] = $this->liveSession();
         $customer = $this->customer();
@@ -581,13 +581,13 @@ class BulkCheckoutTest extends TestCase
         $this->assertTrue($regular->get());
 
         $this->actingAs($customer)
-            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 10], $this->cash()))
+            ->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 10], $this->cash()))
             ->assertOk();
 
         $regular->release();
     }
 
-    public function test_a_bulk_receipt_never_answers_a_regular_order_key(): void
+    public function test_a_pre_order_receipt_never_answers_a_regular_order_key(): void
     {
         [$session, $line] = $this->liveSession();
         $customer = $this->customer();
@@ -596,23 +596,23 @@ class BulkCheckoutTest extends TestCase
         Cache::put('order-receipt:' . $customer->id . ':same', ['status' => 'success', 'order_number' => 'ORD-X'], 600);
 
         $this->actingAs($customer)
-            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 10], $this->cash(), ['idempotency_key' => 'same']))
+            ->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 10], $this->cash(), ['idempotency_key' => 'same']))
             ->assertOk()
-            ->assertJsonPath('order_number', 'BLK-' . now()->format('Ymd') . '-0001');
+            ->assertJsonPath('order_number', 'PRE-' . now()->format('Ymd') . '-0001');
     }
 
-    public function test_order_numbers_count_up_per_day_with_the_bulk_prefix(): void
+    public function test_order_numbers_count_up_per_day_with_the_pre_order_prefix(): void
     {
         [$session, $line] = $this->liveSession();
         $cash = $this->cash();
         $this->actingAs($this->customer());
-        $body = $this->order($session, [$line->bulk_session_dish_id => 10], $cash);
+        $body = $this->order($session, [$line->pre_order_session_dish_id => 10], $cash);
 
-        $one = $this->postJson(route('bulk-orders.store'), $body)->json('order_number');
-        $two = $this->postJson(route('bulk-orders.store'), $body)->json('order_number');
+        $one = $this->postJson(route('pre-orders.store'), $body)->json('order_number');
+        $two = $this->postJson(route('pre-orders.store'), $body)->json('order_number');
 
-        $this->assertSame('BLK-' . now()->format('Ymd') . '-0001', $one);
-        $this->assertSame('BLK-' . now()->format('Ymd') . '-0002', $two);
+        $this->assertSame('PRE-' . now()->format('Ymd') . '-0001', $one);
+        $this->assertSame('PRE-' . now()->format('Ymd') . '-0002', $two);
     }
 
     public function test_the_order_endpoint_is_throttled_to_ten_a_minute(): void
@@ -620,70 +620,70 @@ class BulkCheckoutTest extends TestCase
         [$session, $line] = $this->liveSession();
         $cash = $this->cash();
         $this->actingAs($this->customer());
-        $body = $this->order($session, [$line->bulk_session_dish_id => 10], $cash);
+        $body = $this->order($session, [$line->pre_order_session_dish_id => 10], $cash);
 
         for ($i = 0; $i < 10; $i++) {
-            $this->postJson(route('bulk-orders.store'), $body)->assertOk();
+            $this->postJson(route('pre-orders.store'), $body)->assertOk();
         }
 
-        $this->postJson(route('bulk-orders.store'), $body)->assertStatus(429);
+        $this->postJson(route('pre-orders.store'), $body)->assertStatus(429);
     }
 
-    /* -------- My Bulk Orders -------- */
+    /* -------- My Pre-Orders -------- */
 
-    public function test_my_bulk_orders_lists_only_my_orders_newest_first_with_lines_and_payment(): void
+    public function test_my_pre_orders_lists_only_my_orders_newest_first_with_lines_and_payment(): void
     {
         $me = $this->customer();
         $someoneElse = $this->customer();
-        $mine = BulkOrder::factory()->create(['user_id' => $me->id, 'order_number' => 'BLK-OLD', 'total_amount' => 500]);
-        $newer = BulkOrder::factory()->create([
+        $mine = PreOrder::factory()->create(['user_id' => $me->id, 'order_number' => 'PRE-OLD', 'total_amount' => 500]);
+        $newer = PreOrder::factory()->create([
             'user_id' => $me->id,
-            'order_number' => 'BLK-NEW',
+            'order_number' => 'PRE-NEW',
             'payment_status' => 'rejected',
             'rejection_reason' => 'The picture is blurry',
         ]);
-        BulkOrder::factory()->create(['user_id' => $someoneElse->id, 'order_number' => 'BLK-NOT-MINE']);
-        \App\Models\BulkOrderItem::factory()->create([
-            'bulk_order_id' => $mine->bulk_order_id,
-            'bulk_session_dish_id' => BulkSessionDish::factory()->create([
+        PreOrder::factory()->create(['user_id' => $someoneElse->id, 'order_number' => 'PRE-NOT-MINE']);
+        \App\Models\PreOrderItem::factory()->create([
+            'pre_order_id' => $mine->pre_order_id,
+            'pre_order_session_dish_id' => PreOrderSessionDish::factory()->create([
                 'dish_id' => Dish::factory()->create(['dish_name' => 'Beef Caldereta'])->dish_id,
-            ])->bulk_session_dish_id,
+            ])->pre_order_session_dish_id,
             'quantity' => 15,
             'unit_price' => 200,
             'sub_total' => 3000,
         ]);
 
         $this->actingAs($me)
-            ->get(route('bulk-my-orders.index'))
+            ->get(route('my-pre-orders.index'))
             ->assertOk()
-            ->assertSeeInOrder(['BLK-NEW', 'BLK-OLD'])
-            ->assertDontSee('BLK-NOT-MINE')
+            ->assertSeeInOrder(['PRE-NEW', 'PRE-OLD'])
+            ->assertDontSee('PRE-NOT-MINE')
             ->assertSee('Beef Caldereta')
             ->assertSee('15×', false)
             ->assertSee('₱3,000.00')
             ->assertSee('Payment rejected')
             ->assertSee('The picture is blurry')
-            ->assertSee('id="bulk-order-' . $newer->bulk_order_id . '"', false);
+            ->assertSee('id="pre-order-' . $newer->pre_order_id . '"', false);
     }
 
-    public function test_my_bulk_orders_is_empty_for_a_new_customer(): void
+    public function test_my_pre_orders_is_empty_for_a_new_customer(): void
     {
         $this->actingAs($this->customer())
-            ->get(route('bulk-my-orders.index'))
+            ->get(route('my-pre-orders.index'))
             ->assertOk()
-            ->assertSee('No bulk orders yet');
+            ->assertSee('No pre-orders yet');
     }
 
-    public function test_a_bulk_order_is_not_listed_in_my_regular_orders_or_the_orders_page(): void
+    public function test_a_pre_order_is_not_listed_in_my_regular_orders_or_the_orders_page(): void
     {
         [$session, $line] = $this->liveSession();
-        $customer = $this->userWith('view bulk-menu', 'create bulk-orders', 'view my orders', 'view orders');
+        $customer = $this->userWith('view pre-order-menu', 'create pre-orders', 'view my orders', 'view orders');
 
         $this->actingAs($customer)
-            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 10], $this->cash()))
+            ->postJson(route('pre-orders.store'), $this->order($session, [$line->pre_order_session_dish_id => 10], $this->cash()))
             ->assertOk();
 
-        $this->get(route('my-orders.index'))->assertOk()->assertDontSee('BLK-');
+        $this->get(route('my-orders.index'))->assertOk()->assertDontSee('PRE-');
         $this->getJson(route('orders.index'), ['X-Requested-With' => 'XMLHttpRequest'])
             ->assertOk()
             ->assertJsonCount(0, 'data');
@@ -692,31 +692,31 @@ class BulkCheckoutTest extends TestCase
 
     /* -------- navigation -------- */
 
-    public function test_the_sidebar_and_dashboard_link_to_the_bulk_pages_by_permission(): void
+    public function test_the_sidebar_and_dashboard_link_to_the_pre_order_pages_by_permission(): void
     {
         $this->actingAs($this->customer())
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee(route('bulk-menu.index'))
-            ->assertSee(route('bulk-my-orders.index'));
+            ->assertSee(route('pre-order-menu.index'))
+            ->assertSee(route('my-pre-orders.index'));
 
         $this->actingAs($this->userWith('view menu', 'view my orders'))
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertDontSee(route('bulk-menu.index'))
-            ->assertDontSee(route('bulk-my-orders.index'));
+            ->assertDontSee(route('pre-order-menu.index'))
+            ->assertDontSee(route('my-pre-orders.index'));
     }
 
-    public function test_the_customer_role_can_use_bulk_ordering_out_of_the_box(): void
+    public function test_the_customer_role_can_use_pre_ordering_out_of_the_box(): void
     {
         $this->seedPermissions();
 
         $customer = User::factory()->create();
         $customer->assignRole(\App\Models\Role::CUSTOMER);
 
-        $this->actingAs($customer)->get(route('bulk-menu.index'))->assertOk();
-        $this->get(route('bulk-my-orders.index'))->assertOk();
+        $this->actingAs($customer)->get(route('pre-order-menu.index'))->assertOk();
+        $this->get(route('my-pre-orders.index'))->assertOk();
         // ...but nothing behind the counter.
-        $this->get(route('bulk-sessions.index'))->assertForbidden();
+        $this->get(route('pre-order-sessions.index'))->assertForbidden();
     }
 }

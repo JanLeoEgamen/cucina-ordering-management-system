@@ -9,7 +9,7 @@
  * already holds, so opening costs no request. Complete Order, Cancel Order, Verify Payment
  * and Reject Payment are all confirmed INSIDE the popup (the footer swaps for a confirm bar;
  * Reject's bar also holds the reason box, which is required). After a successful action the popup closes
- * and `onChange(kind)` runs, kind being 'complete' | 'cancel' | 'verify' | 'reject': the
+ * and `onChange(kind)` runs, kind being 'complete' | 'cancel' | 'verify' | 'reject' | 'ready': the
  * page decides what to refresh (cancelling gives stock back, so the session page reloads).
  */
 import { showToast } from './toast';
@@ -76,6 +76,7 @@ export function initOrderPopup({ onChange = () => {} } = {}) {
     const rejectButton = byId('order-details-reject');
     const completeButton = byId('order-details-complete');
     const cancelButton = byId('order-details-cancel');
+    const readyButton = byId('order-details-ready');
     const hint = byId('order-details-hint');
 
     // One request at a time across the inline confirmation.
@@ -98,12 +99,13 @@ export function initOrderPopup({ onChange = () => {} } = {}) {
 
     const goStyles = {
         complete: 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-300 dark:focus:ring-indigo-800',
+        ready: 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-300 dark:focus:ring-indigo-800',
         verify: 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-300 dark:focus:ring-emerald-800',
         cancel: 'bg-red-600 hover:bg-red-700 focus:ring-red-300 dark:focus:ring-red-900',
         reject: 'bg-red-600 hover:bg-red-700 focus:ring-red-300 dark:focus:ring-red-900',
     };
 
-    let inline = null; // { url, kind: 'verify' | 'complete' | 'cancel' | 'reject' }
+    let inline = null; // { url, kind: 'verify' | 'complete' | 'cancel' | 'reject' | 'ready' }
 
     // One line under the reason box (empty text hides it).
     const showRejectError = (message) => {
@@ -163,6 +165,7 @@ export function initOrderPopup({ onChange = () => {} } = {}) {
     rejectButton?.addEventListener('click', () => askInline(rejectButton, 'reject'));
     completeButton?.addEventListener('click', () => askInline(completeButton, 'complete'));
     cancelButton?.addEventListener('click', () => askInline(cancelButton, 'cancel'));
+    readyButton?.addEventListener('click', () => askInline(readyButton, 'ready'));
     confirmBack?.addEventListener('click', leaveConfirm);
 
     confirmGo?.addEventListener('click', async () => {
@@ -274,7 +277,7 @@ export function initOrderPopup({ onChange = () => {} } = {}) {
                 + '<td class="px-3 py-2 text-right text-sm tabular-nums text-gray-900 dark:text-white">' + money(item.sub_total) + '</td>'
                 + '</tr>').join('');
 
-        for (const [button, url] of [[verifyButton, order.verify_url], [rejectButton, order.reject_url], [completeButton, order.complete_url], [cancelButton, order.cancel_url]]) {
+        for (const [button, url] of [[verifyButton, order.verify_url], [rejectButton, order.reject_url], [completeButton, order.complete_url], [cancelButton, order.cancel_url], [readyButton, order.ready_url]]) {
             if (button) {
                 button.classList.toggle('hidden', !url);
                 button.dataset.url = url ?? '';

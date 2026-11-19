@@ -6,6 +6,7 @@ use App\Models\Dish;
 use App\Models\Order;
 use App\Models\OrderSession;
 use App\Models\Setting;
+use App\Support\OrderNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -24,6 +25,9 @@ class OrderSessionController extends Controller implements HasMiddleware
             new Middleware('permission:edit order-sessions', only: ['edit', 'update']),
             new Middleware('permission:delete order-sessions', only: ['destroy']),
             new Middleware('permission:end order-sessions', only: ['end']),
+            // Announcing is part of handing orders over, so it follows the Complete permission
+            // (the session page itself still needs `view order-sessions`).
+            new Middleware('permission:complete orders', only: ['announceReady']),
         ];
     }
 
@@ -121,10 +125,37 @@ class OrderSessionController extends Controller implements HasMiddleware
             'session' => $session,
             'statusBadge' => $this->sessionBadge($session->status),
             'canEnd' => $this->canEnd($session),
+            // Orders the "Announce ready" button would tell right now (ready_url is only set for
+            // someone who may announce, so this is 0 for everyone else and the button is not drawn).
+            'waitingCount' => $orders->filter(fn (object $order) => $order->ready_url !== null)->count(),
+            'canAnnounce' => auth()->user()->can('complete orders'),
             'ordersCount' => $orders->count(),
             'itemsSold' => (int) $sold->sum('items_count'),
             'salesTotal' => (float) $sold->sum('total_amount'),
         ]);
+    }
+
+    // Tell every customer whose order of this session is waiting that it is ready for pick up.
+    // Works on any session, ended ones too (orders are still being handed over after the
+    // window closes). Orders that cannot be announced yet (payment not verified, rejected,
+    // already announced, completed, cancelled) are skipped, not an error.
+    public function announceReady($id)
+    {
+        if (! OrderSession::findById((int) $id)) {
+            return $this->errorResponse('Order session not found.', 404);
+        }
+
+        $announced = Order::announceReady(array_column(Order::ofSession((int) $id), 'order_id'));
+
+        if ($announced === []) {
+            return $this->errorResponse('No order is waiting to be announced. Orders need a verified payment (or cash on pick up) and are announced once.', 422);
+        }
+
+        OrderNotifier::ready($announced);
+
+        return $this->successResponse(count($announced) === 1
+            ? '1 customer was told their order is ready for pick up.'
+            : count($announced) . ' customers were told their orders are ready for pick up.');
     }
 
     // Get one session with its dishes, for the edit drawer.
