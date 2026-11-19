@@ -117,16 +117,19 @@ return new class extends Migration
                     continue;
                 }
 
-                // `RENAME INDEX` does not exist on older MariaDB, so drop the (unique) index
-                // and make it again under the new name, on the same columns.
+                // `RENAME INDEX` does not exist on older MariaDB, so make the (unique) index again
+                // under the new name and drop the old one. The new one goes FIRST: a foreign key
+                // may rely on the old index and MySQL refuses to drop it until another covers the column.
                 $index = collect(Schema::getIndexes($name))->firstWhere('name', $from);
-                if ($index === null || ! Schema::hasIndex($name, $from)) {
+                if ($index === null) {
                     continue;
                 }
 
-                Schema::table($name, function (Blueprint $t) use ($from, $to, $index) {
+                Schema::table($name, function (Blueprint $t) use ($from, $to, $index, $name) {
+                    if (! Schema::hasIndex($name, $to)) {
+                        $t->unique($index['columns'], $to);
+                    }
                     $t->dropUnique($from);
-                    $t->unique($index['columns'], $to);
                 });
             }
         }
