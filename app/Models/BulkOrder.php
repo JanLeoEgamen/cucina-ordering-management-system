@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 // Orders placed inside a bulk session. Unlike Order, the payment is part of the
@@ -99,17 +102,20 @@ class BulkOrder extends Model
         })->values()->all();
     }
 
-    // The orders one customer placed, newest first, with the session they were
-    // placed in, their lines and their payment - for the customer's own list.
-    public static function ofUser(int $userId): array
+    // Bulk orders on one page of a customer's own list (My Bulk Orders).
+    public const USER_PAGE_SIZE = 10;
+
+    // The customer's own list as a query: newest first, with the session they were placed
+    // in and their payment. Shared by ofUser() and pageOfUser().
+    protected static function userListQuery(int $userId): Builder
     {
-        $orders = DB::table(self::TABLE)
+        return DB::table(self::TABLE)
             ->join('bulk_sessions', 'bulk_sessions.bulk_session_id', '=', self::TABLE . '.bulk_session_id')
             ->leftJoin('payment_methods', 'payment_methods.method_id', '=', self::TABLE . '.payment_method_id')
             ->where(self::TABLE . '.user_id', $userId)
             ->whereNull(self::TABLE . '.deleted_at')
             ->orderByDesc(self::TABLE . '.bulk_order_id')
-            ->get([
+            ->select([
                 self::TABLE . '.bulk_order_id',
                 self::TABLE . '.order_number',
                 self::TABLE . '.order_date',
@@ -125,16 +131,57 @@ class BulkOrder extends Model
                 'bulk_sessions.end_time',
                 'payment_methods.method_name',
             ]);
+    }
 
+    // One query for the lines of every order of the list, put on each order as `items`.
+    protected static function withItems(Collection $orders): Collection
+    {
         $items = BulkOrderItem::itemsByOrder($orders->pluck('bulk_order_id')->all());
 
         return $orders->map(function (object $order) use ($items) {
             $order->items = $items[$order->bulk_order_id] ?? [];
 
             return $order;
-        })->values()->all();
+        })->values();
     }
 
+    // The orders one customer placed, newest first, with the session they were
+    // placed in, their lines and their payment - the whole list.
+    public static function ofUser(int $userId): array
+    {
+        return self::withItems(self::userListQuery($userId)->get())->all();
+    }
+
+    // The same list, one page at a time, for the customer's own page.
+    public static function pageOfUser(int $userId, int $perPage = self::USER_PAGE_SIZE): LengthAwarePaginator
+    {
+        $page = self::userListQuery($userId)->paginate($perPage);
+
+        return $page->setCollection(self::withItems($page->getCollection()));
+    }
+
+    // The page of the customer's list that holds this order (1 = the newest), or null when it
+    // is not theirs / does not exist ("?order=ID" on the page jumps to it).
+    public static function pageNumberOf(int $userId, int $bulkOrderId, int $perPage = self::USER_PAGE_SIZE): ?int
+    {
+        $mine = DB::table(self::TABLE)
+            ->where('bulk_order_id', $bulkOrderId)
+            ->where('user_id', $userId)
+            ->whereNull('deleted_at')
+            ->exists();
+
+        if (! $mine) {
+            return null;
+        }
+
+        $newer = DB::table(self::TABLE)
+            ->where('user_id', $userId)
+            ->whereNull('deleted_at')
+            ->where('bulk_order_id', '>', $bulkOrderId)
+            ->count();
+
+        return intdiv($newer, $perPage) + 1;
+    }
     // Get one live order without its lines (the controllers need its owner,
     // its states and its method).
     public static function findById(int $bulkOrderId): ?object

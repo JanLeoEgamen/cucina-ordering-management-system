@@ -1,5 +1,9 @@
 /**
- * My Orders page: fix a payment staff rejected.
+ * My Orders page: open an order's details, fix a payment staff rejected, cancel an order.
+ *
+ * A click on an order card opens the order popup (ui/order-cards.js). The rest of this file
+ * is the "Fix your payment" panel and the inline "Cancel order" confirmation (only on a card
+ * whose `data-cancel-order` block the server printed: System Configuration allows it).
  *
  * The page is server rendered; only an order with a rejected payment that is
  * still pending carries the "Fix your payment" panel, and its URLs are in the
@@ -14,11 +18,19 @@
  * customer can try again.
  */
 import { showToast } from '../ui/toast';
+import { initOrderCards } from '../ui/order-cards';
 
 const start = () => {
     const root = document.querySelector('#my-orders-root');
 
-    if (!root || !root.querySelector('[data-fix-payment]')) {
+    if (!root) {
+        return;
+    }
+
+    initOrderCards(root);
+
+    // The rest is only for a page that has an order to fix or one the customer may cancel.
+    if (!root.querySelector('[data-fix-payment], [data-cancel-order]')) {
         return;
     }
 
@@ -114,6 +126,38 @@ const start = () => {
         }
 
         run(panel, form.querySelector('button[type="submit"]'), form.action, new FormData(form));
+    });
+
+    // Cancel the order: ask first, inline, then send (the card then shows it cancelled).
+    root.addEventListener('click', (event) => {
+        const holder = event.target.closest('[data-cancel-order]');
+
+        if (!holder) {
+            return;
+        }
+
+        const ask = holder.querySelector('[data-cancel-ask]');
+        const confirm = holder.querySelector('[data-cancel-confirm]');
+
+        if (event.target.closest('[data-cancel-ask]')) {
+            ask.classList.add('hidden');
+            confirm.classList.remove('hidden');
+
+            return;
+        }
+
+        if (event.target.closest('[data-cancel-no]')) {
+            confirm.classList.add('hidden');
+            ask.classList.remove('hidden');
+
+            return;
+        }
+
+        const yes = event.target.closest('[data-cancel-yes]');
+
+        if (yes) {
+            run(holder, yes, yes.dataset.url, new FormData());
+        }
     });
 
     // Pay with cash: ask first, inline, then send.

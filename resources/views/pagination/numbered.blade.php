@@ -2,6 +2,12 @@
     Numbered pagination in the app's own look (used as ->links('pagination.numbered')):
     "Showing 21–40 of 87", Previous / Next, and the page numbers (a short "Page 2 of 5"
     on phones). The current page is the ink pill, like every primary button.
+
+    Optional data (->links('pagination.numbered', [...])), for the pages that want what a
+    DataTables footer has:
+      always         show the footer even when everything fits on one page (the default hides it)
+      perPageLinks   [size => url]: "Rows per page 10 25 50 100", the current one marked
+      perPage        the current size
 --}}
 @php
     $button = 'inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-lg border px-3 text-sm font-medium transition focus:outline-none focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700';
@@ -9,11 +15,26 @@
     $off = 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500';
 @endphp
 
-@if ($paginator->hasPages())
+@if ($paginator->hasPages() || (($always ?? false) && $paginator->total() > 0))
     <nav class="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:justify-between" aria-label="{{ __('Page navigation') }}">
-        <p class="text-sm text-gray-500 dark:text-gray-400">
-            {{ __('Showing :from–:to of :total', ['from' => $paginator->firstItem(), 'to' => $paginator->lastItem(), 'total' => $paginator->total()]) }}
-        </p>
+        <div class="flex flex-col items-center gap-2 sm:flex-row sm:gap-5">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                {{ __('Showing :from–:to of :total', ['from' => $paginator->firstItem(), 'to' => $paginator->lastItem(), 'total' => $paginator->total()]) }}
+            </p>
+
+            @if (! empty($perPageLinks))
+                <div class="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+                    <span class="mr-1">{{ __('Rows per page') }}</span>
+                    @foreach ($perPageLinks as $size => $url)
+                        @if ((int) $size === (int) ($perPage ?? 0))
+                            <span aria-current="true" class="inline-flex h-8 min-w-[2rem] items-center justify-center rounded-lg border border-transparent bg-indigo-600 px-2 text-xs font-semibold text-white dark:bg-mist dark:text-ink">{{ $size }}</span>
+                        @else
+                            <a href="{{ $url }}" class="inline-flex h-8 min-w-[2rem] items-center justify-center rounded-lg border border-gray-300 bg-white px-2 text-xs font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:focus:ring-gray-700" aria-label="{{ __(':count rows per page', ['count' => $size]) }}">{{ $size }}</a>
+                        @endif
+                    @endforeach
+                </div>
+            @endif
+        </div>
 
         <div class="flex items-center gap-1">
             @if ($paginator->onFirstPage())

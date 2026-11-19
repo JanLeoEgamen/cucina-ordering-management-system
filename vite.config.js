@@ -17,6 +17,7 @@ export default defineConfig({
                 'resources/js/pages/bulk-menu.js',
                 'resources/js/pages/orders.js',
                 'resources/js/pages/my-orders.js',
+                'resources/js/pages/bulk-my-orders.js',
                 'resources/js/pages/menu.js',
                 'resources/js/pages/payment-methods.js',
                 'resources/js/pages/payments.js',
