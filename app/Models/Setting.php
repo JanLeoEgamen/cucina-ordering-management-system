@@ -30,11 +30,11 @@ class Setting
     // '1' = a customer may cancel their own pending order from My Orders; '0' = only staff can.
     public const CUSTOMER_CANCEL = 'orders.customer_cancel';
 
-    // The fewest and the most plates ONE bulk order may hold. The maximum is empty
+    // The fewest and the most plates ONE pre-order may hold. The maximum is empty
     // when there is no limit.
-    public const BULK_MIN_QUANTITY = 'bulk_orders.min_quantity';
+    public const PRE_ORDER_MIN_QUANTITY = 'pre_orders.min_quantity';
 
-    public const BULK_MAX_QUANTITY = 'bulk_orders.max_quantity';
+    public const PRE_ORDER_MAX_QUANTITY = 'pre_orders.max_quantity';
 
     // The name shown on every page, the title bar and the emails, and the path (on the public
     // disk) of the uploaded logo. An empty logo = the built-in Cucina mark.
@@ -58,8 +58,8 @@ class Setting
         self::GOOGLE_CHAT_NOTIFICATIONS => '0',
         // Off until an admin allows it: until now only staff cancelled an order.
         self::CUSTOMER_CANCEL => '0',
-        self::BULK_MIN_QUANTITY => '10',
-        self::BULK_MAX_QUANTITY => '',
+        self::PRE_ORDER_MIN_QUANTITY => '10',
+        self::PRE_ORDER_MAX_QUANTITY => '',
     ];
 
     /* -------- Reads -------- */
@@ -154,15 +154,15 @@ class Setting
         return self::get(self::CUSTOMER_CANCEL) === '1';
     }
 
-    // The plates one bulk order may hold: ['min' => int >= 1, 'max' => ?int]. A max of
+    // The plates one pre-order may hold: ['min' => int >= 1, 'max' => ?int]. A max of
     // null means "no limit". A damaged value reads as the default, and a maximum below
     // the minimum is ignored, so an order is never impossible to place.
-    public static function bulkLimits(): array
+    public static function preOrderLimits(): array
     {
-        $min = (int) self::get(self::BULK_MIN_QUANTITY);
-        $min = $min >= 1 ? $min : (int) self::DEFAULTS[self::BULK_MIN_QUANTITY];
+        $min = (int) self::get(self::PRE_ORDER_MIN_QUANTITY);
+        $min = $min >= 1 ? $min : (int) self::DEFAULTS[self::PRE_ORDER_MIN_QUANTITY];
 
-        $max = (int) self::get(self::BULK_MAX_QUANTITY);
+        $max = (int) self::get(self::PRE_ORDER_MAX_QUANTITY);
         $max = $max >= $min ? $max : null;
 
         return ['min' => $min, 'max' => $max];
@@ -211,12 +211,12 @@ class Setting
         self::set(self::CUSTOMER_CANCEL, $allowed ? '1' : '0');
     }
 
-    // Save the bulk order limits (a null maximum = no limit).
-    public static function setBulkLimits(int $min, ?int $max): void
+    // Save the pre-order limits (a null maximum = no limit).
+    public static function setPreOrderLimits(int $min, ?int $max): void
     {
         DB::transaction(function () use ($min, $max) {
-            self::set(self::BULK_MIN_QUANTITY, (string) $min);
-            self::set(self::BULK_MAX_QUANTITY, $max === null ? '' : (string) $max);
+            self::set(self::PRE_ORDER_MIN_QUANTITY, (string) $min);
+            self::set(self::PRE_ORDER_MAX_QUANTITY, $max === null ? '' : (string) $max);
         });
     }
 

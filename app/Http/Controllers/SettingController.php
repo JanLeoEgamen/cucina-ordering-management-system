@@ -15,7 +15,7 @@ use Throwable;
 
 // System configuration: the values the rest of the app starts from: the app's name and logo,
 // the default start and end time of a new order session (the create drawer is pre-filled with
-// them), the bulk order limits and who is notified. The page is laid out in sections so more
+// them), the pre-order limits and who is notified. The page is laid out in sections so more
 // settings can be added beside them.
 class SettingController extends Controller implements HasMiddleware
 {
@@ -34,7 +34,7 @@ class SettingController extends Controller implements HasMiddleware
         return view('settings.index', [
             'brand' => Setting::brand(),
             'sessionWindow' => Setting::sessionWindow(),
-            'bulkLimits' => Setting::bulkLimits(),
+            'preOrderLimits' => Setting::preOrderLimits(),
             'emailNotifications' => Setting::emailNotifications(),
             'googleChatNotifications' => Setting::googleChatNotifications(),
             // Is the Chat app's key file set up in .env and readable? (Never the key itself.)
@@ -79,10 +79,10 @@ class SettingController extends Controller implements HasMiddleware
             // Let customers cancel their own pending order. The form always sends 0 or 1; a
             // caller that leaves it out changes nothing.
             'customer_cancel' => ['sometimes', 'boolean'],
-            // The plates one bulk order may hold. Sent together by the form; an older
+            // The plates one pre-order may hold. Sent together by the form; an older
             // caller that sends neither changes nothing. An empty maximum = no limit.
-            'bulk_min_quantity' => ['sometimes', 'required', 'integer', 'min:1', 'max:100000'],
-            'bulk_max_quantity' => ['nullable', 'integer', 'min:1', 'max:100000', 'gte:bulk_min_quantity'],
+            'pre_order_min_quantity' => ['sometimes', 'required', 'integer', 'min:1', 'max:100000'],
+            'pre_order_max_quantity' => ['nullable', 'integer', 'min:1', 'max:100000', 'gte:pre_order_min_quantity'],
         ], [
             'app_name.required' => 'The app name cannot be empty.',
             'app_name.max' => 'The app name can have at most 60 characters.',
@@ -91,8 +91,8 @@ class SettingController extends Controller implements HasMiddleware
             'app_logo.max' => 'The logo can be at most 2 MB.',
             'session_end_time.after' => 'The end time must be after the start time.',
             'notification_watchers.*.exists' => 'One of the picked users does not exist any more.',
-            'bulk_min_quantity.min' => 'The minimum bulk order must be at least 1 plate.',
-            'bulk_max_quantity.gte' => 'The maximum bulk order cannot be lower than the minimum.',
+            'pre_order_min_quantity.min' => 'The minimum pre-order must be at least 1 plate.',
+            'pre_order_max_quantity.gte' => 'The maximum pre-order cannot be lower than the minimum.',
         ]);
 
         // The new logo is written BEFORE the transaction (a file cannot be rolled back) and the
@@ -146,8 +146,8 @@ class SettingController extends Controller implements HasMiddleware
                 Setting::setCustomerCancel($request->boolean('customer_cancel'));
             }
 
-            if ($request->has('bulk_min_quantity')) {
-                Setting::setBulkLimits((int) $validated['bulk_min_quantity'], $validated['bulk_max_quantity'] ?? null);
+            if ($request->has('pre_order_min_quantity')) {
+                Setting::setPreOrderLimits((int) $validated['pre_order_min_quantity'], $validated['pre_order_max_quantity'] ?? null);
             }
 
             if ($request->has('notification_watchers')) {

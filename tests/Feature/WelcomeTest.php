@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\BulkSession;
-use App\Models\BulkSessionDish;
+use App\Models\PreOrderSession;
+use App\Models\PreOrderSessionDish;
 use App\Models\Dish;
 use App\Models\OrderSession;
 use App\Models\PaymentMethod;
@@ -149,31 +149,31 @@ class WelcomeTest extends TestCase
             ->assertDontSee('Log in to order');
     }
 
-    public function test_a_running_bulk_session_is_previewed_with_its_minimum(): void
+    public function test_a_running_pre_order_session_is_previewed_with_its_minimum(): void
     {
-        $session = BulkSession::factory()->create(['min_quantity' => 25]);
-        BulkSessionDish::factory()->create([
-            'bulk_session_id' => $session->bulk_session_id,
+        $session = PreOrderSession::factory()->create(['min_quantity' => 25]);
+        PreOrderSessionDish::factory()->create([
+            'pre_order_session_id' => $session->pre_order_session_id,
             'dish_id' => Dish::factory()->create(['dish_name' => 'Party Pancit', 'price' => 80])->dish_id,
         ]);
 
         $this->get('/')->assertOk()
-            ->assertSee('Bulk orders are open')
+            ->assertSee('Pre-orders are open')
             ->assertSee('at least 25 plates per order')
             ->assertSee('Party Pancit')
             ->assertSee('₱80.00')
-            ->assertSee('Log in to order in bulk')
-            ->assertSee('href="' . route('bulk-menu.index') . '"', false)
+            ->assertSee('Log in to pre-order')
+            ->assertSee('href="' . route('pre-order-menu.index') . '"', false)
             // No order session is live, so there is no regular menu preview.
             ->assertDontSee('On the menu now');
 
-        $this->actingAs($this->userWith('view bulk-menu'))->get('/')->assertOk()
-            ->assertSee('Order in bulk')
-            ->assertDontSee('Log in to order in bulk');
+        $this->actingAs($this->userWith('view pre-order-menu'))->get('/')->assertOk()
+            ->assertSee('Pre-order')
+            ->assertDontSee('Log in to pre-order');
 
-        // A bulk session that has ended is not advertised.
-        BulkSession::query()->update(['ended_at' => now()->subMinute()]);
-        $this->get('/')->assertOk()->assertDontSee('Bulk orders are open');
+        // A pre-order session that has ended is not advertised.
+        PreOrderSession::query()->update(['ended_at' => now()->subMinute()]);
+        $this->get('/')->assertOk()->assertDontSee('Pre-orders are open');
     }
 
     public function test_registering_after_being_sent_to_login_lands_back_on_the_menu(): void

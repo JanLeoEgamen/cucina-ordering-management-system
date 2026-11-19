@@ -1,7 +1,7 @@
 {{--
     Order popup: one order's details with its actions (Complete / Cancel / Verify inline, Reject with
     its own reason popup). Shared by the order session page and the Orders page (staff, with actions)
-    and by My Orders / My Bulk Orders (a customer's own order: read only, see order-cards.js); wired by
+    and by My Orders / My Pre-Orders (a customer's own order: read only, see order-cards.js); wired by
     resources/js/ui/order-popup.js (`initOrderPopup({ onChange }).open(row)`). The copy the script
     needs sits in #order-popup-copy, so the page does not have to pass it.
 --}}

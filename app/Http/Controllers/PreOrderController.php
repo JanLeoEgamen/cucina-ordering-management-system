@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\BulkOrder;
-use App\Models\BulkOrderItem;
-use App\Models\BulkSession;
-use App\Models\BulkSessionDish;
+use App\Models\PreOrder;
+use App\Models\PreOrderItem;
+use App\Models\PreOrderSession;
+use App\Models\PreOrderSessionDish;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -19,12 +19,12 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Throwable;
 
-// Bulk orders, the customer side: the bulk menu of the bulk session that is
+// Pre-orders, the customer side: the pre-order menu of the pre-order session that is
 // running, the orders placed from it, and the customer's own list. Same guards as
 // OrderController (a lock per customer, an idempotency key, a price check), but
-// there is NO stock to reserve: a bulk order is refused only when the session is
+// there is NO stock to reserve: a pre-order is refused only when the session is
 // closed, a dish left it, a price changed, or it is smaller than the minimum.
-class BulkOrderController extends Controller implements HasMiddleware
+class PreOrderController extends Controller implements HasMiddleware
 {
     // Most plates of one dish in one order. Far above any real order; it only stops a
     // typo (or a script) from writing an absurd total.
@@ -34,21 +34,21 @@ class BulkOrderController extends Controller implements HasMiddleware
     public static function middleware(): array
     {
         return [
-            new Middleware('permission:view bulk-menu', only: ['index']),
-            new Middleware('permission:create bulk-orders', only: ['store']),
-            new Middleware('permission:view my bulk-orders', only: ['mine']),
+            new Middleware('permission:view pre-order-menu', only: ['index']),
+            new Middleware('permission:create pre-orders', only: ['store']),
+            new Middleware('permission:view my pre-orders', only: ['mine']),
         ];
     }
 
-    // The bulk menu: the dishes of the running bulk session.
+    // The pre-order menu: the dishes of the running pre-order session.
     public function index()
     {
-        $session = BulkSession::live();
+        $session = PreOrderSession::live();
 
-        return view('bulk-menu.index', [
+        return view('pre-order-menu.index', [
             'session' => $session,
             // A dish that is turned off, or left the session, is not offered.
-            'dishes' => $session ? BulkSessionDish::offeredForSession($session->bulk_session_id) : collect(),
+            'dishes' => $session ? PreOrderSessionDish::offeredForSession($session->pre_order_session_id) : collect(),
             // The fewest / most plates one order may hold (System Configuration + the session).
             'limits' => $session ? $this->limitsFor($session) : ['min' => 0, 'max' => null],
             // The same two ways to pay as the regular checkout: cash on pickup, and
@@ -58,7 +58,7 @@ class BulkOrderController extends Controller implements HasMiddleware
         ]);
     }
 
-    // The orders the signed-in customer placed in bulk sessions, newest first.
+    // The orders the signed-in customer placed in pre-order sessions, newest first.
     public function mine(Request $request)
     {
         $userId = (int) auth()->id();
@@ -67,14 +67,14 @@ class BulkOrderController extends Controller implements HasMiddleware
         // notification links to one; an id that is not the customer's is ignored).
         if ($request->filled('order')) {
             $orderId = (int) $request->query('order');
-            $page = BulkOrder::pageNumberOf($userId, $orderId);
+            $page = PreOrder::pageNumberOf($userId, $orderId);
 
             if ($page !== null) {
-                return redirect(route('bulk-my-orders.index', $page > 1 ? ['page' => $page] : []) . '#bulk-order-' . $orderId);
+                return redirect(route('my-pre-orders.index', $page > 1 ? ['page' => $page] : []) . '#pre-order-' . $orderId);
             }
         }
 
-        $orders = BulkOrder::pageOfUser($userId);
+        $orders = PreOrder::pageOfUser($userId);
 
         // A page past the end (an old link, orders deleted): the last one.
         if ($orders->currentPage() > $orders->lastPage()) {
@@ -88,18 +88,18 @@ class BulkOrderController extends Controller implements HasMiddleware
             $order->plates = array_sum(array_column($order->items, 'quantity'));
 
             // What a click on the card opens (the order popup).
-            $order->popup = $this->customerOrderPopup($order, ($order->session_title ?: __('Bulk session'))
+            $order->popup = $this->customerOrderPopup($order, ($order->session_title ?: __('Pre-order session'))
                 . ' · ' . Carbon::parse($order->session_date)->format('M j, Y')
                 . ' · ' . substr((string) $order->start_time, 0, 5) . ' – ' . substr((string) $order->end_time, 0, 5));
         }
 
-        return view('bulk-my-orders.index', [
+        return view('my-pre-orders.index', [
             'orders' => $orders,
         ]);
     }
 
-    // Place a bulk order on the running bulk session. The lines arrive as
-    // items[bulk_session_dish_id] = quantity, and the payment method is picked at
+    // Place a pre-order on the running pre-order session. The lines arrive as
+    // items[pre_order_session_dish_id] = quantity, and the payment method is picked at
     // checkout.
     //
     // Like OrderController::store, this method only guards the door; placeOrder()
@@ -115,8 +115,8 @@ class BulkOrderController extends Controller implements HasMiddleware
         $userId = (int) auth()->id();
 
         // Its own lock and receipt keys: a regular order in progress must not block
-        // a bulk one, and a regular receipt must never answer a bulk request.
-        $lock = Cache::lock('place-bulk-order:' . $userId, 30);
+        // a pre-order one, and a regular receipt must never answer a pre-order request.
+        $lock = Cache::lock('place-pre-order:' . $userId, 30);
 
         if (! $lock->get()) {
             return $this->errorResponse('Your order is already being placed. Please wait a moment.', 409);
@@ -124,7 +124,7 @@ class BulkOrderController extends Controller implements HasMiddleware
 
         try {
             $key = $validated['idempotency_key'] ?? null;
-            $cacheKey = 'bulk-order-receipt:' . $userId . ':' . $key;
+            $cacheKey = 'pre-order-receipt:' . $userId . ':' . $key;
 
             if ($key && ($receipt = Cache::get($cacheKey))) {
                 return response()->json($receipt);
@@ -142,21 +142,21 @@ class BulkOrderController extends Controller implements HasMiddleware
         }
     }
 
-    // The work of store(): check the bulk menu, then write the order.
+    // The work of store(): check the pre-order menu, then write the order.
     protected function placeOrder(Request $request, array $validated)
     {
-        $session = BulkSession::findById($validated['bulk_session_id']);
+        $session = PreOrderSession::findById($validated['pre_order_session_id']);
 
         if (! $session) {
-            return $this->errorResponse('Bulk session not found.', 404);
+            return $this->errorResponse('Pre-order session not found.', 404);
         }
 
         if ($session->status !== 'live') {
-            return $this->errorResponse('This bulk session is not running.', 422);
+            return $this->errorResponse('This pre-order session is not running.', 422);
         }
 
-        $offered = BulkSessionDish::offeredForSession((int) $session->bulk_session_id)
-            ->keyBy('bulk_session_dish_id');
+        $offered = PreOrderSessionDish::offeredForSession((int) $session->pre_order_session_id)
+            ->keyBy('pre_order_session_dish_id');
 
         // The prices the customer saw (and, for a bank or e-wallet order, paid). The
         // order is charged at the price of NOW, so when an admin changed a price in
@@ -164,9 +164,9 @@ class BulkOrderController extends Controller implements HasMiddleware
         // differs from the payment. A client that sends no prices is not checked.
         $changed = [];
 
-        foreach ($validated['items'] as $bulkSessionDishId => $quantity) {
-            $dish = $offered->get((int) $bulkSessionDishId);
-            $expected = $validated['expected_prices'][$bulkSessionDishId] ?? null;
+        foreach ($validated['items'] as $preOrderSessionDishId => $quantity) {
+            $dish = $offered->get((int) $preOrderSessionDishId);
+            $expected = $validated['expected_prices'][$preOrderSessionDishId] ?? null;
 
             if ($dish && $expected !== null && round((float) $expected, 2) !== round((float) $dish->price, 2)) {
                 $changed[] = $dish->dish_name . ' is now ₱' . number_format((float) $dish->price, 2)
@@ -182,18 +182,18 @@ class BulkOrderController extends Controller implements HasMiddleware
         $total = 0.0;
         $plates = 0;
 
-        foreach ($validated['items'] as $bulkSessionDishId => $quantity) {
-            $dish = $offered->get((int) $bulkSessionDishId);
+        foreach ($validated['items'] as $preOrderSessionDishId => $quantity) {
+            $dish = $offered->get((int) $preOrderSessionDishId);
 
             if (! $dish) {
-                return $this->reviewResponse($session, 'One of the dishes is no longer on the bulk menu.');
+                return $this->reviewResponse($session, 'One of the dishes is no longer on the pre-order menu.');
             }
 
             // Cents, not floats: 3 x 0.10 must be 0.30 and not 0.30000000000000004.
             $subTotal = round((float) $dish->price * $quantity, 2);
 
             $lines[] = [
-                'bulk_session_dish_id' => (int) $dish->bulk_session_dish_id,
+                'pre_order_session_dish_id' => (int) $dish->pre_order_session_dish_id,
                 'quantity' => $quantity,
                 'unit_price' => (float) $dish->price,
                 'sub_total' => $subTotal,
@@ -203,7 +203,7 @@ class BulkOrderController extends Controller implements HasMiddleware
             $plates += $quantity;
         }
 
-        // The point of a bulk session. Judged on the limits as they are now (the
+        // The point of a pre-order session. Judged on the limits as they are now (the
         // session and System Configuration), so a minimum raised or a maximum set
         // while the customer was checking out is applied.
         $limits = $this->limitsFor($session);
@@ -211,14 +211,14 @@ class BulkOrderController extends Controller implements HasMiddleware
         if ($plates < $limits['min']) {
             return $this->reviewResponse(
                 $session,
-                'A bulk order needs at least ' . $limits['min'] . ' plates (you have ' . $plates . ').'
+                'A pre-order needs at least ' . $limits['min'] . ' plates (you have ' . $plates . ').'
             );
         }
 
         if ($limits['max'] !== null && $plates > $limits['max']) {
             return $this->reviewResponse(
                 $session,
-                'A bulk order can hold at most ' . $limits['max'] . ' plates (you have ' . $plates . ').'
+                'A pre-order can hold at most ' . $limits['max'] . ' plates (you have ' . $plates . ').'
             );
         }
 
@@ -258,10 +258,10 @@ class BulkOrderController extends Controller implements HasMiddleware
             try {
                 DB::transaction(function () use ($validated, $lines, $total, $session, $proof, &$orderNumber, &$orderId) {
                     // Read inside the transaction, as close to the insert as possible.
-                    $orderNumber = BulkOrder::nextOrderNumber();
+                    $orderNumber = PreOrder::nextOrderNumber();
 
-                    $orderId = BulkOrder::createOrder([
-                        'bulk_session_id' => (int) $session->bulk_session_id,
+                    $orderId = PreOrder::createOrder([
+                        'pre_order_session_id' => (int) $session->pre_order_session_id,
                         'user_id' => auth()->id(),
                         'order_number' => $orderNumber,
                         'order_date' => now(),
@@ -274,7 +274,7 @@ class BulkOrderController extends Controller implements HasMiddleware
                         'is_active' => true,
                     ]);
 
-                    BulkOrderItem::createItems($orderId, $lines);
+                    PreOrderItem::createItems($orderId, $lines);
                 }, 3);
 
                 return $orderId;
@@ -296,7 +296,7 @@ class BulkOrderController extends Controller implements HasMiddleware
         return response()->json([
             'status' => 'error',
             'message' => $message . ' Please review your cart.',
-            'prices' => BulkSessionDish::pricesOfSession((int) $session->bulk_session_id),
+            'prices' => PreOrderSessionDish::pricesOfSession((int) $session->pre_order_session_id),
             'min_quantity' => $limits['min'],
             'max_quantity' => $limits['max'],
         ], 422);
@@ -309,7 +309,7 @@ class BulkOrderController extends Controller implements HasMiddleware
     // session never becomes impossible to order from.
     protected function limitsFor(object $session): array
     {
-        return BulkSession::limitsFor($session);
+        return PreOrderSession::limitsFor($session);
     }
 
     // Remove an uploaded proof when its order was not written.
@@ -321,19 +321,19 @@ class BulkOrderController extends Controller implements HasMiddleware
         }
     }
 
-    // Rules and normalisation for placing a bulk order.
+    // Rules and normalisation for placing a pre-order.
     protected function validateOrder(Request $request): array
     {
         $items = [];
 
-        foreach ((array) $request->input('items', []) as $bulkSessionDishId => $quantity) {
-            if (is_numeric($bulkSessionDishId) && (int) $quantity > 0) {
-                $items[(int) $bulkSessionDishId] = (int) $quantity;
+        foreach ((array) $request->input('items', []) as $preOrderSessionDishId => $quantity) {
+            if (is_numeric($preOrderSessionDishId) && (int) $quantity > 0) {
+                $items[(int) $preOrderSessionDishId] = (int) $quantity;
             }
         }
 
         $request->merge([
-            'bulk_session_id' => (int) $request->input('bulk_session_id'),
+            'pre_order_session_id' => (int) $request->input('pre_order_session_id'),
             'items' => $items,
         ]);
 
@@ -344,12 +344,12 @@ class BulkOrderController extends Controller implements HasMiddleware
         $proofRule = $method && PaymentMethod::isCashOnPickup($method) ? 'nullable' : 'required';
 
         return $request->validate([
-            'bulk_session_id' => ['required', 'integer'],
+            'pre_order_session_id' => ['required', 'integer'],
             // Only a method that is active and not deleted right now.
             'payment_method_id' => ['required', 'integer', Rule::in(PaymentMethod::activeOptions()->pluck('method_id')->map(fn ($id) => (int) $id)->all())],
             // Sent by the page once per checkout; see store().
             'idempotency_key' => ['nullable', 'string', 'max:64'],
-            // expected_prices[bulk_session_dish_id]: the unit price the cart showed.
+            // expected_prices[pre_order_session_dish_id]: the unit price the cart showed.
             'expected_prices' => ['nullable', 'array'],
             'expected_prices.*' => ['numeric', 'min:0'],
             'reference_number' => ['nullable', 'string', 'max:255'],

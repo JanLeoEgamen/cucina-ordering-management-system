@@ -117,8 +117,8 @@
             </a>
 
             {{-- Ordering --}}
-            @canany(['view menu', 'view my orders', 'view bulk-menu', 'view my bulk-orders'])
-                <div class="pt-3" data-nav-group="ordering" @if (request()->routeIs('menu.*', 'my-orders.*', 'bulk-menu.*', 'bulk-my-orders.*')) data-has-active @endif>
+            @canany(['view menu', 'view my orders', 'view pre-order-menu', 'view my pre-orders'])
+                <div class="pt-3" data-nav-group="ordering" @if (request()->routeIs('menu.*', 'my-orders.*', 'pre-order-menu.*', 'my-pre-orders.*')) data-has-active @endif>
                     <div class="nav-group-panel space-y-1">
                     {{-- The title is a button: it folds the group (state: html[data-nav-closed], kept in
                          localStorage, see layouts/app.blade.php). The icon rail has no room for it, so a
@@ -153,25 +153,25 @@
                     </a>
                 @endcan
 
-                @can('view bulk-menu')
-                    <a href="{{ route('bulk-menu.index') }}"
+                @can('view pre-order-menu')
+                    <a href="{{ route('pre-order-menu.index') }}"
                        @click="open = false"
-                       title="{{ __('Bulk Orders') }}"
-                       @if (request()->routeIs('bulk-menu.*')) aria-current="page" @endif
-                       class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('bulk-menu.*') ? 'bg-gray-900 text-white shadow-sm dark:bg-mist dark:text-ink' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white' }}">
+                       title="{{ __('Pre-Orders') }}"
+                       @if (request()->routeIs('pre-order-menu.*')) aria-current="page" @endif
+                       class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('pre-order-menu.*') ? 'bg-gray-900 text-white shadow-sm dark:bg-mist dark:text-ink' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white' }}">
                         <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                        <span class="sidebar-label">{{ __('Bulk Orders') }}</span>
+                        <span class="sidebar-label">{{ __('Pre-Orders') }}</span>
                     </a>
                 @endcan
 
-                @can('view my bulk-orders')
-                    <a href="{{ route('bulk-my-orders.index') }}"
+                @can('view my pre-orders')
+                    <a href="{{ route('my-pre-orders.index') }}"
                        @click="open = false"
-                       title="{{ __('My Bulk Orders') }}"
-                       @if (request()->routeIs('bulk-my-orders.*')) aria-current="page" @endif
-                       class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('bulk-my-orders.*') ? 'bg-gray-900 text-white shadow-sm dark:bg-mist dark:text-ink' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white' }}">
+                       title="{{ __('My Pre-Orders') }}"
+                       @if (request()->routeIs('my-pre-orders.*')) aria-current="page" @endif
+                       class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('my-pre-orders.*') ? 'bg-gray-900 text-white shadow-sm dark:bg-mist dark:text-ink' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white' }}">
                         <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                        <span class="sidebar-label">{{ __('My Bulk Orders') }}</span>
+                        <span class="sidebar-label">{{ __('My Pre-Orders') }}</span>
                     </a>
                 @endcan
                     </div>
@@ -181,8 +181,8 @@
             @endcanany
 
             {{-- Service --}}
-            @canany(['view order-sessions', 'view bulk-sessions', 'view orders', 'view payments'])
-                <div class="pt-3" data-nav-group="service" @if (request()->routeIs('order-sessions.*', 'bulk-sessions.*', 'orders.index', 'payments.*')) data-has-active @endif>
+            @canany(['view order-sessions', 'view pre-order-sessions', 'view orders', 'view payments'])
+                <div class="pt-3" data-nav-group="service" @if (request()->routeIs('order-sessions.*', 'pre-order-sessions.*', 'orders.index', 'payments.*')) data-has-active @endif>
                     <div class="nav-group-panel space-y-1">
                     {{-- The title is a button: it folds the group (state: html[data-nav-closed], kept in
                          localStorage, see layouts/app.blade.php). The icon rail has no room for it, so a
@@ -206,14 +206,14 @@
                     </a>
                 @endcan
 
-                @can('view bulk-sessions')
-                    <a href="{{ route('bulk-sessions.index') }}"
+                @can('view pre-order-sessions')
+                    <a href="{{ route('pre-order-sessions.index') }}"
                        @click="open = false"
-                       title="{{ __('Bulk Sessions') }}"
-                       @if (request()->routeIs('bulk-sessions.*')) aria-current="page" @endif
-                       class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('bulk-sessions.*') ? 'bg-gray-900 text-white shadow-sm dark:bg-mist dark:text-ink' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white' }}">
+                       title="{{ __('Pre-Order Sessions') }}"
+                       @if (request()->routeIs('pre-order-sessions.*')) aria-current="page" @endif
+                       class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('pre-order-sessions.*') ? 'bg-gray-900 text-white shadow-sm dark:bg-mist dark:text-ink' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white' }}">
                         <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                        <span class="sidebar-label">{{ __('Bulk Sessions') }}</span>
+                        <span class="sidebar-label">{{ __('Pre-Order Sessions') }}</span>
                     </a>
                 @endcan
 

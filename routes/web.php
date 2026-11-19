@@ -1,8 +1,8 @@
 <?php
 
 use App\Http\Controllers\AuditLogController;
-use App\Http\Controllers\BulkOrderController;
-use App\Http\Controllers\BulkSessionController;
+use App\Http\Controllers\PreOrderController;
+use App\Http\Controllers\PreOrderSessionController;
 use App\Http\Controllers\DishController;
 use App\Http\Controllers\DishTypeController;
 use App\Http\Controllers\NotificationController;
@@ -97,25 +97,25 @@ Route::middleware(['auth', 'profile.complete'])->group(function () {
     Route::delete('/order-sessions/{id}', [OrderSessionController::class, 'destroy'])
         ->whereNumber('id')->name('order-sessions.destroy');
 
-    // Bulk sessions (staff): index serves the page and (on an AJAX request) the feed.
-    Route::get('/bulk-sessions', [BulkSessionController::class, 'index'])->name('bulk-sessions.index');
-    Route::post('/bulk-sessions', [BulkSessionController::class, 'store'])->name('bulk-sessions.store');
-    Route::get('/bulk-sessions/{id}', [BulkSessionController::class, 'show'])
-        ->whereNumber('id')->name('bulk-sessions.show');
-    Route::get('/bulk-sessions/{id}/edit', [BulkSessionController::class, 'edit'])
-        ->whereNumber('id')->name('bulk-sessions.edit');
-    Route::put('/bulk-sessions/{id}', [BulkSessionController::class, 'update'])
-        ->whereNumber('id')->name('bulk-sessions.update');
-    Route::post('/bulk-sessions/{id}/end', [BulkSessionController::class, 'end'])
-        ->whereNumber('id')->name('bulk-sessions.end');
-    Route::delete('/bulk-sessions/{id}', [BulkSessionController::class, 'destroy'])
-        ->whereNumber('id')->name('bulk-sessions.destroy');
+    // Pre-order sessions (staff): index serves the page and (on an AJAX request) the feed.
+    Route::get('/pre-order-sessions', [PreOrderSessionController::class, 'index'])->name('pre-order-sessions.index');
+    Route::post('/pre-order-sessions', [PreOrderSessionController::class, 'store'])->name('pre-order-sessions.store');
+    Route::get('/pre-order-sessions/{id}', [PreOrderSessionController::class, 'show'])
+        ->whereNumber('id')->name('pre-order-sessions.show');
+    Route::get('/pre-order-sessions/{id}/edit', [PreOrderSessionController::class, 'edit'])
+        ->whereNumber('id')->name('pre-order-sessions.edit');
+    Route::put('/pre-order-sessions/{id}', [PreOrderSessionController::class, 'update'])
+        ->whereNumber('id')->name('pre-order-sessions.update');
+    Route::post('/pre-order-sessions/{id}/end', [PreOrderSessionController::class, 'end'])
+        ->whereNumber('id')->name('pre-order-sessions.end');
+    Route::delete('/pre-order-sessions/{id}', [PreOrderSessionController::class, 'destroy'])
+        ->whereNumber('id')->name('pre-order-sessions.destroy');
 
-    // Bulk orders (customer): the bulk menu of the running bulk session, the orders placed
+    // Pre-orders (customer): the pre-order menu of the running pre-order session, the orders placed
     // from it (throttled per user like the regular ones) and the customer's own list.
-    Route::get('/bulk-menu', [BulkOrderController::class, 'index'])->name('bulk-menu.index');
-    Route::post('/bulk-orders', [BulkOrderController::class, 'store'])->middleware('throttle:10,1')->name('bulk-orders.store');
-    Route::get('/bulk-my-orders', [BulkOrderController::class, 'mine'])->name('bulk-my-orders.index');
+    Route::get('/pre-order-menu', [PreOrderController::class, 'index'])->name('pre-order-menu.index');
+    Route::post('/pre-orders', [PreOrderController::class, 'store'])->middleware('throttle:10,1')->name('pre-orders.store');
+    Route::get('/my-pre-orders', [PreOrderController::class, 'mine'])->name('my-pre-orders.index');
 
     // The menu: the dishes of the running session, and the orders placed from it.
     Route::get('/menu', [OrderController::class, 'index'])->name('menu.index');

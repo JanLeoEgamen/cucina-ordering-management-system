@@ -15,7 +15,7 @@
     $day = fn ($session) => \Illuminate\Support\Carbon::parse($session->order_date)->translatedFormat('D, M j');
 
     // What is on offer right now, for the preview under the hero: the live order session
-    // and the running bulk session, each only when it has dishes. Prices and photos are
+    // and the running pre-order session, each only when it has dishes. Prices and photos are
     // public here; stock is not (a dish is either orderable or "Sold out").
     $previews = [];
 
@@ -33,17 +33,17 @@
         ];
     }
 
-    if ($bulkDishes->isNotEmpty()) {
+    if ($preOrderDishes->isNotEmpty()) {
         $previews[] = [
-            'title' => __('Bulk orders are open'),
-            'note' => __('For events and big groups: at least :min plates per order. Open until :time', ['min' => $bulkLimits['min'], 'time' => substr($bulk->end_time, 0, 5)]),
-            'dishes' => $bulkDishes,
+            'title' => __('Pre-orders are open'),
+            'note' => __('For events and big groups: at least :min plates per order. Open until :time', ['min' => $preOrderLimits['min'], 'time' => substr($preOrder->end_time, 0, 5)]),
+            'dishes' => $preOrderDishes,
             'unit' => __('per plate'),
             'soldOut' => fn ($dish) => false,
-            'url' => route('bulk-menu.index'),
-            'cta' => __('Order in bulk'),
-            'guestCta' => __('Log in to order in bulk'),
-            'allowed' => auth()->user()?->can('view bulk-menu') ?? false,
+            'url' => route('pre-order-menu.index'),
+            'cta' => __('Pre-order'),
+            'guestCta' => __('Log in to pre-order'),
+            'allowed' => auth()->user()?->can('view pre-order-menu') ?? false,
         ];
     }
 @endphp

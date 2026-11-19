@@ -110,7 +110,7 @@ abstract class Controller
         ]);
     }
 
-    // What the order popup shows for a customer's OWN order (My Orders / My Bulk Orders): one
+    // What the order popup shows for a customer's OWN order (My Orders / My Pre-Orders): one
     // JSON object on the card, so opening it costs no request. Deliberately NOT the staff row
     // (orderRow): no customer name, no verifier and no action URLs, so the popup hides those
     // rows and offers no Complete / Cancel / Verify / Reject, whatever permissions the viewer

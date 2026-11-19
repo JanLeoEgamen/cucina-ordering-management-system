@@ -2,10 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Models\BulkOrder;
-use App\Models\BulkOrderItem;
-use App\Models\BulkSession;
-use App\Models\BulkSessionDish;
+use App\Models\PreOrder;
+use App\Models\PreOrderItem;
+use App\Models\PreOrderSession;
+use App\Models\PreOrderSessionDish;
 use App\Models\Dish;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -15,7 +15,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-// My Orders / My Bulk Orders: ten a page, newest first, a card that opens the order popup, and
+// My Orders / My Pre-Orders: ten a page, newest first, a card that opens the order popup, and
 // "?order=ID" (what a notification links to) that finds the page an order is on.
 class MyOrdersPopupAndPagingTest extends TestCase
 {
@@ -26,9 +26,9 @@ class MyOrdersPopupAndPagingTest extends TestCase
         return $this->userWith('view menu', 'create orders', 'view my orders');
     }
 
-    private function bulkCustomer(): User
+    private function preOrderCustomer(): User
     {
-        return $this->userWith('view bulk-menu', 'create bulk-orders', 'view my bulk-orders');
+        return $this->userWith('view pre-order-menu', 'create pre-orders', 'view my pre-orders');
     }
 
     /**
@@ -51,18 +51,18 @@ class MyOrdersPopupAndPagingTest extends TestCase
     }
 
     /**
-     * @return array<int, BulkOrder> oldest first (ids ascending)
+     * @return array<int, PreOrder> oldest first (ids ascending)
      */
-    private function bulkOrders(User $user, int $count): array
+    private function preOrders(User $user, int $count): array
     {
-        $session = BulkSession::factory()->create(['title' => 'Office lunch']);
+        $session = PreOrderSession::factory()->create(['title' => 'Office lunch']);
         $orders = [];
 
         for ($number = 1; $number <= $count; $number++) {
-            $orders[] = BulkOrder::factory()->create([
+            $orders[] = PreOrder::factory()->create([
                 'user_id' => $user->id,
-                'bulk_session_id' => $session->bulk_session_id,
-                'order_number' => sprintf('BLK-T-%03d', $number),
+                'pre_order_session_id' => $session->pre_order_session_id,
+                'order_number' => sprintf('PRE-T-%03d', $number),
             ]);
         }
 
@@ -72,7 +72,7 @@ class MyOrdersPopupAndPagingTest extends TestCase
     // The JSON each card carries for the popup: [order_number => decoded data-order].
     private function cards(string $html): array
     {
-        preg_match_all('/<article id="(?:bulk-)?order-\d+" data-order="([^"]*)"/', $html, $found);
+        preg_match_all('/<article id="(?:pre-)?order-\d+" data-order="([^"]*)"/', $html, $found);
 
         $cards = [];
 
@@ -234,48 +234,48 @@ class MyOrdersPopupAndPagingTest extends TestCase
         $this->assertSame(2, substr_count(file_get_contents(resource_path('views/components/ui/order-popup.blade.php')), 'data-popup-field>'));
     }
 
-    /* -------- My Bulk Orders -------- */
+    /* -------- My Pre-Orders -------- */
 
-    public function test_my_bulk_orders_is_ten_a_page_newest_first_and_finds_an_order(): void
+    public function test_my_pre_orders_is_ten_a_page_newest_first_and_finds_an_order(): void
     {
-        $customer = $this->bulkCustomer();
-        $orders = $this->bulkOrders($customer, 25);
+        $customer = $this->preOrderCustomer();
+        $orders = $this->preOrders($customer, 25);
 
-        $this->actingAs($customer)->get(route('bulk-my-orders.index'))
+        $this->actingAs($customer)->get(route('my-pre-orders.index'))
             ->assertOk()
             ->assertSee('Showing 1–10 of 25')
-            ->assertSee('BLK-T-025')->assertSee('BLK-T-016')->assertDontSee('BLK-T-015');
+            ->assertSee('PRE-T-025')->assertSee('PRE-T-016')->assertDontSee('PRE-T-015');
 
-        $this->get(route('bulk-my-orders.index', ['page' => 3]))
-            ->assertSee('Showing 21–25 of 25')->assertSee('BLK-T-001');
+        $this->get(route('my-pre-orders.index', ['page' => 3]))
+            ->assertSee('Showing 21–25 of 25')->assertSee('PRE-T-001');
 
         $oldest = $orders[0];
-        $this->get(route('bulk-my-orders.index', ['order' => $oldest->bulk_order_id]))
-            ->assertRedirect(route('bulk-my-orders.index', ['page' => 3]) . '#bulk-order-' . $oldest->bulk_order_id);
+        $this->get(route('my-pre-orders.index', ['order' => $oldest->pre_order_id]))
+            ->assertRedirect(route('my-pre-orders.index', ['page' => 3]) . '#pre-order-' . $oldest->pre_order_id);
 
-        $this->get(route('bulk-my-orders.index', ['page' => 99]))
-            ->assertRedirect(route('bulk-my-orders.index', ['page' => 3]));
+        $this->get(route('my-pre-orders.index', ['page' => 99]))
+            ->assertRedirect(route('my-pre-orders.index', ['page' => 3]));
     }
 
-    public function test_a_bulk_card_carries_its_order_for_the_popup(): void
+    public function test_a_pre_order_card_carries_its_order_for_the_popup(): void
     {
-        $customer = $this->bulkCustomer();
-        [$order] = $this->bulkOrders($customer, 1);
-        BulkOrderItem::factory()->create([
-            'bulk_order_id' => $order->bulk_order_id,
-            'bulk_session_dish_id' => BulkSessionDish::factory()->create([
+        $customer = $this->preOrderCustomer();
+        [$order] = $this->preOrders($customer, 1);
+        PreOrderItem::factory()->create([
+            'pre_order_id' => $order->pre_order_id,
+            'pre_order_session_dish_id' => PreOrderSessionDish::factory()->create([
                 'dish_id' => Dish::factory()->create(['dish_name' => 'Pancit Canton'])->dish_id,
-            ])->bulk_session_dish_id,
+            ])->pre_order_session_dish_id,
             'quantity' => 20, 'unit_price' => 90, 'sub_total' => 1800,
         ]);
 
-        $page = $this->actingAs($customer)->get(route('bulk-my-orders.index'))
+        $page = $this->actingAs($customer)->get(route('my-pre-orders.index'))
             ->assertOk()
             ->assertSee('data-order-open', false)
             ->assertSee('id="order-details-number"', false)
-            ->assertSee('bulk-my-orders');
+            ->assertSee('my-pre-orders');
 
-        $data = $this->cards($page->getContent())['BLK-T-001'];
+        $data = $this->cards($page->getContent())['PRE-T-001'];
 
         $this->assertStringContainsString('Office lunch', $data['session_label']);
         $this->assertSame('Pancit Canton', $data['items'][0]['dish_name']);
@@ -288,6 +288,6 @@ class MyOrdersPopupAndPagingTest extends TestCase
     public function test_the_order_pages_still_need_their_permission(): void
     {
         $this->actingAs($this->userWith('view menu'))->get(route('my-orders.index', ['order' => 1]))->assertForbidden();
-        $this->actingAs($this->userWith('view menu'))->get(route('bulk-my-orders.index', ['order' => 1]))->assertForbidden();
+        $this->actingAs($this->userWith('view menu'))->get(route('my-pre-orders.index', ['order' => 1]))->assertForbidden();
     }
 }

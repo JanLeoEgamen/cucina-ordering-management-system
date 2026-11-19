@@ -1,16 +1,16 @@
 /**
- * Bulk menu page (customer).
+ * Pre-order menu page (customer).
  *
  * A lighter sibling of menu.js: the same job (pick dishes, pay, place the order) for
  * big quantities and with NO stock, so there is no stock polling and no sold-out
  * state. Everything the page needs - URLs, copy, the dishes, the payment methods,
- * the minimum - comes from the Blade view through `data-*` on #bulk-menu-root.
+ * the minimum - comes from the Blade view through `data-*` on #pre-order-menu-root.
  *
  * Flow:
  *   [data-step]            -> +1 / -1 / +10 on a card, or type the plates in its box
- *   #bulk-review           -> checkout modal (enabled once the minimum is reached)
+ *   #pre-order-review           -> checkout modal (enabled once the minimum is reached)
  *   [data-method-id]       -> pick how to pay; a bank / e-wallet method asks for a proof
- *   #bulk-place            -> POST the order; a 422 with `prices` sends the customer
+ *   #pre-order-place            -> POST the order; a 422 with `prices` sends the customer
  *                             back to review the cart, success shows the receipt
  */
 import { showToast } from '../ui/toast';
@@ -18,10 +18,10 @@ import { showToast } from '../ui/toast';
 const MAX_QUANTITY = 10000;
 
 const start = () => {
-    const root = document.querySelector('#bulk-menu-root');
+    const root = document.querySelector('#pre-order-menu-root');
 
     // Nothing is running (or the session has no dish): the view shows a message only.
-    if (!root || !root.dataset.sessionId || !document.querySelector('#bulk-summary')) {
+    if (!root || !root.dataset.sessionId || !document.querySelector('#pre-order-summary')) {
         return;
     }
 
@@ -87,15 +87,15 @@ const start = () => {
 
     /* ---- the dish cards -------------------------------------------------- */
 
-    const summaryPlates = element('#bulk-plates');
-    const summaryLabel = element('#bulk-plates-label');
-    const summaryTotal = element('#bulk-total');
-    const progress = element('#bulk-progress');
-    const progressBar = element('#bulk-progress-bar');
-    const hint = element('#bulk-hint');
-    const reviewButton = element('#bulk-review');
-    const search = element('#bulk-search');
-    const emptyNote = element('#bulk-empty');
+    const summaryPlates = element('#pre-order-plates');
+    const summaryLabel = element('#pre-order-plates-label');
+    const summaryTotal = element('#pre-order-total');
+    const progress = element('#pre-order-progress');
+    const progressBar = element('#pre-order-progress-bar');
+    const hint = element('#pre-order-hint');
+    const reviewButton = element('#pre-order-review');
+    const search = element('#pre-order-search');
+    const emptyNote = element('#pre-order-empty');
 
     const cardOf = (id) => document.querySelector('[data-dish-card="' + id + '"]');
 
@@ -205,13 +205,13 @@ const start = () => {
 
     /* ---- the checkout modal ---------------------------------------------- */
 
-    const formPanel = element('#bulk-checkout-form');
-    const receiptPanel = element('#bulk-receipt');
-    const errorsBox = element('#bulk-errors');
-    const linesList = element('#bulk-lines');
-    const checkoutTotal = element('#bulk-checkout-total');
-    const placeButton = element('#bulk-place');
-    const backButton = element('#bulk-back');
+    const formPanel = element('#pre-order-checkout-form');
+    const receiptPanel = element('#pre-order-receipt');
+    const errorsBox = element('#pre-order-errors');
+    const linesList = element('#pre-order-lines');
+    const checkoutTotal = element('#pre-order-checkout-total');
+    const placeButton = element('#pre-order-place');
+    const backButton = element('#pre-order-back');
     const backLabel = backButton?.textContent ?? '';
     const placeLabel = placeButton?.textContent ?? '';
 
@@ -268,11 +268,11 @@ const start = () => {
     const idleTile = 'border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/40 dark:border-gray-600 dark:bg-gray-700/40 dark:hover:border-indigo-500 dark:hover:bg-indigo-900/20';
     const pickedTile = 'border-gray-900 bg-gray-50 ring-2 ring-gray-200 dark:border-gray-300 dark:bg-gray-700/60 dark:ring-gray-600';
 
-    const bankHost = element('#bulk-bank-methods');
-    const bankPanel = element('#bulk-bank-panel');
-    const cashPanel = element('#bulk-cash-panel');
-    const methodDetails = element('#bulk-method-details');
-    const referenceInput = element('#bulk-reference');
+    const bankHost = element('#pre-order-bank-methods');
+    const bankPanel = element('#pre-order-bank-panel');
+    const cashPanel = element('#pre-order-cash-panel');
+    const methodDetails = element('#pre-order-method-details');
+    const referenceInput = element('#pre-order-reference');
 
     const pickedMethod = () => {
         if (methodId === null) {
@@ -397,13 +397,13 @@ const start = () => {
     /* ---- payment: the proof of payment ----------------------------------- */
 
     const setupProofUpload = () => {
-        const zone = element('#bulk-proof-zone');
-        const input = element('#bulk-proof-input');
-        const preview = element('#bulk-proof-preview');
-        const remove = element('#bulk-proof-remove');
-        const emptyContent = element('#bulk-proof-empty');
-        const filled = element('#bulk-proof-filled');
-        const info = element('#bulk-proof-info');
+        const zone = element('#pre-order-proof-zone');
+        const input = element('#pre-order-proof-input');
+        const preview = element('#pre-order-proof-preview');
+        const remove = element('#pre-order-proof-remove');
+        const emptyContent = element('#pre-order-proof-empty');
+        const filled = element('#pre-order-proof-filled');
+        const info = element('#pre-order-proof-info');
 
         if (!zone || !input || !preview) {
             return () => {};
@@ -502,10 +502,10 @@ const start = () => {
         showErrors([]);
         renderLines();
         renderMethods();
-        emit('open-modal', 'bulk-checkout-modal');
+        emit('open-modal', 'pre-order-checkout-modal');
     });
 
-    backButton.addEventListener('click', () => emit('close-modal', 'bulk-checkout-modal'));
+    backButton.addEventListener('click', () => emit('close-modal', 'pre-order-checkout-modal'));
 
     /* ---- placing the order ----------------------------------------------- */
 
@@ -539,7 +539,7 @@ const start = () => {
 
             for (const id of [...dishes.keys()]) {
                 if (!current.has(id)) {
-                    // Off the bulk menu: out of the order, and off the page.
+                    // Off the pre-order menu: out of the order, and off the page.
                     dishes.delete(id);
                     quantities.delete(id);
                     cardOf(id)?.remove();
@@ -607,7 +607,7 @@ const start = () => {
 
         if (!method) {
             showErrors([cashMethod || bankMethods.length ? copy('chooseMethod') : copy('noOptions')]);
-            flag([...document.querySelectorAll('#bulk-checkout-form [data-method-id]')]);
+            flag([...document.querySelectorAll('#pre-order-checkout-form [data-method-id]')]);
 
             return;
         }
@@ -627,7 +627,7 @@ const start = () => {
         // Anything but cash is paid first, so the proof is required.
         if (!isCash(method) && !proofFile) {
             showErrors([copy('proofRequired')]);
-            flag(element('#bulk-proof-zone'));
+            flag(element('#pre-order-proof-zone'));
 
             return;
         }
@@ -642,7 +642,7 @@ const start = () => {
             const data = new FormData();
 
             data.append('_token', csrfToken());
-            data.append('bulk_session_id', sessionId);
+            data.append('pre_order_session_id', sessionId);
             data.append('payment_method_id', String(method.method_id));
             data.append('idempotency_key', orderKeyFor(method.method_id));
 
@@ -679,7 +679,7 @@ const start = () => {
                 showErrors(messages(payload));
 
                 if (payload.errors) {
-                    flag(payload.errors.proof_of_payment ? element('#bulk-proof-zone') : []);
+                    flag(payload.errors.proof_of_payment ? element('#pre-order-proof-zone') : []);
                 }
 
                 return;
@@ -710,7 +710,7 @@ const start = () => {
             renderMethods();
             renderReceipt(receipt);
         } catch (error) {
-            console.warn('The bulk order could not be sent.', error);
+            console.warn('The pre-order could not be sent.', error);
             showErrors([copy('sendFailed')]);
             showToast(copy('sendFailed'), 'error');
         } finally {

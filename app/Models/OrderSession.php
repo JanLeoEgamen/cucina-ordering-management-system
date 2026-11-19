@@ -166,7 +166,7 @@ class OrderSession extends Model
     // the customer would see one and the other would silently take no orders.
     // Ended sessions (closed by hand, switched off or past) do not count, and a window
     // that only touches the other (09:00-12:00 then 12:00-14:00) is fine.
-    // $ignoreId is the session being edited. Same rule as BulkSession::overlaps().
+    // $ignoreId is the session being edited. Same rule as PreOrderSession::overlaps().
     public static function overlaps(string $orderDate, string $startTime, string $endTime, ?int $ignoreId = null): bool
     {
         $start = Carbon::parse($orderDate . ' ' . $startTime);

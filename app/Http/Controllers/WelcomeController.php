@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\BulkSession;
-use App\Models\BulkSessionDish;
+use App\Models\PreOrderSession;
+use App\Models\PreOrderSessionDish;
 use App\Models\Dish;
 use App\Models\OrderSession;
 use App\Models\PaymentMethod;
@@ -24,7 +24,7 @@ class WelcomeController extends Controller
     {
         $sessions = OrderSession::getAll();
         $live = $sessions->first(fn (object $session) => $session->status === 'live');
-        $bulk = BulkSession::live();
+        $preOrder = PreOrderSession::live();
 
         return view('welcome', [
             'live' => $live,
@@ -37,10 +37,10 @@ class WelcomeController extends Controller
             'collage' => Dish::collageColumns(),
             // What the live order session offers (the same dishes as the menu), as a preview.
             'menuDishes' => $live ? SessionDish::offeredForSession($live->session_id) : collect(),
-            // The running bulk session, its dishes and the plates one order must hold.
-            'bulk' => $bulk,
-            'bulkDishes' => $bulk ? BulkSessionDish::offeredForSession($bulk->bulk_session_id) : collect(),
-            'bulkLimits' => $bulk ? BulkSession::limitsFor($bulk) : ['min' => 0, 'max' => null],
+            // The running pre-order session, its dishes and the plates one order must hold.
+            'preOrder' => $preOrder,
+            'preOrderDishes' => $preOrder ? PreOrderSessionDish::offeredForSession($preOrder->pre_order_session_id) : collect(),
+            'preOrderLimits' => $preOrder ? PreOrderSession::limitsFor($preOrder) : ['min' => 0, 'max' => null],
             'previewLimit' => self::PREVIEW_LIMIT,
         ]);
     }
