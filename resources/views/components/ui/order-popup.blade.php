@@ -111,6 +111,17 @@
                 </button>
             @endcan
 
+            {{-- Tell the customer it can be collected (the order stays pending until handed over). --}}
+            @can('complete orders')
+                <button type="button" id="order-details-ready"
+                        data-title="{{ __('Confirm Ready') }}"
+                        data-message="{{ __('Tell the customer this order is ready for pick up?') }}"
+                        data-label="{{ __('Announce Ready') }}"
+                        class="hidden rounded-full border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                    {{ __('Ready for Pick up') }}
+                </button>
+            @endcan
+
             {{-- Hand-over: cash is verified by completing, the others must be verified first. --}}
             @can('complete orders')
                 <button type="button" id="order-details-complete"

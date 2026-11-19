@@ -37,7 +37,8 @@ class OrderController extends Controller implements HasMiddleware
             new Middleware('permission:create orders', only: ['store', 'resubmitProof', 'switchToCash', 'cancelMine']),
             new Middleware('permission:view my orders', only: ['mine']),
             new Middleware('permission:view orders', only: ['all']),
-            new Middleware('permission:complete orders', only: ['complete']),
+            // Announcing "ready for pick up" is part of handing an order over: same permission.
+            new Middleware('permission:complete orders', only: ['complete', 'ready']),
             new Middleware('permission:cancel orders', only: ['cancel']),
         ];
     }
@@ -99,7 +100,7 @@ class OrderController extends Controller implements HasMiddleware
         $canCancel = $canPay && Setting::customerCancel();
 
         foreach ($orders as $order) {
-            $order->status_badge = $this->orderStatusBadge($order->order_status);
+            $order->status_badge = $this->orderStatusBadge($order->order_status, $order->ready_at !== null);
             $order->payment_badge = $this->paymentStatusBadge($order->payment_status);
             $order->proof_url = Payment::proofUrl($order->proof_of_payment);
 
@@ -202,6 +203,49 @@ class OrderController extends Controller implements HasMiddleware
         OrderNotifier::completed($orderId);
 
         return $this->successResponse('Order completed successfully.');
+    }
+
+    // Announce that one order is ready for pick up: its customer (and the watchers) are
+    // notified and its badge says so. The order stays pending until it is handed over
+    // (complete). The same rule as completing for the payment: cash is paid at the counter,
+    // anything else must be verified first. Announcing twice is refused.
+    public function ready($id)
+    {
+        $orderId = (int) $id;
+        $status = Order::statusOf($orderId);
+
+        if ($status === null) {
+            return $this->errorResponse('Order not found.', 404);
+        }
+
+        if ($status !== 'pending') {
+            return $this->errorResponse('Only a pending order can be announced as ready.', 422);
+        }
+
+        if (Order::readyAtOf($orderId) !== null) {
+            return $this->errorResponse('This order was already announced as ready.', 422);
+        }
+
+        // announceReady() judges again under a row lock and says nothing when the order no
+        // longer qualifies (cancelled, announced or its payment changed since the reads above).
+        $announced = Order::announceReady([$orderId]);
+
+        if ($announced === []) {
+            // Someone pressed it at the same moment and got in first.
+            if (Order::readyAtOf($orderId) !== null) {
+                return $this->errorResponse('This order was already announced as ready.', 422);
+            }
+
+            $payment = Payment::ofOrder($orderId);
+
+            return $this->errorResponse($payment && $payment->payment_status === 'rejected'
+                ? 'The payment of this order was rejected.'
+                : 'Verify the payment before announcing this order as ready.', 422);
+        }
+
+        OrderNotifier::ready($announced);
+
+        return $this->successResponse('The customer was told the order is ready for pick up.');
     }
 
     // Cancel a pending order. What it reserved goes back on the menu, and a

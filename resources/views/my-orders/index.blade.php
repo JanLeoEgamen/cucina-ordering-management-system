@@ -112,8 +112,13 @@
                         <span class="{{ $order->payment_status === 'verified' ? 'inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/40 dark:text-green-300' : ($order->payment_status === 'rejected' ? 'inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800 dark:bg-red-900/40 dark:text-red-300' : 'inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300') }}">
                             {{ __('Payment') }}: {{ __(ucfirst($order->payment_status)) }}
                         </span>
-                        <span class="{{ $order->order_status === 'completed' ? 'inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/40 dark:text-green-300' : ($order->order_status === 'cancelled' ? 'inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800 dark:bg-red-900/40 dark:text-red-300' : 'inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300') }}">
-                            {{ __('Order') }}: {{ __(ucfirst($order->order_status)) }}
+                        @php($isReady = $order->order_status === 'pending' && $order->ready_at !== null)
+                        <span class="{{ $order->order_status === 'completed' || $isReady ? 'inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/40 dark:text-green-300' : ($order->order_status === 'cancelled' ? 'inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800 dark:bg-red-900/40 dark:text-red-300' : 'inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300') }}">
+                            @if ($isReady)
+                                {{ __('Ready for pick up') }}
+                            @else
+                                {{ __('Order') }}: {{ __(ucfirst($order->order_status)) }}
+                            @endif
                         </span>
                         <button type="button" data-order-open aria-haspopup="dialog"
                                 aria-label="{{ __('Details of order :number', ['number' => $order->order_number]) }}"

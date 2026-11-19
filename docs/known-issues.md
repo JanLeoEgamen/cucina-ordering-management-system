@@ -34,6 +34,7 @@ Priority: **P0** fix before any real use · **P1** before go-live · **P2** next
 | Q5 | **P3** | `tests/TestCase.php` comment says 16 permissions; real count is 27. |
 | Q6 | **P3** | No code-style config; Pint disagrees with the house style, so formatting is manual. |
 | Q7 | **P3** | `OrdersPageTest > the feed lists orders of every session with their session and customer` failed once in a full run (2026-11-13) and passed in the next full run and alone; cause not found (it touches nothing the queue / realtime change did). Watch for it. |
+| Q8 | **P3** | "Ready for pick up" is a one-way flag (`orders.ready_at`): if staff undo a bank payment's verification after announcing, the order keeps its Ready badge and the customer is not told otherwise. There is no "take back" announcement. |
 | Q9 | **P2** | Google Chat DMs are **unverified against a real Workspace**: the code follows Google's Chat API docs (service account, `chat.bot`, `spaces.findDirectMessage` with `users/{google_id}`) and is tested with Google faked. If `findDirectMessage` does not accept the Google sign-in `sub` as the user id, nobody is messaged (a warning is logged). It also reaches only people who signed in with Google AND added the Chat app: form-registered customers get no DM, and there is no "connect Google Chat" step yet. |
 
 ## Suggested order of work

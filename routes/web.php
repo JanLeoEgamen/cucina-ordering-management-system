@@ -91,6 +91,9 @@ Route::middleware(['auth', 'profile.complete'])->group(function () {
     // Ending is a state change of its own: the creator closes the session by hand.
     Route::post('/order-sessions/{id}/end', [OrderSessionController::class, 'end'])
         ->whereNumber('id')->name('order-sessions.end');
+    // Tell every waiting customer of the session that their order is ready for pick up.
+    Route::post('/order-sessions/{id}/announce-ready', [OrderSessionController::class, 'announceReady'])
+        ->whereNumber('id')->name('order-sessions.announce-ready');
     Route::delete('/order-sessions/{id}', [OrderSessionController::class, 'destroy'])
         ->whereNumber('id')->name('order-sessions.destroy');
 
@@ -125,6 +128,9 @@ Route::middleware(['auth', 'profile.complete'])->group(function () {
     // Staff close an order once it is handed over: pending -> completed.
     Route::post('/orders/{id}/complete', [OrderController::class, 'complete'])
         ->whereNumber('id')->name('orders.complete');
+    // Staff announce one order is ready for pick up (stays pending until handed over).
+    Route::post('/orders/{id}/ready', [OrderController::class, 'ready'])
+        ->whereNumber('id')->name('orders.ready');
     // ...or call it off: pending -> cancelled, and its dishes go back on the menu.
     Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel'])
         ->whereNumber('id')->name('orders.cancel');

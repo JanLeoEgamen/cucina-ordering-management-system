@@ -296,7 +296,8 @@ const start = () => {
     // other action only changes the orders, so the table is fetched again.
     const popup = initOrderPopup({
         onChange: (kind) => {
-            if (kind === 'cancel') {
+            // The Announce button's count of waiting orders is server rendered, so it reloads too.
+            if (kind === 'cancel' || kind === 'ready') {
                 setTimeout(() => window.location.reload(), 700);
 
                 return;
@@ -341,6 +342,17 @@ const start = () => {
 
     endButton?.addEventListener('click', () => {
         askConfirmation({ url: endButton.dataset.endUrl, kind: 'end' }, endCopy, endButton.dataset.subject);
+    });
+
+    // "Ready for Pick up": the same confirmation modal, with the button's own words.
+    const announceButton = document.querySelector('#announce-ready');
+
+    announceButton?.addEventListener('click', () => {
+        askConfirmation({ url: announceButton.dataset.announceUrl, kind: 'announce' }, {
+            title: announceButton.dataset.title,
+            message: announceButton.dataset.message,
+            label: announceButton.dataset.label,
+        }, announceButton.dataset.subject);
     });
 
     confirmButton?.addEventListener('click', async () => {

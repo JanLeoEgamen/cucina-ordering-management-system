@@ -53,6 +53,8 @@ class OrderNotifier
 
     public const SOLD_OUT = 'dish_sold_out';
 
+    public const READY = 'order_ready';
+
     // Events the customer does not need a notification about (they just did it,
     // or it is about the kitchen).
     protected const STAFF_ONLY = [self::PAYMENT_RESENT, self::SOLD_OUT];
@@ -93,6 +95,20 @@ class OrderNotifier
     public static function paymentResent(int $orderId, bool $cash): void
     {
         self::later($orderId, self::PAYMENT_RESENT, ['cash' => $cash]);
+    }
+
+    // Staff announced that orders are ready for pick up: one order (the popup) or every
+    // waiting order of a session. ONE job whatever the number: the worker writes every
+    // customer's row with one insert, and the watchers get one line for the lot.
+    public static function ready(array $orderIds): void
+    {
+        if ($orderIds === []) {
+            return;
+        }
+
+        rescue(fn () => Bus::dispatch(new DeliverNotification('ready', [
+            'order_ids' => array_map('intval', $orderIds),
+        ], auth()->id())));
     }
 
     // An order just took the last plates of these session dishes (watchers only).
@@ -186,7 +202,67 @@ class OrderNotifier
         }
 
         UserNotification::insertMany($rows);
-        self::email($mails);
+        self::copies($mails);
+    }
+
+    // Run by the queue worker for ready(): each customer is told about their own order(s);
+    // each watcher (except whoever pressed the button) gets one line for the announcement.
+    public static function deliverReady(array $orderIds, ?int $actorId): void
+    {
+        $orders = Order::notificationSummaries($orderIds);
+
+        if ($orders->isEmpty()) {
+            return;
+        }
+
+        $watchers = Setting::notificationWatchers();
+
+        // Every customer and watcher in ONE query (soft deleted users drop out).
+        $people = User::query()
+            ->whereIn('id', array_values(array_unique(array_merge($orders->pluck('user_id')->map(fn ($id) => (int) $id)->all(), $watchers))))
+            ->get()
+            ->keyBy('id');
+
+        $rows = [];
+        $mails = [];
+
+        foreach ($orders as $order) {
+            $person = $people->get((int) $order->user_id);
+
+            if (! $person) {
+                continue;
+            }
+
+            [$title, $body, $url] = self::customerText(self::READY, $order, [], $person);
+
+            $rows[] = ['user_id' => $person->id, 'type' => self::READY, 'title' => $title, 'body' => $body, 'url' => $url, 'order_id' => $order->order_id];
+            $mails[] = self::mailRow($person, $title, $body, $url);
+        }
+
+        // The customer of a single order was just told in their own words: no second copy as a watcher.
+        $single = $orders->count() === 1 ? $orders->first() : null;
+
+        foreach ($watchers as $watcherId) {
+            $person = $people->get((int) $watcherId);
+
+            if (! $person || (int) $person->id === (int) $actorId || (int) $person->id === (int) $single?->user_id) {
+                continue;
+            }
+
+            [$title, $body, $url] = $single
+                ? self::staffText(self::READY, $single, [], $person)
+                : [
+                    __(':count orders are ready for pick up', ['count' => $orders->count()]),
+                    __('Their customers were told to come and collect them.'),
+                    $person->can('view orders') ? route('orders.index', [], false) : null,
+                ];
+
+            $rows[] = ['user_id' => $person->id, 'type' => self::READY, 'title' => $title, 'body' => $body, 'url' => $url, 'order_id' => $single?->order_id];
+            $mails[] = self::mailRow($person, $title, $body, $url);
+        }
+
+        UserNotification::insertMany($rows);
+        self::copies($mails);
     }
 
     public static function deliverSoldOut(array $sessionDishIds, int $sessionId, ?int $actorId): void
@@ -362,6 +438,12 @@ class OrderNotifier
                     ? __('You cancelled your order. Its plates went back on the menu.')
                     : __('Your order was cancelled.'),
             ],
+            self::READY => [
+                __('Order :number is ready for pick up', ['number' => $number]),
+                $cash
+                    ? __('Come to the counter and pay :total in cash when you collect it.', ['total' => self::money($order->total_amount)])
+                    : __('Show your order number at the counter to collect it.'),
+            ],
             default => [__('Order :number updated', ['number' => $number]), null],
         };
 
@@ -409,6 +491,10 @@ class OrderNotifier
                 ($context['by_customer'] ?? false)
                     ? __(':who cancelled their order (:total).', ['who' => $who, 'total' => $total])
                     : __(":who's order (:total) was cancelled.", ['who' => $who, 'total' => $total]),
+            ],
+            self::READY => [
+                __('Order :number is ready for pick up', ['number' => $number]),
+                __(":who's order (:total) was announced as ready.", ['who' => $who, 'total' => $total]),
             ],
             self::PAYMENT_RESENT => ($context['cash'] ?? false)
                 ? [__(':who will pay :number in cash', ['who' => $who, 'number' => $number]), __('Payment changed to Cash on Pick up after a rejection. Complete the order when it is collected.')]

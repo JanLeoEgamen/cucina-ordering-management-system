@@ -27,10 +27,13 @@ abstract class Controller
         return $this->badge($status);
     }
 
-    // Badge for an order (pending / completed / cancelled).
-    protected function orderStatusBadge(string $status): string
+    // Badge for an order (pending / completed / cancelled). A pending order that staff announced
+    // as ready gets a second badge beside "Pending" (not instead of it: it still IS pending, and
+    // the Pending filter of the lists keeps finding it).
+    protected function orderStatusBadge(string $status, bool $ready = false): string
     {
-        return $this->badge($status);
+        return $this->badge($status)
+            . ($ready && $status === 'pending' ? ' ' . $this->badge('ready', __('Ready for pick up')) : '');
     }
 
     // Badge for a payment (pending / verified / rejected).
@@ -48,7 +51,7 @@ abstract class Controller
     {
         $user = auth()->user();
 
-        $order->status_badge = $this->orderStatusBadge($order->order_status);
+        $order->status_badge = $this->orderStatusBadge($order->order_status, $order->ready_at !== null);
         $order->payment_badge = $this->paymentStatusBadge($order->payment_status);
         $order->items_count = array_sum(array_column($order->items ?? [], 'quantity'));
         $order->proof_url = Payment::proofUrl($order->proof_of_payment);
@@ -78,6 +81,11 @@ abstract class Controller
         $settled = $cash ? in_array($order->payment_state, ['pending', 'verified'], true) : $order->payment_state === 'verified';
         $order->complete_url = $order->order_status === 'pending' && $settled && $user->can('complete orders')
             ? route('orders.complete', $order->order_id) : null;
+
+        // "Ready for pick up": the same settled-payment rule as completing, and only once (a
+        // second announcement would tell the customer twice). Whoever may complete may announce.
+        $order->ready_url = $order->order_status === 'pending' && $order->ready_at === null && $settled && $user->can('complete orders')
+            ? route('orders.ready', $order->order_id) : null;
 
         // Cancel a pending order - unless its payment is verified: that decision
         // is undone first (on the Payments page), so money is never lost track of.

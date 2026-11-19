@@ -602,7 +602,8 @@ span[data-status]::before {
 span[data-status='active'],
 span[data-status='live'],
 span[data-status='verified'],
-span[data-status='completed'] {
+span[data-status='completed'],
+span[data-status='ready'] {
     --status-dot: #3f9b6e;
 }
 

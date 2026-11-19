@@ -102,6 +102,8 @@ return [
         'bulk-sessions.destroy' => 'Deleted a bulk session',
         'orders.store' => 'Placed an order',
         'orders.complete' => 'Completed an order',
+        'orders.ready' => 'Announced an order as ready for pick up',
+        'order-sessions.announce-ready' => 'Announced the orders of a session as ready for pick up',
         'orders.cancel' => 'Cancelled an order',
         'bulk-orders.store' => 'Placed a bulk order',
         'my-orders.payment.proof' => 'Sent a new payment proof',

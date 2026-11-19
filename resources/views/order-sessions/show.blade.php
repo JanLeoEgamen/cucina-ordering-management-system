@@ -24,16 +24,34 @@
                 </h2>
             </div>
 
-            {{-- Ending is the creator's call, so the button is only rendered for
-                 them, and only while the session is still open. --}}
-            @if ($canEnd)
-                <button type="button" id="end-session"
-                        data-end-url="{{ route('order-sessions.end', $session->session_id) }}"
-                        data-subject="{{ $date }}"
-                        class="inline-flex w-full items-center justify-center rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-amber-600 focus:outline-none focus:ring-4 focus:ring-amber-300 sm:w-auto dark:focus:ring-amber-800">
-                    {{ __('End Session') }}
-                </button>
-            @endif
+            <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+                {{-- Tell every waiting customer their order can be collected. Disabled while no
+                     order qualifies (payment verified or cash, not announced yet). --}}
+                @if ($canAnnounce)
+                    <button type="button" id="announce-ready"
+                            @disabled($waitingCount === 0)
+                            data-announce-url="{{ route('order-sessions.announce-ready', $session->session_id) }}"
+                            data-subject="{{ $date }}"
+                            data-title="{{ __('Confirm Announcement') }}"
+                            data-message="{{ __('Tell the customers of :count waiting order(s) that their order is ready for pick up?', ['count' => $waitingCount]) }}"
+                            data-label="{{ __('Announce Ready') }}"
+                            class="inline-flex w-full items-center justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto dark:focus:ring-indigo-800">
+                        {{ __('Ready for Pick up') }}
+                        <span class="ml-2 rounded-full bg-white/20 px-2 py-0.5 text-xs tabular-nums">{{ $waitingCount }}</span>
+                    </button>
+                @endif
+
+                {{-- Ending is the creator's call, so the button is only rendered for
+                     them, and only while the session is still open. --}}
+                @if ($canEnd)
+                    <button type="button" id="end-session"
+                            data-end-url="{{ route('order-sessions.end', $session->session_id) }}"
+                            data-subject="{{ $date }}"
+                            class="inline-flex w-full items-center justify-center rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-amber-600 focus:outline-none focus:ring-4 focus:ring-amber-300 sm:w-auto dark:focus:ring-amber-800">
+                        {{ __('End Session') }}
+                    </button>
+                @endif
+            </div>
         </div>
     </x-slot>
 
@@ -122,6 +140,7 @@
                     <select id="order-status-filter" aria-label="{{ __('Order status') }}" class="{{ $filter }} sm:!w-full">
                         <option value="">{{ __('All order statuses') }}</option>
                         <option value="pending">{{ __('Pending') }}</option>
+                        <option value="ready">{{ __('Ready for pick up') }}</option>
                         <option value="completed">{{ __('Completed') }}</option>
                         <option value="cancelled">{{ __('Cancelled') }}</option>
                     </select>
