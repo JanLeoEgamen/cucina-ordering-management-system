@@ -19,6 +19,7 @@ is not listed below.
   A new controller method must be added to that list or it is unprotected.
 - `App\Models\Role::PERMISSIONS` is the single list of permissions. Add one there, then run
   `php artisan db:seed --class=PermissionSeeder` (idempotent; re-syncs *Super Admin*).
+- **Accounts with no role get 403 everywhere.** Sign-ups get *Customer* automatically (`User::giveCustomerRole()`); accounts that registered before that have none. Run `php artisan users:give-customer-role --dry-run` to list them and then without `--dry-run` to give them *Customer* (adds only; skips accounts that already hold any role and deleted ones; refuses until `PermissionSeeder` has created the role). **Review the dry-run first:** an admin may have emptied someone's roles on purpose to block them, and this would give that person ordering access back.
 - `Role::SUPER_ADMIN` ("Super Admin") holds every permission. `Role::PROTECTED` roles cannot be edited/deleted from the UI.
 - `PaymentMethod::PROTECTED` ("Cash on Pick up", the only cash method) cannot be edited/deleted (matched by name; the table feed also hides their buttons).
 - Row-level rule: only the creator of an order session can end it (`OrderSessionController::canEnd`), on top of `end order-sessions`.

@@ -26,6 +26,7 @@ php artisan schedule:work           # optional locally: runs the daily notificat
 php scripts/harness.php             # docs-drift check + tests;  --docs = drift only
 npm run build                       # must pass after frontend changes
 php artisan db:seed --class=PermissionSeeder   # after adding a permission
+php artisan users:give-customer-role --dry-run # once on an old database: lists role-less accounts; drop the flag to give them Customer
 ```
 
 Shell is PowerShell on Windows (Git Bash also available). `php` and `npm` are on PATH.
@@ -52,7 +53,7 @@ Shell is PowerShell on Windows (Git Bash also available). `php` and `npm` are on
 ## Gotchas (append one line per trap you hit)
 
 - `User` is not `MustVerifyEmail`, so the `verified` middleware does nothing.
-- Self-registered users (form or Google) get the **Customer** role through `User::giveCustomerRole()` (menu + ordering only). If `PermissionSeeder` has not run the role does not exist and they stay role-less (403 on the menu), so seed before opening registration. Accounts that registered before this change have no role: assign it in the Users page.
+- Self-registered users (form or Google) get the **Customer** role through `User::giveCustomerRole()` (menu + ordering only). If `PermissionSeeder` has not run the role does not exist and they stay role-less (403 on the menu), so seed before opening registration. Accounts that registered before this change have no role: run `php artisan users:give-customer-role --dry-run`, then without the flag (it skips anyone who already has a role).
 - Payment rules depend on the method: Cash on Pick up is verified by completing its order (no manual verify/reject); other methods are verified first, then completed. Cancelling an order releases its stock and is refused while its payment is verified (undo that first). A *rejection* does NOT release the stock: the customer can resend a proof or switch to cash (`my-orders.payment.*`), so the plates stay held until staff cancel.
 - `#delete-modal-*` / `#save-modal-*` exist once per page and `dishes.js` owns them: a second page module on the same view (the Manage Types drawer) must not bind them — it confirms deletes inline and tags its buttons `data-type-action`.
 - Windows: running `php artisan test` while the dev server is up can fail with "rename(...storage/framework/views/...tmp) Access is denied"; run the tests with `VIEW_COMPILED_PATH` pointing at another folder.

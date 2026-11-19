@@ -255,6 +255,24 @@ class User extends Authenticatable
         return true;
     }
 
+    // The active accounts that hold no role at all (id + email): what accounts registered
+    // before the Customer role existed look like. A deleted account never counts: it has
+    // no access on purpose (deleteUser() drops its roles).
+    public static function rolelessUsers(): array
+    {
+        return DB::table(self::TABLE)
+            ->whereNull('users.deleted_at')
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from(self::PIVOT)
+                    ->whereColumn(self::PIVOT . '.model_id', 'users.id')
+                    ->where(self::PIVOT . '.model_type', self::class);
+            })
+            ->orderBy('users.id')
+            ->get(['users.id', 'users.email'])
+            ->all();
+    }
+
     // Replace a user's roles: delete that user's rows, insert the posted ids.
     public static function syncUserRoles(int $userId, array $roleIds): void
     {

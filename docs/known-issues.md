@@ -8,7 +8,6 @@ Priority: **P0** fix before any real use · **P1** before go-live · **P2** next
 
 | ID | Pri | Gap | Evidence |
 |---|---|---|---|
-| F2 | **P2** | Self-registered users now get the Customer role (S7), but accounts registered **before** that have no role and still get 403 on the menu; the role is only given when it exists (seeded). | `User::giveCustomerRole` |
 | F3 | **P2** | Only one `live` session is honoured; overlapping sessions are not prevented at create/edit. | `OrderSession::live()` returns the first match. |
 | F6 | **P3** | `README.md` and the `composer.json` description are the Laravel skeleton's. | `README.md`, `composer.json` |
 | F7 | **P3** | **Parked by business rule (2026-11-13):** a placed order is the customer's and is prepared; every customer picks up and there are no returns or no-show records, so nothing should expire or auto-cancel today. Revisit if no-shows appear. The one case worth automating later: an order whose payment was **rejected** still holds its plates until staff cancel it. **Pending orders hold stock forever.** An unpaid bank / e-wallet order (or a cash order nobody collects) keeps its plates reserved until staff cancel it, and nothing expires when the session ends. Fix: a scheduled command (`orders:expire`) that cancels pending orders with an unverified payment after N minutes, through the same cancel code path (stock released, payment rejected "expired"); same for pending orders of an ended session. (= S5) | `OrderController::cancel`, no scheduler entry |
@@ -38,5 +37,5 @@ Priority: **P0** fix before any real use · **P1** before go-live · **P2** next
 ## Suggested order of work
 
 1. **S1, S2, S3** (P0) with tests.
-2. **S5 + S11** (stock caps / expiry, decision history), then **S4** (private proofs) and **S7/F2** (customer role).
+2. **S5 + S11** (stock caps / expiry, decision history), then **S4** (private proofs).
 3. **S6, S8, Q1, Q2**, then P2 and P3.
