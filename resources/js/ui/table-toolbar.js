@@ -193,6 +193,28 @@ export function initTableToolbar(table, root = document.querySelector('[data-tab
         button.addEventListener('click', async () => {
             closePopovers();
 
+            // Ask first, naming the format and how many rows the file will hold. An empty table
+            // skips the question: exportTable() then only says there is nothing to export.
+            const count = table.rows({ search: 'applied' }).count();
+
+            if (count > 0 && root.dataset.confirmText) {
+                const { confirmDialog } = await import('./confirm-dialog.js');
+
+                const format = button.querySelector('[data-export-label]')?.textContent.trim() ?? '';
+                const confirmed = await confirmDialog({
+                    title: root.dataset.confirmTitle,
+                    text: root.dataset.confirmText.replace(':count', count.toLocaleString()).replace(':format', format),
+                    yes: root.dataset.confirmYes,
+                    no: root.dataset.confirmNo,
+                });
+
+                if (!confirmed) {
+                    button.focus();
+
+                    return;
+                }
+            }
+
             const label = button.querySelector('[data-export-label]');
             const text = label?.textContent;
 

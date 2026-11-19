@@ -107,14 +107,14 @@
                     data-title="{{ __('Confirm Undo') }}"
                     data-message="{{ __('Are you sure you want to undo this decision? The payment goes back to pending, and a rejection reason is cleared.') }}"
                     data-label="{{ __('Undo Decision') }}"
-                    class="hidden rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-50 focus:outline-none focus:ring-4 focus:ring-amber-200 dark:border-amber-800 dark:bg-gray-800 dark:text-amber-400 dark:hover:bg-amber-900/20 dark:focus:ring-amber-900">
+                    class="hidden rounded-full border border-amber-300 bg-white px-5 py-2.5 text-sm font-medium text-amber-700 transition hover:bg-amber-50 focus:outline-none focus:ring-4 focus:ring-amber-200 dark:border-amber-800 dark:bg-gray-800 dark:text-amber-400 dark:hover:bg-amber-900/20 dark:focus:ring-amber-900">
                 {{ __('Undo') }}
             </button>
         @endcan
         @can('reject payments')
             {{-- Reject opens the reason popup below instead of the shared confirmation. --}}
             <button type="button" id="view-payment-reject" data-decision="reject"
-                    class="hidden rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-4 focus:ring-red-200 dark:border-red-800 dark:bg-gray-800 dark:text-red-400 dark:hover:bg-red-900/20 dark:focus:ring-red-900">
+                    class="hidden rounded-full border border-red-300 bg-white px-5 py-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-4 focus:ring-red-200 dark:border-red-800 dark:bg-gray-800 dark:text-red-400 dark:hover:bg-red-900/20 dark:focus:ring-red-900">
                 {{ __('Reject') }}
             </button>
         @endcan
@@ -123,7 +123,7 @@
                     data-title="{{ __('Confirm Verify') }}"
                     data-message="{{ __('Are you sure you want to verify this payment? Check the amount and the proof first.') }}"
                     data-label="{{ __('Verify Payment') }}"
-                    class="hidden rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-300 dark:focus:ring-emerald-800">
+                    class="hidden rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-300 dark:focus:ring-emerald-800">
                 {{ __('Verify') }}
             </button>
         @endcan
@@ -163,7 +163,7 @@
         <div class="flex justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-700">
             <button type="button" class="{{ $cancelButton }}" x-on:click="show = false">{{ __('Cancel') }}</button>
             <button type="button" id="reject-confirm" data-loading-label="{{ __('Rejecting...') }}"
-                    class="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-300 dark:focus:ring-red-900">
+                    class="rounded-full bg-red-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-300 dark:focus:ring-red-900">
                 {{ __('Reject Payment') }}
             </button>
         </div>
@@ -193,7 +193,7 @@
         <div class="flex justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-700">
             <button type="button" class="{{ $cancelButton }}" x-on:click="show = false">{{ __('Cancel') }}</button>
             <button type="button" id="pay-confirm-button" data-loading-label="{{ __('Saving...') }}"
-                    class="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-800"></button>
+                    class="rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-800"></button>
         </div>
     </x-ui.modal>
 @endcanany

@@ -34,17 +34,22 @@
     $hasFilters = ! $slot->isEmpty();
     $hasSorts = count($sorts) > 0;
 
-    // Compact on a phone (the bar is one row), roomier from `sm`.
-    $barButton = 'inline-flex h-10 items-center justify-center gap-1.5 rounded-full px-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 aria-expanded:bg-gray-100 sm:h-11 sm:gap-2 sm:px-4 dark:text-gray-200 dark:hover:bg-gray-700 dark:focus:ring-gray-700 dark:aria-expanded:bg-gray-700';
+    // Slim on every screen (36px buttons in a 44px bar): the bar is a tool, not the page's headline.
+    $barButton = 'inline-flex h-9 items-center justify-center gap-1.5 rounded-full px-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 aria-expanded:bg-gray-100 sm:gap-1.5 sm:px-3.5 dark:text-gray-200 dark:hover:bg-gray-700 dark:focus:ring-gray-700 dark:aria-expanded:bg-gray-700';
     // A dropdown. On a phone it spans the WHOLE bar (the bar is its positioning parent), so it
     // can never run off the screen; from `sm` it hangs under its own button instead.
     $panel = 'absolute inset-x-0 top-full z-30 mt-2 hidden animate-pop rounded-2xl border border-gray-200 bg-white p-3 shadow-card-lift sm:inset-x-auto sm:right-0 sm:w-80 dark:border-gray-700 dark:bg-gray-800';
     // The cell around a bar button: a hairline before it, and (from `sm`) the anchor of its panel.
     $cell = 'border-l border-gray-200 pl-0.5 sm:relative sm:pl-1 dark:border-gray-700';
-    $tab = 'inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium text-gray-500 transition hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:text-gray-400 dark:hover:text-gray-200 dark:focus:ring-indigo-800 aria-pressed:bg-white aria-pressed:text-indigo-600 aria-pressed:shadow-sm dark:aria-pressed:bg-gray-900 dark:aria-pressed:text-indigo-400';
+    $tab = 'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium text-gray-500 transition hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:text-gray-400 dark:hover:text-gray-200 dark:focus:ring-indigo-800 aria-pressed:bg-white aria-pressed:text-indigo-600 aria-pressed:shadow-sm dark:aria-pressed:bg-gray-900 dark:aria-pressed:text-indigo-400';
 @endphp
 
-<div data-table-toolbar data-export-title="{{ $exportTitle }}" class="relative z-20 flex flex-col gap-3 border-b border-gray-100 px-4 py-3 lg:flex-row lg:items-center lg:justify-between dark:border-gray-700">
+<div data-table-toolbar data-export-title="{{ $exportTitle }}"
+     data-confirm-title="{{ __('Export this list?') }}"
+     data-confirm-text="{{ __('This downloads :count record(s) as :format.') }}"
+     data-confirm-yes="{{ __('Export') }}"
+     data-confirm-no="{{ __('Cancel') }}"
+     class="relative z-20 flex flex-col gap-2 border-b border-gray-100 px-4 py-2.5 lg:flex-row lg:items-center lg:justify-between dark:border-gray-700">
     {{-- Left: the view tabs --}}
     <div class="flex flex-wrap items-center gap-3">
         @if ($title)
@@ -64,15 +69,17 @@
     </div>
 
     {{-- Right: one bar - search | Sort | Filter --}}
-    <div class="relative flex min-w-0 items-center rounded-full border border-gray-200 bg-white p-1 shadow-sm sm:p-1.5 lg:w-[30rem] dark:border-gray-700 dark:bg-gray-800">
+    <div class="relative flex min-w-0 items-center rounded-full border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-700 dark:bg-gray-800">
         {{-- min-w keeps the field usable on a phone: the bar buttons are icon only there. --}}
-        <label class="relative flex min-w-[7rem] flex-1 items-center">
+        {{-- From `lg` the field rests at 11rem and widens to 18rem while it has focus (the bar grows
+             to the left, the buttons stay put); below `lg` it already fills the bar. --}}
+        <label class="relative flex min-w-[7rem] flex-1 items-center lg:w-44 lg:flex-none lg:transition-[width] lg:duration-200 lg:ease-out lg:focus-within:w-72 motion-reduce:transition-none">
             <span class="sr-only">{{ __('Search') }}</span>
-            <svg class="pointer-events-none absolute left-3.5 h-5 w-5 text-gray-400 sm:left-4 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <svg class="pointer-events-none absolute left-3.5 h-4 w-4 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
             </svg>
             <input type="search" data-table-search autocomplete="off" placeholder="{{ __('Search') }}…"
-                   class="h-10 w-full min-w-0 rounded-full border-0 bg-transparent pl-11 pr-2 text-base text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 sm:h-11 sm:pl-12 sm:pr-4 dark:text-white dark:placeholder:text-gray-400">
+                   class="h-9 w-full min-w-0 rounded-full border-0 bg-transparent pl-10 pr-2 text-base text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 sm:pr-4 sm:text-sm dark:text-white dark:placeholder:text-gray-400">
         </label>
 
         @if ($hasSorts || $hasFilters)
