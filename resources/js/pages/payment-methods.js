@@ -530,7 +530,7 @@ const start = () => {
                 <p class="text-sm text-gray-500 dark:text-gray-400">${escapeHtml(method.account_name ?? '—')}</p>
                 <p class="text-xs tabular-nums text-gray-500 dark:text-gray-400">${escapeHtml(method.account_number ?? '')}</p>
             </div>
-            <div class="flex flex-wrap justify-end gap-2 border-t border-gray-100 px-4 py-3 dark:border-gray-700/60">
+            <div data-card-actions class="flex flex-nowrap justify-end gap-1.5 border-t border-gray-100 px-3 py-3 dark:border-gray-700/60">
                 ${method.action ?? ''}
             </div>
         </article>`;

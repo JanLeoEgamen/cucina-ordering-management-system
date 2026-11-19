@@ -389,7 +389,7 @@ const start = () => {
                     <dd class="truncate text-gray-900 dark:text-white">${escapeHtml(session.created_by_name ?? '—')}</dd>
                 </div>
             </dl>
-            <div class="flex flex-wrap justify-end gap-2 border-t border-gray-100 px-4 py-3 dark:border-gray-700/60">
+            <div data-card-actions class="flex flex-nowrap justify-end gap-1.5 border-t border-gray-100 px-3 py-3 dark:border-gray-700/60">
                 ${session.action ?? ''}
             </div>
         </article>`;

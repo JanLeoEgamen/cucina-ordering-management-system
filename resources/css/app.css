@@ -986,3 +986,21 @@ html [id$='-cards'] a[data-row-link] {
     margin: 0;
     padding: 0.4rem 0.7rem;
 }
+
+/* A card footer that must stay on ONE row (`data-card-actions`, payment methods): the buttons
+   shrink a little (tighter padding and gap) instead of wrapping under each other. */
+html [data-card-actions] button[data-row-action],
+html [data-card-actions] a[data-row-link] {
+    flex: 0 1 auto;
+    min-width: 0;
+    gap: 0.3rem;
+    padding: 0.4rem 0.55rem;
+    white-space: nowrap;
+}
+
+/* Four actions (an order session that can be viewed, edited, ended and deleted) cannot fit
+   icon + label in a ~280 px card: drop the icons there and keep the labels, still one row. */
+html [data-card-actions]:has(> :nth-child(4)) > button[data-row-action]::before,
+html [data-card-actions]:has(> :nth-child(4)) > a[data-row-link]::before {
+    display: none;
+}
