@@ -275,8 +275,8 @@
             @endcanany
 
             {{-- Access --}}
-            @canany(['view roles', 'view users', 'view settings'])
-                <div class="space-y-1 pt-3" data-nav-group="access" @if (request()->routeIs('roles.*', 'users.*', 'settings.*')) data-has-active @endif>
+            @canany(['view roles', 'view users', 'view settings', 'view audit-logs'])
+                <div class="space-y-1 pt-3" data-nav-group="access" @if (request()->routeIs('roles.*', 'users.*', 'settings.*', 'audit-logs.*')) data-has-active @endif>
                     {{-- The title is a button: it folds the group (state: html[data-nav-closed], kept in
                          localStorage, see layouts/app.blade.php). The icon rail has no room for it, so a
                          thin rule marks the group there and its links always show. --}}
@@ -317,6 +317,17 @@
                        class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('settings.*') ? 'bg-gray-900 text-white shadow-sm dark:bg-mist dark:text-ink' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white' }}">
                         <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         <span class="sidebar-label">{{ __('System Configuration') }}</span>
+                    </a>
+                @endcan
+
+                @can('view audit-logs')
+                    <a href="{{ route('audit-logs.index') }}"
+                       @click="open = false"
+                       title="{{ __('Audit Trail') }}"
+                       @if (request()->routeIs('audit-logs.*')) aria-current="page" @endif
+                       class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('audit-logs.*') ? 'bg-gray-900 text-white shadow-sm dark:bg-mist dark:text-ink' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white' }}">
+                        <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
+                        <span class="sidebar-label">{{ __('Audit Trail') }}</span>
                     </a>
                 @endcan
                     </div>

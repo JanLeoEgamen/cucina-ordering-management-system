@@ -161,6 +161,32 @@ class OrderSession extends Model
         return self::getAll()->first(fn (object $session) => $session->status === 'live');
     }
 
+    // Does another session that is still open overlap this window? The menu offers ONE
+    // live session (live() returns the first), so two windows must never run together:
+    // the customer would see one and the other would silently take no orders.
+    // Ended sessions (closed by hand, switched off or past) do not count, and a window
+    // that only touches the other (09:00-12:00 then 12:00-14:00) is fine.
+    // $ignoreId is the session being edited. Same rule as BulkSession::overlaps().
+    public static function overlaps(string $orderDate, string $startTime, string $endTime, ?int $ignoreId = null): bool
+    {
+        $start = Carbon::parse($orderDate . ' ' . $startTime);
+        $end = Carbon::parse($orderDate . ' ' . $endTime);
+
+        return DB::table(self::TABLE)
+            ->whereNull('deleted_at')
+            ->whereNull('ended_at')
+            ->where('is_active', 1)
+            ->whereDate('order_date', $orderDate)
+            ->when($ignoreId !== null, fn ($query) => $query->where('session_id', '!=', $ignoreId))
+            ->get(['order_date', 'start_time', 'end_time'])
+            ->contains(function (object $other) use ($start, $end) {
+                $otherStart = Carbon::parse($other->order_date . ' ' . $other->start_time);
+                $otherEnd = Carbon::parse($other->order_date . ' ' . $other->end_time);
+
+                return $start->lt($otherEnd) && $end->gt($otherStart);
+            });
+    }
+
     // The session's state: scheduled before it starts, live inside its window,
     // ended once it was closed by hand or its end time went past.
     public static function statusOf(object $session): string

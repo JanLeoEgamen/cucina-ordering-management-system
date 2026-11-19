@@ -124,6 +124,18 @@ class User extends Authenticatable
             ->exists();
     }
 
+    // Whether the user holds the Super Admin role. Such an account is never deleted
+    // (UserController::destroy, ProfileController::destroy and deleteUser() all ask).
+    public static function isSuperAdmin(int $userId): bool
+    {
+        return DB::table(self::PIVOT)
+            ->join('roles', 'roles.id', '=', self::PIVOT . '.role_id')
+            ->where(self::PIVOT . '.model_type', self::class)
+            ->where(self::PIVOT . '.model_id', $userId)
+            ->where('roles.name', Role::SUPER_ADMIN)
+            ->exists();
+    }
+
     // Role names of every user, keyed by user id: the feed needs them in one query.
     public static function rolesByUser(): Collection
     {
@@ -213,6 +225,11 @@ class User extends Authenticatable
     // no access. Nothing restores it: this app has no restore path.
     public static function deleteUser(int $userId): bool
     {
+        // Last line of defence: whatever calls this, a Super Admin stays.
+        if (self::isSuperAdmin($userId)) {
+            return false;
+        }
+
         $now = now();
 
         $deleted = DB::table(self::TABLE)
@@ -225,6 +242,52 @@ class User extends Authenticatable
         }
 
         return $deleted;
+    }
+
+    // Give a self-registered account the Customer role (what /register and the first
+    // Google sign-in do). It ADDS the role: syncUserRoles() below would replace the
+    // user's others. Returns false when the role does not exist yet (PermissionSeeder
+    // has not run): the account is then left role-less rather than failing the sign-up.
+    public static function giveCustomerRole(int $userId): bool
+    {
+        $roleId = DB::table('roles')
+            ->where('name', Role::CUSTOMER)
+            ->where('guard_name', 'web')
+            ->value('id');
+
+        if (! $roleId) {
+            return false;
+        }
+
+        // The pivot's primary key is (role, model type, model id), so a repeat is ignored.
+        DB::table(self::PIVOT)->insertOrIgnore([
+            'role_id' => (int) $roleId,
+            'model_type' => self::class,
+            'model_id' => $userId,
+        ]);
+
+        // The permission map is cached, so every write has to drop it.
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        return true;
+    }
+
+    // The active accounts that hold no role at all (id + email): what accounts registered
+    // before the Customer role existed look like. A deleted account never counts: it has
+    // no access on purpose (deleteUser() drops its roles).
+    public static function rolelessUsers(): array
+    {
+        return DB::table(self::TABLE)
+            ->whereNull('users.deleted_at')
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from(self::PIVOT)
+                    ->whereColumn(self::PIVOT . '.model_id', 'users.id')
+                    ->where(self::PIVOT . '.model_type', self::class);
+            })
+            ->orderBy('users.id')
+            ->get(['users.id', 'users.email'])
+            ->all();
     }
 
     // Replace a user's roles: delete that user's rows, insert the posted ids.

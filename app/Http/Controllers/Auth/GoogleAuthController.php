@@ -66,8 +66,8 @@ class GoogleAuthController extends Controller
         $isNew = ! $user;
 
         if ($isNew) {
-            // New accounts get no role, like /register (see security.md). The password is
-            // random and unknown: they use Google, or "Forgot your password?" to set one.
+            // New accounts become customers, like /register (see security.md). The password
+            // is random and unknown: they use Google, or "Forgot your password?" to set one.
             $user = (new User)->forceFill([
                 'first_name' => $raw['given_name'] ?? Str::before((string) $google->getName(), ' '),
                 'last_name' => $raw['family_name'] ?? '',
@@ -77,6 +77,8 @@ class GoogleAuthController extends Controller
                 'email_verified_at' => now(),
             ]);
             $user->save();
+
+            User::giveCustomerRole((int) $user->id);
 
             event(new Registered($user));
         } elseif (! $user->google_id) {

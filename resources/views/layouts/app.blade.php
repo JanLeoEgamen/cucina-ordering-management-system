@@ -4,6 +4,10 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        {{-- Signed-in pages only: where a tab goes when its session is gone (resources/js/ui/session-guard.js). --}}
+        @auth
+            <meta name="login-url" content="{{ route('login') }}">
+        @endauth
 
         <title>{{ config('app.name', 'Cucina') }}</title>
 

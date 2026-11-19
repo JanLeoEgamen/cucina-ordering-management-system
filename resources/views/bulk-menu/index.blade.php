@@ -58,7 +58,8 @@
     <div id="bulk-menu-root"
          class="container mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8"
          data-session-id="{{ $session->bulk_session_id ?? '' }}"
-         data-min-quantity="{{ (int) ($session->min_quantity ?? 0) }}"
+         data-min-quantity="{{ (int) $limits['min'] }}"
+         data-max-quantity="{{ (int) ($limits['max'] ?? 0) }}"
          data-order-url="{{ route('bulk-orders.store') }}"
          data-methods='@json($methods)'
          data-cash='@json($cash)'
@@ -68,6 +69,8 @@
          data-need-more="{{ __('Add :n more plates to reach the minimum.') }}"
          data-min-reached="{{ __('Minimum reached.') }}"
          data-below-minimum="{{ __('A bulk order needs at least :min plates (you have :n).') }}"
+         data-over-max="{{ __('Remove :n plates: a bulk order can hold at most :max.') }}"
+         data-above-maximum="{{ __('A bulk order can hold at most :max plates (you have :n).') }}"
          data-choose-method="{{ __('Choose a payment method.') }}"
          data-proof-required="{{ __('Upload the proof of payment to continue.') }}"
          data-no-options="{{ __('No payment option has been set up yet.') }}"
@@ -105,7 +108,13 @@
                 <svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
                 </svg>
-                <span>{{ __('Bulk orders need at least') }} <strong class="tabular-nums">{{ (int) $session->min_quantity }}</strong> {{ __('plates in total, in any mix of dishes.') }}</span>
+                <span>
+                    {{ __('Bulk orders need at least') }} <strong class="tabular-nums">{{ (int) $limits['min'] }}</strong>
+                    @if ($limits['max'])
+                        {{ __('and at most') }} <strong class="tabular-nums">{{ (int) $limits['max'] }}</strong>
+                    @endif
+                    {{ __('plates in total, in any mix of dishes.') }}
+                </span>
             </div>
 
             <label class="relative mb-5 block">
@@ -177,7 +186,7 @@
                             <span id="bulk-total" class="text-lg font-bold tabular-nums text-gray-900 dark:text-white">₱0.00</span>
                         </p>
 
-                        <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700" role="progressbar" aria-valuemin="0" aria-valuemax="{{ (int) $session->min_quantity }}" aria-valuenow="0" id="bulk-progress-bar">
+                        <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700" role="progressbar" aria-valuemin="0" aria-valuemax="{{ (int) $limits['min'] }}" aria-valuenow="0" id="bulk-progress-bar">
                             <div id="bulk-progress" class="h-full w-0 rounded-full bg-gray-900 transition-all duration-300 ease-out dark:bg-mist"></div>
                         </div>
                         <p id="bulk-hint" class="mt-1 text-xs text-gray-500 dark:text-gray-400" aria-live="polite"></p>

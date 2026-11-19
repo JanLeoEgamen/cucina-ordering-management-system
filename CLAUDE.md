@@ -21,11 +21,13 @@ cp .env.example .env && php artisan key:generate
 php artisan migrate --seed          # seeds test@example.com / password as Super Admin (dev only)
 php artisan storage:link            # needed for uploaded images
 composer dev                        # server + queue worker (notifications,default) + pail logs + vite
-php artisan test                    # PHPUnit (baseline: 409 passing)
-php artisan schedule:work           # optional locally: runs the daily notifications:prune (server: cron `schedule:run`)
+php artisan test                    # PHPUnit (baseline: 496 passing)
+php artisan schedule:work           # optional locally: runs the daily notifications:prune + audit:prune (server: cron `schedule:run`)
+php artisan audit:prune [--days=N]  # delete audit trail entries past AUDIT_RETENTION_DAYS (365); 0 keeps all
 php scripts/harness.php             # docs-drift check + tests;  --docs = drift only
 npm run build                       # must pass after frontend changes
 php artisan db:seed --class=PermissionSeeder   # after adding a permission
+php artisan users:give-customer-role --dry-run # once on an old database: lists role-less accounts; drop the flag to give them Customer
 ```
 
 Shell is PowerShell on Windows (Git Bash also available). `php` and `npm` are on PATH.
@@ -52,7 +54,7 @@ Shell is PowerShell on Windows (Git Bash also available). `php` and `npm` are on
 ## Gotchas (append one line per trap you hit)
 
 - `User` is not `MustVerifyEmail`, so the `verified` middleware does nothing.
-- Registered users have no role → they get 403 on the menu until an admin assigns one.
+- Self-registered users (form or Google) get the **Customer** role through `User::giveCustomerRole()` (menu + ordering only). If `PermissionSeeder` has not run the role does not exist and they stay role-less (403 on the menu), so seed before opening registration. Accounts that registered before this change have no role: run `php artisan users:give-customer-role --dry-run`, then without the flag (it skips anyone who already has a role).
 - Payment rules depend on the method: Cash on Pick up is verified by completing its order (no manual verify/reject); other methods are verified first, then completed. Cancelling an order releases its stock and is refused while its payment is verified (undo that first). A *rejection* does NOT release the stock: the customer can resend a proof or switch to cash (`my-orders.payment.*`), so the plates stay held until staff cancel.
 - `#delete-modal-*` / `#save-modal-*` exist once per page and `dishes.js` owns them: a second page module on the same view (the Manage Types drawer) must not bind them — it confirms deletes inline and tags its buttons `data-type-action`.
 - Windows: running `php artisan test` while the dev server is up can fail with "rename(...storage/framework/views/...tmp) Access is denied"; run the tests with `VIEW_COMPILED_PATH` pointing at another folder.
@@ -70,3 +72,6 @@ Shell is PowerShell on Windows (Git Bash also available). `php` and `npm` are on
 - Windows: a stray lowercase `composer` environment variable (pointing at another profile's `vendor\bin`) makes `composer require` fail with "file_put_contents(...vendor\bin): Permission denied"; `unset composer` / `Remove-Item Env:composer` in that shell.
 - `users.email` is unique **including soft deleted rows**: any code that creates a user from an outside email (Google sign-in) must look with `User::withTrashed()` and refuse a deleted account, or the insert throws a duplicate-key error.
 - A new route behind `auth` must live inside the `['auth', 'profile.complete']` group in `routes/web.php` (or carry that middleware), or a Google sign-up that has not completed its profile can reach it. Tests that need an unfinished user use `User::factory()->profileIncomplete()`; the plain factory user is complete.
+- The audit trail is ONE middleware (`AuditTrail`, in the `web` group) plus the auth events: **do not add audit calls to controllers**. A new `{id}` resource needs its route prefix in `config/audit.php` `subjects` (else its entries have no record label / before-after diff), and a readable name in `actions`. Read `config('audit.actions')[$name]`, never `config('audit.actions.' . $name)`: route names contain dots, which config reads as nesting. `audit_logs` is append only: never add an update / delete route or method for it (prune is the only delete). After pulling, run `migrate` and `db:seed --class=PermissionSeeder` (new permission `view audit-logs`).
+- A controller that REFUSES with a redirect must flash an error (`withErrors(...)`), not only a status: the audit trail reads "redirected back with errors" as `failed`, a bare redirect is logged as a success.
+- Notification emails: `OrderNotifier::email()` must stay AFTER `insertMany()` and inside `rescue()`, and `SendNotificationEmails` must stay `tries = 1`. A throw in either makes `DeliverNotification` retry (bell rows written twice) or mails everyone twice. The switch is `Setting::emailNotifications()` (default off); new notification events get email for free because they build their rows through `mailRow()`.

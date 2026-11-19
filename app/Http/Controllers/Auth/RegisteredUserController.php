@@ -48,6 +48,9 @@ class RegisteredUserController extends Controller
             'profile_completed_at' => now(),
         ]);
 
+        // Self-registered people are customers: they can open the menu and order.
+        User::giveCustomerRole((int) $user->id);
+
         event(new Registered($user));
 
         Auth::login($user);

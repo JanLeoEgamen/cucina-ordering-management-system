@@ -17,6 +17,10 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        {{-- Only drawn for a signed-in user on a guest-layout page (complete profile, verify email). --}}
+        @auth
+            <meta name="login-url" content="{{ route('login') }}">
+        @endauth
 
         <title>{{ config('app.name', 'Cucina') }}</title>
 

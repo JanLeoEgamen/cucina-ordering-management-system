@@ -9,6 +9,8 @@ use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 use Yajra\DataTables\Facades\DataTables;
 
 class OrderSessionController extends Controller implements HasMiddleware
@@ -141,6 +143,8 @@ class OrderSessionController extends Controller implements HasMiddleware
     {
         $validated = $this->validateSession($request);
 
+        $this->refuseOverlap($validated);
+
         OrderSession::createSession(
             $validated + ['created_by' => auth()->id()],
             $this->postedStocks($request, $validated['dish_ids'])
@@ -152,11 +156,20 @@ class OrderSessionController extends Controller implements HasMiddleware
     // Update a session and replace the dishes it offers.
     public function update(Request $request, $id)
     {
-        if (! OrderSession::existsById((int) $id)) {
+        $session = OrderSession::findById((int) $id);
+
+        if (! $session) {
             return $this->errorResponse('Order session not found.', 404);
         }
 
         $validated = $this->validateSession($request);
+
+        // Only a window that is moved can start a clash, and only an open session can clash:
+        // an ended one is history, and a session that already overlapped another before this
+        // check existed must still accept a stock or dish edit that leaves its window alone.
+        if ($session->status !== 'ended' && $this->windowMoved($session, $validated)) {
+            $this->refuseOverlap($validated, (int) $id);
+        }
 
         OrderSession::updateSession(
             (int) $id,
@@ -230,6 +243,25 @@ class OrderSessionController extends Controller implements HasMiddleware
             'dish_ids.min' => 'Pick at least one dish.',
             'end_time.after' => 'The end time must be after the start time.',
         ]);
+    }
+
+    // The menu offers ONE live session, so a window may not overlap another one that is still
+    // open. A validation error, so the drawer prints it like any other field error (422).
+    protected function refuseOverlap(array $validated, ?int $ignoreId = null): void
+    {
+        if (OrderSession::overlaps($validated['order_date'], $validated['start_time'], $validated['end_time'], $ignoreId)) {
+            throw ValidationException::withMessages([
+                'start_time' => 'Another order session is already open in this time window.',
+            ]);
+        }
+    }
+
+    // Did the edit change the date or the times? (The stored time is H:i:s, the form's H:i.)
+    protected function windowMoved(object $session, array $validated): bool
+    {
+        return Carbon::parse($session->order_date)->toDateString() !== Carbon::parse($validated['order_date'])->toDateString()
+            || substr((string) $session->start_time, 0, 5) !== $validated['start_time']
+            || substr((string) $session->end_time, 0, 5) !== $validated['end_time'];
     }
 
     // The stock picked for each dish of the session: [dish_id => available_stock].

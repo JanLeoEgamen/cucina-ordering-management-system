@@ -167,7 +167,7 @@ class BulkSession extends Model
 
     // Does another bulk session that is still open overlap this window? The menu
     // shows ONE live bulk session, so two windows must never run together (the
-    // regular order sessions have no such guard: known-issues F3).
+    // regular order sessions follow the same rule: OrderSession::overlaps()).
     // $ignoreId is the session being edited.
     public static function overlaps(string $orderDate, string $startTime, string $endTime, ?int $ignoreId = null): bool
     {

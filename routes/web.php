@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\BulkOrderController;
 use App\Http\Controllers\BulkSessionController;
 use App\Http\Controllers\DishController;
@@ -156,6 +157,12 @@ Route::middleware(['auth', 'profile.complete'])->group(function () {
         ->whereNumber('id')->name('roles.update');
     Route::delete('/roles/{id}', [RoleController::class, 'destroy'])
         ->whereNumber('id')->name('roles.destroy');
+
+    // Audit trail: read only (no route changes or deletes an entry). Permission: view audit-logs.
+    Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
+    Route::get('/audit-logs/export', [AuditLogController::class, 'export'])->name('audit-logs.export');
+    Route::get('/audit-logs/{id}', [AuditLogController::class, 'show'])
+        ->whereNumber('id')->name('audit-logs.show');
 
     // Users
     Route::get('/users', [UserController::class, 'index'])->name('users.index');

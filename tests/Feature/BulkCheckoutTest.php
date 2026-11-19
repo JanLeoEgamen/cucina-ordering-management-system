@@ -9,6 +9,7 @@ use App\Models\Dish;
 use App\Models\Order;
 use App\Models\PaymentMethod;
 use App\Models\SessionDish;
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -245,6 +246,91 @@ class BulkCheckoutTest extends TestCase
         $this->assertDatabaseCount('bulk_order_items', 0);
         // The picture was not stored.
         $this->assertSame([], Storage::disk('public')->allFiles());
+    }
+
+    /* -------- the limits of System Configuration -------- */
+
+    public function test_an_order_above_the_system_maximum_is_refused_and_leaves_nothing_behind(): void
+    {
+        Storage::fake('public');
+        Setting::setBulkLimits(10, 50);
+        [$session, $line] = $this->liveSession(10);
+        $gcash = PaymentMethod::factory()->create(['method_name' => 'GCash']);
+
+        $response = $this->actingAs($this->customer())
+            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 51], $gcash, [
+                'proof_of_payment' => UploadedFile::fake()->image('proof.jpg'),
+            ]))
+            ->assertStatus(422)
+            ->assertJsonPath('min_quantity', 10)
+            ->assertJsonPath('max_quantity', 50);
+
+        $this->assertStringContainsString('at most 50 plates', $response->json('message'));
+        $this->assertDatabaseCount('bulk_orders', 0);
+        $this->assertSame([], Storage::disk('public')->allFiles());
+    }
+
+    public function test_exactly_the_system_maximum_is_enough(): void
+    {
+        Setting::setBulkLimits(10, 50);
+        [$session, $line] = $this->liveSession(10);
+
+        $this->actingAs($this->customer())
+            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 50], $this->cash()))
+            ->assertOk()->assertJsonPath('plates', 50);
+    }
+
+    public function test_without_a_maximum_a_big_order_is_accepted(): void
+    {
+        [$session, $line] = $this->liveSession(10);
+
+        $this->assertNull(Setting::bulkLimits()['max']);
+
+        $this->actingAs($this->customer())
+            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 5000], $this->cash()))
+            ->assertOk();
+    }
+
+    public function test_the_system_minimum_beats_a_smaller_session_minimum(): void
+    {
+        // A session made before the floor was raised.
+        $session = BulkSession::factory()->create(['min_quantity' => 5]);
+        $line = BulkSessionDish::factory()->create([
+            'bulk_session_id' => $session->bulk_session_id,
+            'dish_id' => Dish::factory()->create(['price' => 100])->dish_id,
+        ]);
+        Setting::setBulkLimits(20, null);
+
+        $response = $this->actingAs($this->customer())
+            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 10], $this->cash()))
+            ->assertStatus(422)
+            ->assertJsonPath('min_quantity', 20);
+
+        $this->assertStringContainsString('at least 20 plates', $response->json('message'));
+    }
+
+    public function test_a_session_minimum_above_a_lowered_maximum_is_brought_down_to_it(): void
+    {
+        [$session, $line] = $this->liveSession(40);
+        // The maximum was lowered after the session was made: it must stay orderable.
+        Setting::setBulkLimits(10, 30);
+
+        $this->actingAs($this->customer())
+            ->postJson(route('bulk-orders.store'), $this->order($session, [$line->bulk_session_dish_id => 30], $this->cash()))
+            ->assertOk();
+    }
+
+    public function test_the_menu_shows_the_limits_to_the_customer(): void
+    {
+        Setting::setBulkLimits(15, 80);
+        $this->liveSession(10);
+        $this->cash();
+
+        $this->actingAs($this->customer())
+            ->get(route('bulk-menu.index'))
+            ->assertOk()
+            ->assertSee('data-min-quantity="15"', false)
+            ->assertSee('data-max-quantity="80"', false);
     }
 
     public function test_exactly_the_minimum_is_enough(): void

@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Jobs\DeliverNotification;
+use App\Jobs\SendNotificationEmails;
 use App\Models\Order;
 use App\Models\PaymentMethod;
 use App\Models\Setting;
@@ -151,6 +152,7 @@ class OrderNotifier
         $people = User::query()->whereIn('id', array_values(array_unique(array_merge([$customerId], $watchers))))->get();
 
         $rows = [];
+        $mails = [];
 
         foreach ($people as $person) {
             $isWatcher = in_array((int) $person->id, $watchers, true);
@@ -178,9 +180,12 @@ class OrderNotifier
                 'url' => $url,
                 'order_id' => $order->order_id,
             ];
+
+            $mails[] = self::mailRow($person, $title, $body, $url);
         }
 
         UserNotification::insertMany($rows);
+        self::email($mails);
     }
 
     public static function deliverSoldOut(array $sessionDishIds, int $sessionId, ?int $actorId): void
@@ -221,23 +226,63 @@ class OrderNotifier
     {
 
         $rows = [];
+        $mails = [];
 
         foreach (User::query()->whereIn('id', $watchers)->get() as $person) {
             $url = $person->can('view order-sessions') ? route('order-sessions.show', $sessionId, false) : null;
 
             foreach ($names as $dish) {
+                $title = __(':dish is sold out', ['dish' => $dish->dish_name]);
+                $body = __('The last plates were just ordered.');
+
                 $rows[] = [
                     'user_id' => $person->id,
                     'type' => self::SOLD_OUT,
-                    'title' => __(':dish is sold out', ['dish' => $dish->dish_name]),
-                    'body' => __('The last plates were just ordered.'),
+                    'title' => $title,
+                    'body' => $body,
                     'url' => $url,
                     'order_id' => null,
                 ];
+
+                $mails[] = self::mailRow($person, $title, $body, $url);
             }
         }
 
         UserNotification::insertMany($rows);
+        self::email($mails);
+    }
+
+    /* -------- Email -------- */
+
+    // What the email job needs for one person: the same words as the bell.
+    protected static function mailRow(User $person, string $title, ?string $body, ?string $url): array
+    {
+        return [
+            'user_id' => (int) $person->id,
+            'email' => (string) $person->email,
+            'title' => $title,
+            'body' => $body,
+            'url' => $url,
+        ];
+    }
+
+    // The email copy (System Configuration -> Notifications, off by default). It runs
+    // AFTER the in-app rows were saved, and inside rescue(): whatever goes wrong here
+    // (the setting cannot be read, the job cannot be pushed) must not fail the
+    // notification job, because its retry would write the bell rows a second time.
+    protected static function email(array $mails): void
+    {
+        $mails = array_values(array_filter($mails, fn (array $mail) => $mail['email'] !== ''));
+
+        if ($mails === []) {
+            return;
+        }
+
+        rescue(function () use ($mails) {
+            if (Setting::emailNotifications()) {
+                Bus::dispatch(new SendNotificationEmails($mails));
+            }
+        });
     }
 
     /* -------- The words -------- */
