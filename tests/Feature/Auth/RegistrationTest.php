@@ -24,8 +24,8 @@ class RegistrationTest extends TestCase
             'first_name' => 'Test',
             'last_name' => 'User',
             'email' => 'test@example.com',
-            'password' => 'password',
-            'password_confirmation' => 'password',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
         ]);
 
         $this->assertAuthenticated();
@@ -38,8 +38,8 @@ class RegistrationTest extends TestCase
             'first_name' => 'Test',
             'last_name' => 'User',
             'email' => 'test@example.com',
-            'password' => 'password',
-            'password_confirmation' => 'password',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
         ])->assertSessionHasNoErrors();
     }
 
@@ -83,5 +83,37 @@ class RegistrationTest extends TestCase
         User::giveCustomerRole($user->id);
 
         $this->assertEqualsCanonicalizing(['Customer', 'Super Admin'], $user->fresh()->getRoleNames()->all());
+    }
+
+    public function test_registering_is_limited_to_five_attempts_a_minute_per_address(): void
+    {
+        // Invalid attempts count too: the cap is against flooding, not only against successes.
+        for ($i = 0; $i < 5; $i++) {
+            $this->post('/register', [])->assertSessionHasErrors('email');
+        }
+
+        $this->post('/register', [])->assertStatus(429);
+        $this->assertGuest();
+
+        // Another address is not affected.
+        $this->withServerVariables(['REMOTE_ADDR' => '10.9.8.7'])
+            ->post('/register', [])->assertSessionHasErrors('email');
+
+        // The window passes and the first address can try again.
+        $this->travel(61)->seconds();
+        $this->post('/register', [])->assertSessionHasErrors('email');
+    }
+
+    public function test_registering_is_limited_to_thirty_attempts_an_hour_per_address(): void
+    {
+        // Six rounds of five attempts, a minute apart: the minute cap never trips, the hourly one must.
+        for ($round = 0; $round < 6; $round++) {
+            for ($i = 0; $i < 5; $i++) {
+                $this->post('/register', [])->assertSessionHasErrors('email');
+            }
+            $this->travel(61)->seconds();
+        }
+
+        $this->post('/register', [])->assertStatus(429);
     }
 }

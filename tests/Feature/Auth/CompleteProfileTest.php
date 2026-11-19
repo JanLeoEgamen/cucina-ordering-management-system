@@ -108,7 +108,7 @@ class CompleteProfileTest extends TestCase
     {
         $this->post('/register', [
             'first_name' => 'Test', 'last_name' => 'User', 'email' => 'reg@example.com',
-            'password' => 'password123', 'password_confirmation' => 'password123',
+            'password' => 'Password123!', 'password_confirmation' => 'Password123!',
         ]);
         $this->assertNotNull(User::where('email', 'reg@example.com')->value('profile_completed_at'));
 

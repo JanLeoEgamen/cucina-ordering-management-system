@@ -18,8 +18,8 @@ class UserCompanyTest extends TestCase
             'first_name' => 'Test',
             'last_name' => 'User',
             'email' => 'test@example.com',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
         ];
     }
 
@@ -31,8 +31,8 @@ class UserCompanyTest extends TestCase
             'first_name' => 'Jan',
             'last_name' => 'Egamen',
             'email' => 'jan@example.com',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
             'roles' => [DB::table('roles')->value('id')],
         ];
     }
