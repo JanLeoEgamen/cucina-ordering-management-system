@@ -126,6 +126,28 @@ class SettingTest extends TestCase
         $this->assertSame(['min' => 20, 'max' => null], Setting::bulkLimits());
     }
 
+    public function test_customer_cancel_is_off_until_switched_on_and_saved_from_the_page(): void
+    {
+        $admin = $this->superAdmin();
+
+        $this->assertFalse(Setting::customerCancel());
+        $this->actingAs($admin)->get(route('settings.index'))->assertOk()->assertSee('name="customer_cancel"', false);
+
+        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['customer_cancel' => 1]))->assertOk();
+        $this->assertTrue(Setting::customerCancel());
+        $this->actingAs($admin)->get(route('settings.index'))->assertSee('id="customer-cancel"', false);
+
+        // A save that leaves it out changes nothing...
+        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload())->assertOk();
+        $this->assertTrue(Setting::customerCancel());
+
+        // ...and the form always sends a 0 for an un-ticked switch.
+        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['customer_cancel' => 0]))->assertOk();
+        $this->assertFalse(Setting::customerCancel());
+
+        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['customer_cancel' => 'maybe']))->assertStatus(422);
+    }
+
     public function test_saving_without_the_bulk_fields_leaves_the_limits_alone(): void
     {
         Setting::setBulkLimits(30, 90);

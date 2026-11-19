@@ -103,11 +103,14 @@ const start = () => {
             [...control.options].forEach((option) => {
                 option.selected = saved.values.includes(option.value);
             });
+        } else if (control.type === 'file') {
+            // A file box can only be emptied from script, never given a path.
+            control.value = '';
         } else {
             control.value = saved.value;
         }
 
-        control.dispatchEvent(new Event(control.tagName === 'SELECT' || control.type === 'checkbox' ? 'change' : 'input', { bubbles: true }));
+        control.dispatchEvent(new Event(['SELECT'].includes(control.tagName) || ['checkbox', 'file'].includes(control.type) ? 'change' : 'input', { bubbles: true }));
     };
 
     // The badge and the "Was" line of one field, made the first time it changes.
@@ -183,6 +186,46 @@ const start = () => {
         }
     };
 
+    /* ---- the logo picked, shown before it is saved --------------------------
+     *
+     * The preview box holds the current logo (the server drew it). A picked file replaces it
+     * with the file itself (an object URL: nothing is uploaded yet); emptying the box, or Undo,
+     * puts the saved one back.
+     */
+    const logoInput = form.querySelector('#app-logo');
+    const logoPreview = form.querySelector('#app-logo-preview');
+    const savedLogoMarkup = logoPreview ? logoPreview.innerHTML : '';
+    let previewUrl = null;
+
+    logoInput?.addEventListener('change', () => {
+        if (!logoPreview) {
+            return;
+        }
+
+        if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+            previewUrl = null;
+        }
+
+        const file = logoInput.files?.[0];
+
+        if (!file) {
+            logoPreview.innerHTML = savedLogoMarkup;
+
+            return;
+        }
+
+        previewUrl = URL.createObjectURL(file);
+
+        const image = document.createElement('img');
+
+        image.src = previewUrl;
+        image.alt = '';
+        // Same shape as the logo component draws it everywhere else.
+        image.className = 'aspect-square h-full w-full rounded-lg object-cover';
+        logoPreview.replaceChildren(image);
+    });
+
     form.addEventListener('input', refreshChanges);
     form.addEventListener('change', refreshChanges);
     // A reload can bring typed values back: show them as edits straight away.
@@ -238,11 +281,23 @@ const start = () => {
                 return;
             }
 
+            // The name and the logo are drawn on every page (sidebar, title, sign in): when
+            // either changed, reload once so this page shows the saved brand too.
+            const brandChanged = ['app-name', 'app-logo', 'remove-app-logo'].some((id) => {
+                const control = form.querySelector('#' + id);
+
+                return control && snapshot(control).key !== baseline.get(control).key;
+            });
+
             // Saved: what is on the page is now the starting point for the next edit.
             controls.forEach((control) => baseline.set(control, snapshot(control)));
             refreshChanges();
 
             showToast(payload.message);
+
+            if (brandChanged) {
+                window.setTimeout(() => window.location.reload(), 900);
+            }
         } catch (error) {
             emit('close-modal', 'edit-confirmation-modal');
             showErrors(['The configuration could not be saved.']);

@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Mail\NotificationMail;
+use App\Models\Setting;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -34,6 +35,10 @@ class SendNotificationEmails implements ShouldQueue
 
     public function handle(): void
     {
+        // The header of Laravel's mail layout prints config('app.name'): make it the name saved in
+        // System Configuration. Read per job, so a long-running worker follows a rename.
+        config(['app.name' => Setting::appName()]);
+
         foreach ($this->mails as $mail) {
             try {
                 Mail::to($mail['email'])->send(new NotificationMail(
