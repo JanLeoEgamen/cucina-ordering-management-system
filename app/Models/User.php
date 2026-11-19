@@ -124,6 +124,18 @@ class User extends Authenticatable
             ->exists();
     }
 
+    // Whether the user holds the Super Admin role. Such an account is never deleted
+    // (UserController::destroy, ProfileController::destroy and deleteUser() all ask).
+    public static function isSuperAdmin(int $userId): bool
+    {
+        return DB::table(self::PIVOT)
+            ->join('roles', 'roles.id', '=', self::PIVOT . '.role_id')
+            ->where(self::PIVOT . '.model_type', self::class)
+            ->where(self::PIVOT . '.model_id', $userId)
+            ->where('roles.name', Role::SUPER_ADMIN)
+            ->exists();
+    }
+
     // Role names of every user, keyed by user id: the feed needs them in one query.
     public static function rolesByUser(): Collection
     {
@@ -213,6 +225,11 @@ class User extends Authenticatable
     // no access. Nothing restores it: this app has no restore path.
     public static function deleteUser(int $userId): bool
     {
+        // Last line of defence: whatever calls this, a Super Admin stays.
+        if (self::isSuperAdmin($userId)) {
+            return false;
+        }
+
         $now = now();
 
         $deleted = DB::table(self::TABLE)

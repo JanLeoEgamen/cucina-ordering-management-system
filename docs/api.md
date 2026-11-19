@@ -185,7 +185,7 @@ A person's own in-app notifications; see [architecture.md](architecture.md) for 
 | `` `POST /users` `` | `create users` | `first_name`, `last_name`, `company` (optional, ≤255), `email` (unique), `password` (≥8, `confirmed`), `roles[]` (≥1). |
 | `` `GET /users/{id}/edit` `` | `edit users` | JSON of one user (`first_name`, `last_name`, `company` (null when none), and `name` = full name) + role ids. The table feed rows carry the same four. |
 | `` `PUT /users/{id}` `` | `edit users` | Password optional on update; a blank `company` clears it. |
-| `` `DELETE /users/{id}` `` | `delete users` | Soft delete; **422** when deleting your own account. |
+| `` `DELETE /users/{id}` `` | `delete users` | Soft delete; **422** when deleting your own account or any Super Admin account. |
 
 ## Account & auth (Laravel Breeze)
 

@@ -56,6 +56,11 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
+        // The self-service route must not be a way around the Super Admin rule.
+        if (User::isSuperAdmin((int) $user->id)) {
+            return Redirect::route('profile.edit')->withErrors(['password' => 'A Super Admin account cannot be deleted.'], 'userDeletion');
+        }
+
         Auth::logout();
 
         $user->delete();

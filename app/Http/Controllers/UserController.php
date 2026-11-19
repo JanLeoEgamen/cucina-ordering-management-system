@@ -67,7 +67,8 @@ class UserController extends Controller implements HasMiddleware
                             . ' class="' . $edit . '">' . e(__('Edit')) . '</button>';
                     }
 
-                    if (auth()->user()->can('delete users')) {
+                    // No Delete button on a Super Admin row: destroy() would refuse it anyway.
+                    if (auth()->user()->can('delete users') && ! in_array(Role::SUPER_ADMIN, $user->role_names ?? [], true)) {
                         $buttons .= '<button type="button" data-row-action="delete"'
                             . ' data-id="' . $user->id . '"'
                             . ' data-delete-url="' . e(route('users.destroy', $user->id)) . '"'
@@ -156,7 +157,7 @@ class UserController extends Controller implements HasMiddleware
         return $this->successResponse('User updated successfully.');
     }
 
-    // Soft delete a user. Refused for your own account.
+    // Soft delete a user. Refused for your own account and for any Super Admin.
     public function destroy(Request $request, $id)
     {
         if (! User::existsById((int) $id)) {
@@ -165,6 +166,11 @@ class UserController extends Controller implements HasMiddleware
 
         if ((int) $id === (int) $request->user()->id) {
             return $this->errorResponse('You cannot delete your own account.', 422);
+        }
+
+        // A Super Admin is never deleted, by anyone: it is the account that can fix everything else.
+        if (User::isSuperAdmin((int) $id)) {
+            return $this->errorResponse('A Super Admin account cannot be deleted.', 422);
         }
 
         User::deleteUser((int) $id);
