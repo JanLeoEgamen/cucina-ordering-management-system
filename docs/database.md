@@ -32,7 +32,7 @@ Source of truth: `database/migrations/`. `scripts/harness.php` fails if a create
 | Table | Columns / notes |
 |---|---|
 | `payment_methods` | `method_id`, `method_name`, `account_name?`, `account_number?`, `qr_image?`, `is_active`. Protected name: *Cash on Pick up* (the only cash method; checkout needs no proof for it). |
-| `order_sessions` | `session_id`, `created_by` → users, `order_date`, `start_time`, `end_time`, `ended_at?`, `is_active`. **Status is computed**, not stored: `scheduled` / `live` / `ended` (`OrderSession::statusOf`). |
+| `order_sessions` | `session_id`, `created_by` → users, `order_date`, `start_time`, `end_time`, `ended_at?`, `is_active`. **Status is computed**, not stored: `scheduled` / `live` / `ended` (`OrderSession::statusOf`). Two open windows may not overlap (`OrderSession::overlaps`, enforced by the controller on create and when a window is moved; rows written before that check may still overlap, `live()` returns the first). |
 | `session_dishes` | Dishes offered in a session: `session_id`, `dish_id` (unique pair), `available_stock`, `reserved_stock`, `is_available`, `is_active`. Cascade with session/dish. |
 | `orders` | `order_id`, `session_id`, `user_id`, `order_number` unique (`ORD-YYYYMMDD-NNNN`), `order_date`, `total_amount`, `order_status` (`pending`/`completed`/`cancelled`), `payment_status` (`pending`/`verified`/`rejected`). |
 | `order_items` | `order_item_id`, `order_id`, `session_dish_id`, `quantity`, `unit_price`, `sub_total` (price is copied at order time). |
@@ -45,7 +45,7 @@ A parallel set of tables, **not** a type flag on `order_sessions` / `orders` (th
 
 | Table | Columns / notes |
 |---|---|
-| `bulk_sessions` | `bulk_session_id`, `created_by` → users, `title?`, `order_date`, `start_time`, `end_time`, `min_quantity` (fewest plates, all dishes together, one order must hold; default 10), `ended_at?`, `is_active`. **Status is computed** like an order session (`BulkSession::statusOf`). Unlike order sessions, two open windows may not overlap (`BulkSession::overlaps`, enforced by the controller). |
+| `bulk_sessions` | `bulk_session_id`, `created_by` → users, `title?`, `order_date`, `start_time`, `end_time`, `min_quantity` (fewest plates, all dishes together, one order must hold; default 10), `ended_at?`, `is_active`. **Status is computed** like an order session (`BulkSession::statusOf`). Like order sessions, two open windows may not overlap (`BulkSession::overlaps`, enforced by the controller). |
 | `bulk_session_dishes` | Dishes offered in a bulk session: `bulk_session_id`, `dish_id` (unique pair), `is_available`, `is_active`. **No stock columns**: a bulk session has no limit. A dish removed from the session is soft-deleted, not dropped (order lines point at it). |
 | `bulk_orders` | `bulk_order_id`, `bulk_session_id`, `user_id`, `order_number` unique (`BLK-YYYYMMDD-NNNN`, own counter), `order_date`, `total_amount`, `order_status` (`pending`/`completed`/`cancelled`), and the **payment inline** (a bulk order has exactly one): `payment_method_id` → payment_methods, `payment_status` (`pending`/`verified`/`rejected`), `reference_number?`, `proof_of_payment?`, `rejection_reason?` (500), `verified_by?` → users, `verified_at?`. |
 | `bulk_order_items` | `bulk_order_item_id`, `bulk_order_id`, `bulk_session_dish_id`, `quantity`, `unit_price`, `sub_total` (price copied at order time). |

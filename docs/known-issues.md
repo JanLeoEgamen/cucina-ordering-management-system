@@ -8,7 +8,6 @@ Priority: **P0** fix before any real use · **P1** before go-live · **P2** next
 
 | ID | Pri | Gap | Evidence |
 |---|---|---|---|
-| F3 | **P2** | Only one `live` session is honoured; overlapping sessions are not prevented at create/edit. | `OrderSession::live()` returns the first match. |
 | F6 | **P3** | `README.md` and the `composer.json` description are the Laravel skeleton's. | `README.md`, `composer.json` |
 | F7 | **P3** | **Parked by business rule (2026-11-13):** a placed order is the customer's and is prepared; every customer picks up and there are no returns or no-show records, so nothing should expire or auto-cancel today. Revisit if no-shows appear. The one case worth automating later: an order whose payment was **rejected** still holds its plates until staff cancel it. **Pending orders hold stock forever.** An unpaid bank / e-wallet order (or a cash order nobody collects) keeps its plates reserved until staff cancel it, and nothing expires when the session ends. Fix: a scheduled command (`orders:expire`) that cancels pending orders with an unverified payment after N minutes, through the same cancel code path (stock released, payment rejected "expired"); same for pending orders of an ended session. (= S5) | `OrderController::cancel`, no scheduler entry |
 | F10 | **P2** | Customers cannot cancel their own pending order (only staff with `cancel orders`). | `OrderController::cancel` |
