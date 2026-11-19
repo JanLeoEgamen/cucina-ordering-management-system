@@ -2,9 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\BulkSession;
+use App\Models\BulkSessionDish;
 use App\Models\Dish;
 use App\Models\OrderSession;
 use App\Models\PaymentMethod;
+use App\Models\SessionDish;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -69,6 +72,123 @@ class WelcomeTest extends TestCase
         PaymentMethod::factory()->create(['method_name' => 'Maya', 'is_active' => false]);
 
         $this->get('/')->assertOk()->assertSee('Ways to pay')->assertSee('GCash')->assertDontSee('Maya');
+    }
+
+    public function test_a_visitor_sees_the_live_menu_with_prices_and_is_sent_through_login_to_order(): void
+    {
+        // Nothing live: no preview section.
+        $this->get('/')->assertOk()->assertDontSee('On the menu now');
+
+        $session = OrderSession::factory()->create(['start_time' => '00:00:00', 'end_time' => '23:59:59']);
+        SessionDish::factory()->create([
+            'session_id' => $session->session_id,
+            'dish_id' => Dish::factory()->create(['dish_name' => 'Menu Adobo', 'price' => 123.45])->dish_id,
+            'available_stock' => 7,
+        ]);
+        SessionDish::factory()->create([
+            'session_id' => $session->session_id,
+            'dish_id' => Dish::factory()->create(['dish_name' => 'Gone Sinigang', 'price' => 99.00])->dish_id,
+            'available_stock' => 0,
+        ]);
+        // A dish switched off in the masterlist is not advertised.
+        SessionDish::factory()->create([
+            'session_id' => $session->session_id,
+            'dish_id' => Dish::factory()->create(['dish_name' => 'Hidden Dish', 'is_active' => false])->dish_id,
+        ]);
+
+        $this->get('/')->assertOk()
+            ->assertSee('On the menu now')
+            ->assertSee('Menu Adobo')
+            ->assertSee('₱123.45')
+            ->assertSee('Gone Sinigang')
+            ->assertSee('Sold out')
+            ->assertDontSee('Hidden Dish')
+            // The stock number is never public.
+            ->assertDontSee('>7<', false)
+            ->assertSee('Log in to order')
+            // The button goes to the menu: a guest is bounced to login and brought back.
+            ->assertSee('href="' . route('menu.index') . '"', false);
+
+        // The button really does lead through login and back to the menu.
+        $this->get(route('menu.index'))->assertRedirect(route('login'));
+        $this->assertSame(route('menu.index'), session('url.intended'));
+    }
+
+    public function test_the_preview_is_closed_with_a_count_when_the_menu_is_longer(): void
+    {
+        $session = OrderSession::factory()->create(['start_time' => '00:00:00', 'end_time' => '23:59:59']);
+
+        foreach (range(1, 10) as $number) {
+            SessionDish::factory()->create([
+                'session_id' => $session->session_id,
+                'dish_id' => Dish::factory()->create(['dish_name' => sprintf('Dish %02d', $number)])->dish_id,
+            ]);
+        }
+
+        $html = $this->get('/')->assertOk()
+            ->assertSee('and 2 more on the full menu')
+            ->getContent();
+
+        // Eight cards (the hero collage also names dishes, so count the cards, not names).
+        $this->assertSame(8, substr_count($html, 'data-preview-dish'));
+    }
+
+    public function test_signed_in_customers_get_a_direct_order_button_in_the_preview(): void
+    {
+        $session = OrderSession::factory()->create(['start_time' => '00:00:00', 'end_time' => '23:59:59']);
+        SessionDish::factory()->create(['session_id' => $session->session_id]);
+
+        $this->actingAs($this->userWith('view menu'))->get('/')->assertOk()
+            ->assertSee('Order from the menu')
+            ->assertDontSee('Log in to order');
+
+        // Without the menu permission the preview has no button at all.
+        $this->actingAs($this->userWith())->get('/')->assertOk()
+            ->assertSee('On the menu now')
+            ->assertDontSee('Order from the menu')
+            ->assertDontSee('Log in to order');
+    }
+
+    public function test_a_running_bulk_session_is_previewed_with_its_minimum(): void
+    {
+        $session = BulkSession::factory()->create(['min_quantity' => 25]);
+        BulkSessionDish::factory()->create([
+            'bulk_session_id' => $session->bulk_session_id,
+            'dish_id' => Dish::factory()->create(['dish_name' => 'Party Pancit', 'price' => 80])->dish_id,
+        ]);
+
+        $this->get('/')->assertOk()
+            ->assertSee('Bulk orders are open')
+            ->assertSee('at least 25 plates per order')
+            ->assertSee('Party Pancit')
+            ->assertSee('₱80.00')
+            ->assertSee('Log in to order in bulk')
+            ->assertSee('href="' . route('bulk-menu.index') . '"', false)
+            // No order session is live, so there is no regular menu preview.
+            ->assertDontSee('On the menu now');
+
+        $this->actingAs($this->userWith('view bulk-menu'))->get('/')->assertOk()
+            ->assertSee('Order in bulk')
+            ->assertDontSee('Log in to order in bulk');
+
+        // A bulk session that has ended is not advertised.
+        BulkSession::query()->update(['ended_at' => now()->subMinute()]);
+        $this->get('/')->assertOk()->assertDontSee('Bulk orders are open');
+    }
+
+    public function test_registering_after_being_sent_to_login_lands_back_on_the_menu(): void
+    {
+        $this->seedPermissions();
+
+        $this->get(route('menu.index'))->assertRedirect(route('login'));
+
+        $this->post('/register', [
+            'first_name' => 'Ana',
+            'last_name' => 'Cruz',
+            'email' => 'ana@example.com',
+            'password' => 'password-123',
+            'password_confirmation' => 'password-123',
+        ])->assertRedirect(route('menu.index'));
     }
 
     public function test_without_any_dish_the_sign_in_panel_shows_its_plain_points(): void
