@@ -24,6 +24,9 @@ class Setting
     // '1' = every notification is also sent by email; '0' = in-app only.
     public const EMAIL_NOTIFICATIONS = 'notifications.email_enabled';
 
+    // '1' = every notification is also sent as a Google Chat direct message; '0' = not.
+    public const GOOGLE_CHAT_NOTIFICATIONS = 'notifications.google_chat_enabled';
+
     // '1' = a customer may cancel their own pending order from My Orders; '0' = only staff can.
     public const CUSTOMER_CANCEL = 'orders.customer_cancel';
 
@@ -51,6 +54,8 @@ class Setting
         self::NOTIFICATION_WATCHERS => '[]',
         // Off until an admin turns it on: mail has to be set up in .env first.
         self::EMAIL_NOTIFICATIONS => '0',
+        // Off until an admin turns it on: the Chat app's key has to be set up in .env first.
+        self::GOOGLE_CHAT_NOTIFICATIONS => '0',
         // Off until an admin allows it: until now only staff cancelled an order.
         self::CUSTOMER_CANCEL => '0',
         self::BULK_MIN_QUANTITY => '10',
@@ -136,6 +141,12 @@ class Setting
         return self::get(self::EMAIL_NOTIFICATIONS) === '1';
     }
 
+    // Is the Google Chat copy of notifications switched on?
+    public static function googleChatNotifications(): bool
+    {
+        return self::get(self::GOOGLE_CHAT_NOTIFICATIONS) === '1';
+    }
+
     // May a customer cancel their own pending order? Read fresh on every cancel, so switching it
     // off stops the very next request.
     public static function customerCancel(): bool
@@ -186,6 +197,12 @@ class Setting
     public static function setEmailNotifications(bool $enabled): void
     {
         self::set(self::EMAIL_NOTIFICATIONS, $enabled ? '1' : '0');
+    }
+
+    // Switch the Google Chat copy of notifications on or off.
+    public static function setGoogleChatNotifications(bool $enabled): void
+    {
+        self::set(self::GOOGLE_CHAT_NOTIFICATIONS, $enabled ? '1' : '0');
     }
 
     // Allow or forbid customers to cancel their own pending order.

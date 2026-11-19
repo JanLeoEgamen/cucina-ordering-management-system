@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Jobs\DeliverNotification;
+use App\Jobs\SendGoogleChatMessages;
 use App\Jobs\SendNotificationEmails;
 use App\Models\Order;
 use App\Models\PaymentMethod;
@@ -249,7 +250,7 @@ class OrderNotifier
         }
 
         UserNotification::insertMany($rows);
-        self::email($mails);
+        self::copies($mails);
     }
 
     /* -------- Email -------- */
@@ -264,6 +265,36 @@ class OrderNotifier
             'body' => $body,
             'url' => $url,
         ];
+    }
+
+    // The copies of what the bell shows, on the other channels: email, then Google Chat. Each is
+    // its own job inside its own rescue(), so one channel failing cannot stop the other.
+    protected static function copies(array $mails): void
+    {
+        self::email($mails);
+        self::chat($mails);
+    }
+
+    // The Google Chat copy (System Configuration -> Notifications, off by default): ONE job for
+    // everybody told, like email. Same rules as email(): AFTER the in-app rows were saved and
+    // inside rescue(), because a throw here would make DeliverNotification retry and write the
+    // bell rows twice.
+    protected static function chat(array $mails): void
+    {
+        if ($mails === []) {
+            return;
+        }
+
+        rescue(function () use ($mails) {
+            if (Setting::googleChatNotifications() && GoogleChat::configured()) {
+                Bus::dispatch(new SendGoogleChatMessages(array_map(fn (array $mail) => [
+                    'user_id' => $mail['user_id'],
+                    'title' => $mail['title'],
+                    'body' => $mail['body'],
+                    'url' => $mail['url'],
+                ], $mails)));
+            }
+        });
     }
 
     // The email copy (System Configuration -> Notifications, off by default). It runs

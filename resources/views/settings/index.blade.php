@@ -214,6 +214,28 @@
                         </label>
                     </div>
 
+                    {{-- On / off for the Google Chat copy (a direct message from the Chat app). --}}
+                    <div class="mb-6 flex items-start justify-between gap-4">
+                        <div>
+                            <label for="google-chat-notifications" class="{{ $label }}">{{ __('Send notifications to Google Chat') }}</label>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                {{ __('Everyone who gets a notification also gets it as a Google Chat direct message. Only people who signed in with Google and added the Chat app can be reached; the others still get the bell. Needs a running queue worker.') }}
+                            </p>
+                            @if ($googleChatNotifications && ! $googleChatReady)
+                                <p class="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
+                                    {{ __('The Chat app key is not set up on the server (GOOGLE_CHAT_CREDENTIALS), so nothing is sent.') }}
+                                </p>
+                            @endif
+                        </div>
+                        <input type="hidden" name="google_chat_notifications" value="0">
+                        <label class="relative mt-1 inline-flex shrink-0 cursor-pointer items-center">
+                            <input type="checkbox" role="switch" name="google_chat_notifications" id="google-chat-notifications" value="1"
+                                   class="peer sr-only" @checked($googleChatNotifications) @disabled(! $canEdit)>
+                            <span class="h-6 w-11 rounded-full bg-gray-300 transition peer-checked:bg-indigo-600 peer-focus-visible:ring-4 peer-focus-visible:ring-gray-300 peer-disabled:opacity-60 dark:bg-gray-600 dark:peer-focus-visible:ring-gray-600"></span>
+                            <span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5 motion-reduce:transition-none"></span>
+                        </label>
+                    </div>
+
                     <label for="notification-watchers" class="{{ $label }}">{{ __('Also notify') }}</label>
                     <div class="mt-1">
                         {{-- An empty entry is always sent, so un-picking everybody is saved as "nobody". --}}

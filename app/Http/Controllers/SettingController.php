@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Setting;
 use App\Models\User;
+use App\Support\GoogleChat;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -35,6 +36,9 @@ class SettingController extends Controller implements HasMiddleware
             'sessionWindow' => Setting::sessionWindow(),
             'bulkLimits' => Setting::bulkLimits(),
             'emailNotifications' => Setting::emailNotifications(),
+            'googleChatNotifications' => Setting::googleChatNotifications(),
+            // Is the Chat app's key file set up in .env and readable? (Never the key itself.)
+            'googleChatReady' => GoogleChat::configured(),
             'customerCancel' => Setting::customerCancel(),
             // Mail is sent through the mailer of .env; `log` / `array` only record it.
             'mailer' => (string) config('mail.default'),
@@ -70,6 +74,8 @@ class SettingController extends Controller implements HasMiddleware
             // Also send every notification by email. The form always sends 0 or 1; a
             // caller that leaves it out changes nothing.
             'email_notifications' => ['sometimes', 'boolean'],
+            // Also send every notification as a Google Chat direct message (same 0 / 1 rule).
+            'google_chat_notifications' => ['sometimes', 'boolean'],
             // Let customers cancel their own pending order. The form always sends 0 or 1; a
             // caller that leaves it out changes nothing.
             'customer_cancel' => ['sometimes', 'boolean'],
@@ -130,6 +136,10 @@ class SettingController extends Controller implements HasMiddleware
 
             if ($request->has('email_notifications')) {
                 Setting::setEmailNotifications($request->boolean('email_notifications'));
+            }
+
+            if ($request->has('google_chat_notifications')) {
+                Setting::setGoogleChatNotifications($request->boolean('google_chat_notifications'));
             }
 
             if ($request->has('customer_cancel')) {

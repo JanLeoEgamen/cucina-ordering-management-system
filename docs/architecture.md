@@ -79,6 +79,8 @@ In-app notifications (a bell with an unread badge and a **Notifications** page),
 
 **Plain AJAX, no websocket:** the bell polls `GET /notifications/feed?after=N` about every 8 s (a count + an indexed range read, almost always empty; paused while the tab is hidden), so a notification appears within seconds without a refresh. The bell sits in the **top right corner** of every page (a sticky bar from `lg`, the phone top bar below it) with the dark / light switch and the account menu; opening it lists the latest 6 (`?recent=1`, read only then), and a new arrival swings it and toasts. Reverb / websockets were tried and removed on purpose: one less long-running process to run and watch. One event = the order (one join query), the people (one query), **one bulk INSERT**; the text is stored ready to print; read rows are pruned daily by `notifications:prune` (`Schedule`, needs `schedule:work` / the server cron).
 
+**Google Chat copy (optional, System Configuration → Notifications → *Send notifications to Google Chat*, default off):** `OrderNotifier::copies()` (after `insertMany()`, inside `rescue()`) pushes, besides the email job, ONE `App\Jobs\SendGoogleChatMessages` (same queue, `tries = 1`) carrying the same title / text / link per person. The worker reads the people's Google ids in one query and `App\Support\GoogleChat` sends each a **direct message from the Chat app** (service account key at `GOOGLE_CHAT_CREDENTIALS`, scope `chat.bot`, token signed in-house and cached). A person is found by `users.google_id` (`spaces.findDirectMessage`, the space cached 30 days, a miss 10 minutes); someone who never signed in with Google, or never added the app in Google Chat, is skipped silently (they still have the bell and email). The text follows the app's *Markup syntax* (`GOOGLE_CHAT_MARKUP`: `markdown` default, or `legacy`). Every failure is logged and swallowed. Setup: `.env.example`.
+
 **Email copy (optional, System Configuration → Notifications → *Send notifications by email*, default off):** when on, `OrderNotifier` pushes ONE more job after the in-app rows are saved — `App\Jobs\SendNotificationEmails` on the same queue, carrying one entry per person told (same title, text and link as the bell) — and the worker sends a `App\Mail\NotificationMail` (markdown view `emails/notification`) to each person's account address. One job per event, not per person. It is **not retried** (`tries = 1`, a retry would email everyone twice); each address is tried on its own and a failure is logged and skipped, and the push is inside `rescue()` so a mail problem can never fail the delivery job (whose retry would write the bell rows twice). The mail server comes from `.env` (`MAIL_*`; the default `log` mailer only writes to the log).
 
 **Running it (one long-lived process besides the web server):** `php artisan queue:work --queue=notifications,default --tries=3 --max-time=3600` under Supervisor / systemd, restarted on every deploy (`php artisan queue:restart`), plus the scheduler cron. `composer dev` starts the worker locally. Without the worker nobody is notified (orders still work; the jobs wait in `jobs`).
@@ -92,11 +94,11 @@ Every person's activity is written to `audit_logs` (`AuditLog` model, query buil
 ```
 app/Http/Controllers/   one controller per resource + Auth/ + Controller.php (shared badges/responses)
 app/Models/             query-builder models (+ Role, User Eloquent)
-app/Support/            OrderNotifier (who is told what), Audit (the audit trail's logic)
+app/Support/            OrderNotifier (who is told what), GoogleChat (Chat API client), Audit (the audit trail's logic)
 app/Console/Commands/   notifications:prune, audit:prune, users:give-customer-role
 app/Http/Middleware/    AuditTrail (every request), EnsureProfileIsComplete   app/Listeners/  AuditAuthEvents
 config/audit.php        audit trail switches, retention, hidden fields, record map, action names
-app/Jobs/               DeliverNotification, SendNotificationEmails (queued)   app/Mail/  NotificationMail
+app/Jobs/               DeliverNotification, SendNotificationEmails, SendGoogleChatMessages (queued)   app/Mail/  NotificationMail
 config/notifications.php  the notifications queue name
 app/Exceptions/         StockRanOutException
 database/migrations/    schema            database/seeders/   starter data      database/factories/  test data

@@ -21,3 +21,9 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+
+# Google service account keys (the Google Chat app: GOOGLE_CHAT_CREDENTIALS). Never commit.
+chat-key*.json
+service-account*.json
+*-credentials.json
+/storage/app/private/*.json
