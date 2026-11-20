@@ -8,7 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
-// The public legal pages: the privacy policy (GET /privacy) and the terms and policy (GET /policy), and
+// The public legal pages: the privacy policy (GET /privacy) and the terms of service (GET /terms), and
 // their System Configuration cards. The text is a
 // Markdown setting; the built-in text stands in until an admin saves their own.
 class LegalPagesTest extends TestCase
@@ -197,16 +197,16 @@ class LegalPagesTest extends TestCase
         $this->assertSame(Setting::LEGAL_MAX_LENGTH, mb_strlen(Setting::legalPage('privacy')['content']));
     }
 
-    /* -------- terms and policy: its own page, own text -------- */
+    /* -------- terms of service: its own page, own text -------- */
 
-    public function test_the_terms_and_policy_page_is_separate_from_the_privacy_policy(): void
+    public function test_the_terms_of_service_page_is_separate_from_the_privacy_policy(): void
     {
         Setting::setAppName('Casa Verde');
 
         // Public, with its own built-in text about ordering, not about personal data.
-        $this->get(route('policy'))
+        $this->get(route('terms'))
             ->assertOk()
-            ->assertSee('Terms and Policy')
+            ->assertSee('Terms of Service')
             ->assertSee('Cancelling an order')
             ->assertSee('Casa Verde')
             ->assertDontSee('{app_name}', false)
@@ -218,7 +218,7 @@ class LegalPagesTest extends TestCase
     public function test_each_page_keeps_its_own_text_email_and_date(): void
     {
         Carbon::setTestNow('2026-03-05 10:00:00');
-        $this->save(['policy_content' => '## House rules', 'policy_contact_email' => 'rules@casaverde.test'])->assertOk();
+        $this->save(['terms_content' => '## House rules', 'terms_contact_email' => 'rules@casaverde.test'])->assertOk();
 
         // The privacy policy is untouched: built-in text, no date, no contact.
         $privacy = Setting::legalPage('privacy');
@@ -226,7 +226,7 @@ class LegalPagesTest extends TestCase
         $this->assertNull($privacy['updated_at']);
         $this->assertSame('', $privacy['contact_email']);
 
-        $this->get(route('policy'))
+        $this->get(route('terms'))
             ->assertSee('<h2>House rules</h2>', false)
             ->assertSee('Last updated March 5, 2026')
             ->assertSee('href="mailto:rules@casaverde.test"', false);
@@ -237,41 +237,41 @@ class LegalPagesTest extends TestCase
         $this->save(['privacy_content' => 'Privacy words.'])->assertOk();
 
         $this->get(route('privacy'))->assertSee('Last updated April 9, 2026');
-        $this->get(route('policy'))->assertSee('Last updated March 5, 2026');
+        $this->get(route('terms'))->assertSee('Last updated March 5, 2026');
 
         Carbon::setTestNow();
     }
 
-    public function test_the_terms_and_policy_card_is_on_the_configuration_page_and_editable_only_with_edit_settings(): void
+    public function test_the_terms_of_service_card_is_on_the_configuration_page_and_editable_only_with_edit_settings(): void
     {
         $this->actingAs($this->userWith('view settings', 'edit settings'))->get(route('settings.index'))
             ->assertOk()
-            ->assertSee('name="policy_content"', false)
-            ->assertSee('name="policy_contact_email"', false)
+            ->assertSee('name="terms_content"', false)
+            ->assertSee('name="terms_contact_email"', false)
             ->assertSee('## Cancelling an order', false);
 
-        $this->save(['policy_content' => 'Sneaky.'], $this->userWith('view settings'))->assertForbidden();
-        $this->assertFalse(Setting::legalPage('policy')['custom']);
+        $this->save(['terms_content' => 'Sneaky.'], $this->userWith('view settings'))->assertForbidden();
+        $this->assertFalse(Setting::legalPage('terms')['custom']);
     }
 
-    public function test_the_terms_and_policy_are_validated_and_reset_like_the_privacy_policy(): void
+    public function test_the_terms_of_service_are_validated_and_reset_like_the_privacy_policy(): void
     {
-        $this->save(['policy_contact_email' => 'nope'])->assertStatus(422)->assertJsonValidationErrors('policy_contact_email');
-        $this->save(['policy_content' => str_repeat('a', Setting::LEGAL_MAX_LENGTH + 1)])->assertStatus(422)->assertJsonValidationErrors('policy_content');
+        $this->save(['terms_contact_email' => 'nope'])->assertStatus(422)->assertJsonValidationErrors('terms_contact_email');
+        $this->save(['terms_content' => str_repeat('a', Setting::LEGAL_MAX_LENGTH + 1)])->assertStatus(422)->assertJsonValidationErrors('terms_content');
 
-        $this->save(['policy_content' => 'Mine.'])->assertOk();
-        $this->assertTrue(Setting::legalPage('policy')['custom']);
+        $this->save(['terms_content' => 'Mine.'])->assertOk();
+        $this->assertTrue(Setting::legalPage('terms')['custom']);
 
-        $this->save(['policy_content' => ''])->assertOk();
-        $this->assertFalse(Setting::legalPage('policy')['custom']);
-        $this->get(route('policy'))->assertSee('Cancelling an order');
+        $this->save(['terms_content' => ''])->assertOk();
+        $this->assertFalse(Setting::legalPage('terms')['custom']);
+        $this->get(route('terms'))->assertSee('Cancelling an order');
     }
 
     /* -------- links to them -------- */
 
     public function test_the_pages_are_linked_from_the_public_pages_and_the_account_menu(): void
     {
-        foreach (['privacy', 'policy'] as $page) {
+        foreach (['privacy', 'terms'] as $page) {
             $link = 'href="' . route($page) . '"';
 
             $this->get(route('welcome'))->assertOk()->assertSee($link, false);

@@ -53,7 +53,7 @@
             {{ __('By creating an account you confirm you have read our') }}
             <a href="{{ route('privacy') }}" target="_blank" rel="noopener" class="font-semibold text-gray-900 underline underline-offset-4 dark:text-white">{{ __('Privacy Policy') }}</a>
             {{ __('and agree to our') }}
-            <a href="{{ route('policy') }}" target="_blank" rel="noopener" class="font-semibold text-gray-900 underline underline-offset-4 dark:text-white">{{ __('Terms and Policy') }}</a>.
+            <a href="{{ route('terms') }}" target="_blank" rel="noopener" class="font-semibold text-gray-900 underline underline-offset-4 dark:text-white">{{ __('Terms of Service') }}</a>.
         </p>
     </form>
 

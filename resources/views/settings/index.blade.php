@@ -18,7 +18,7 @@
         --}}
         <form id="settings-form" method="POST" action="{{ route('settings.update') }}" enctype="multipart/form-data"
               data-confirm-title="{{ __('Confirm Save') }}"
-              data-confirm-message="{{ __('Are you sure you want to save the system configuration? The app name and logo change on every page, new order sessions will start from these times, the pre-order limits apply to every new pre-order, and the public privacy policy page changes.') }}"
+              data-confirm-message="{{ __('Are you sure you want to save the system configuration? The app name and logo change on every page, new order sessions will start from these times, the pre-order limits apply to every new pre-order, and the public privacy policy and terms of service pages change.') }}"
               data-confirm-label="{{ __('Save Configuration') }}"
               data-label-edited="{{ __('Edited') }}"
               data-label-was="{{ __('Was') }}"
@@ -177,7 +177,7 @@
                 </div>
             </section>
 
-            {{-- The two public legal pages (privacy policy, terms and policy). Markdown; empty = the built-in text. --}}
+            {{-- The two public legal pages (privacy policy, terms of service). Markdown; empty = the built-in text. --}}
             @include('settings.partials.legal-card', [
                 'page' => 'privacy',
                 'heading' => __('Privacy policy'),
@@ -186,10 +186,10 @@
             ])
 
             @include('settings.partials.legal-card', [
-                'page' => 'policy',
-                'heading' => __('Terms and policy'),
+                'page' => 'terms',
+                'heading' => __('Terms of service'),
                 'description' => __('The public page with the rules of ordering: payment, pick up, cancelling. Linked from the same places as the privacy policy.'),
-                'legal' => $legal['policy'],
+                'legal' => $legal['terms'],
             ])
 
             {{--

@@ -25,7 +25,7 @@ Route::get('/', WelcomeController::class)->name('welcome');
 
 // The legal pages: public (the sign in / sign up pages link to them); their text is a setting.
 Route::get('/privacy', [LegalPageController::class, 'show'])->defaults('page', 'privacy')->name('privacy');
-Route::get('/policy', [LegalPageController::class, 'show'])->defaults('page', 'policy')->name('policy');
+Route::get('/terms', [LegalPageController::class, 'show'])->defaults('page', 'terms')->name('terms');
 
 Route::get('/dashboard', function () {
     return view('dashboard', [

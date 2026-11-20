@@ -48,20 +48,20 @@ class Setting
     public const DEFAULT_APP_NAME = 'Cucina';
 
     // The two public legal pages, written by an admin in Markdown: the privacy policy (GET /privacy)
-    // and the terms and policy of ordering (GET /policy). Each has its text (empty = the built-in
+    // and the terms of service of ordering (GET /terms). Each has its text (empty = the built-in
     // text in resources/legal/<page>.md) and an optional address people can write to.
     public const PRIVACY_CONTENT = 'privacy.content';
 
     public const PRIVACY_CONTACT_EMAIL = 'privacy.contact_email';
 
-    public const POLICY_CONTENT = 'policy.content';
+    public const TERMS_CONTENT = 'terms.content';
 
-    public const POLICY_CONTACT_EMAIL = 'policy.contact_email';
+    public const TERMS_CONTACT_EMAIL = 'terms.contact_email';
 
     // page => the settings behind it.
     public const LEGAL_PAGES = [
         'privacy' => ['content' => self::PRIVACY_CONTENT, 'email' => self::PRIVACY_CONTACT_EMAIL],
-        'policy' => ['content' => self::POLICY_CONTENT, 'email' => self::POLICY_CONTACT_EMAIL],
+        'terms' => ['content' => self::TERMS_CONTENT, 'email' => self::TERMS_CONTACT_EMAIL],
     ];
 
     // The longest page text. The value column is TEXT (65,535 BYTES) and a character can take
@@ -71,8 +71,8 @@ class Setting
     public const DEFAULTS = [
         self::PRIVACY_CONTENT => '',
         self::PRIVACY_CONTACT_EMAIL => '',
-        self::POLICY_CONTENT => '',
-        self::POLICY_CONTACT_EMAIL => '',
+        self::TERMS_CONTENT => '',
+        self::TERMS_CONTACT_EMAIL => '',
         self::APP_NAME => self::DEFAULT_APP_NAME,
         self::APP_LOGO => '',
         self::SESSION_START_TIME => '09:00',

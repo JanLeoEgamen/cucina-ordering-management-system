@@ -1,6 +1,6 @@
 {{--
-    A public legal page, the privacy policy or the terms and policy (LegalPageController). The text is
-    written by an admin in System Configuration -> Privacy policy / Terms and policy as Markdown; the controller has already turned it into safe
+    A public legal page, the privacy policy or the terms of service (LegalPageController). The text is
+    written by an admin in System Configuration -> Privacy policy / Terms of service as Markdown; the controller has already turned it into safe
     HTML ($html), so it is the one thing printed unescaped here. Styled by `.policy-prose` in app.css.
 --}}
 <!DOCTYPE html>

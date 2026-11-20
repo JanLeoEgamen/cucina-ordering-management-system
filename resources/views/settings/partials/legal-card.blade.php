@@ -2,7 +2,7 @@
     One public legal page's card in System Configuration: its Markdown text and a contact email,
     saved with the rest of the form. Included once per page of Setting::LEGAL_PAGES.
 
-        page         'privacy' | 'policy' (the field names are <page>_content / <page>_contact_email)
+        page         'privacy' | 'terms' (the field names are <page>_content / <page>_contact_email)
         heading      the card's title
         description  what the page is for
         legal        Setting::legalPage($page)

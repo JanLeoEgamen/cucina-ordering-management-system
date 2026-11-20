@@ -308,7 +308,7 @@
             <span aria-hidden="true">&middot;</span>
             <a href="{{ route('privacy') }}" class="underline-offset-4 hover:text-gray-600 hover:underline dark:hover:text-gray-300">{{ __('Privacy Policy') }}</a>
             <span aria-hidden="true">&middot;</span>
-            <a href="{{ route('policy') }}" class="underline-offset-4 hover:text-gray-600 hover:underline dark:hover:text-gray-300">{{ __('Terms and Policy') }}</a>
+            <a href="{{ route('terms') }}" class="underline-offset-4 hover:text-gray-600 hover:underline dark:hover:text-gray-300">{{ __('Terms of Service') }}</a>
         </footer>
     </body>
 </html>
