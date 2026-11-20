@@ -124,6 +124,93 @@ class GoogleChat
         }
     }
 
+    // Is this person's chat with the Chat app there, right now? 'connected', 'not_added' (Google
+    // says the chat does not exist: they have not opened / said hi to the app) or 'error' (the key,
+    // the token or Google failed: nothing can be said about them). A live lookup, not the cache: the
+    // Profile page's "synced" indicator must not claim a chat the person has since removed.
+    public static function directMessageState(string $googleId): string
+    {
+        try {
+            $token = self::token();
+
+            if ($token === null) {
+                return 'error';
+            }
+
+            Cache::forget(self::spaceKey($googleId));
+            Cache::forget(self::spaceKey($googleId) . ':missing');
+
+            if (self::dmSpace($googleId, $token) !== null) {
+                return 'connected';
+            }
+
+            // dmSpace() remembers a 404 (and only a 404) as "missing".
+            return Cache::has(self::spaceKey($googleId) . ':missing') ? 'not_added' : 'error';
+        } catch (Throwable $exception) {
+            Log::warning('Google Chat could not check a direct message space', ['error' => $exception->getMessage()]);
+
+            return 'error';
+        }
+    }
+
+    // The name people know the app by in Google Chat (Profile card and welcome message).
+    public static function appName(): string
+    {
+        return (string) (config('services.google_chat.app_name') ?: \App\Models\Setting::appName());
+    }
+
+    // The Welcome message: the first thing anyone receives from the app in Google Chat.
+    public static function welcomeEntry(bool $canOpenOrders): array
+    {
+        $app = self::appName();
+
+        return [
+            'title' => __('Welcome to :app', ['app' => $app]),
+            'body' => __('You are all set! From now on your order updates arrive right here, so you do not have to keep checking the website. There is nothing to reply to.'),
+            'points' => [
+                '🧾 ' . __('When your order is placed'),
+                '✅ ' . __('When your payment is checked'),
+                '🍽️ ' . __('When your order is ready for pick up'),
+                '🎉 ' . __('When your order is completed'),
+            ],
+            'url' => $canOpenOrders ? route('my-orders.index', [], false) : null,
+            'button' => __('Open my orders'),
+            'type' => 'welcome',
+            'app' => $app,
+        ];
+    }
+
+    // Send this person the Welcome message if they never got it. True only when it went out just now.
+    // The "welcomed" mark is claimed FIRST with one conditional UPDATE, so two requests at the same
+    // moment (the Profile page and a notification) cannot both send it; if Google then refuses
+    // (they have not added the app yet, an outage) the mark is given back, so it is tried again later.
+    public static function welcome(int $userId, string $googleId): bool
+    {
+        try {
+            $claimed = \Illuminate\Support\Facades\DB::table('users')
+                ->where('id', $userId)
+                ->whereNull('google_chat_welcomed_at')
+                ->update(['google_chat_welcomed_at' => now()]);
+
+            if ($claimed === 0) {
+                return false;
+            }
+
+            $user = \App\Models\User::query()->find($userId);
+            $sent = self::message($googleId, self::welcomeEntry((bool) $user?->can('view my orders')));
+
+            if (! $sent) {
+                \Illuminate\Support\Facades\DB::table('users')->where('id', $userId)->update(['google_chat_welcomed_at' => null]);
+            }
+
+            return $sent;
+        } catch (Throwable $exception) {
+            Log::warning('Google Chat welcome could not be sent', ['error' => $exception->getMessage()]);
+
+            return false;
+        }
+    }
+
     // The icon in front of the title, by event (OrderNotifier's type strings).
     protected const ICONS = [
         'order_placed' => '🧾',
@@ -134,6 +221,8 @@ class GoogleChat
         'order_cancelled' => '❌',
         'payment_resent' => '💳',
         'dish_sold_out' => '📢',
+        'welcome' => '👋',
+        'connection_check' => '✅',
     ];
 
     // A long order stays readable: only this many dishes are listed, the rest is counted.
@@ -151,6 +240,11 @@ class GoogleChat
 
         if (! empty($entry['body'])) {
             $sections[] = ['widgets' => [['textParagraph' => ['text' => $esc($entry['body'])]]]];
+        }
+
+        // A short list (the welcome message: what you will hear about here), one line each.
+        if (! empty($entry['points'])) {
+            $sections[] = ['widgets' => [['textParagraph' => ['text' => implode('<br>', array_map($esc, $entry['points']))]]]];
         }
 
         $order = $entry['order'] ?? null;
@@ -182,7 +276,7 @@ class GoogleChat
         // Chat only opens https links from a button; a local http link stays out of the card.
         if ($url !== null && str_starts_with($url, 'https://')) {
             $sections[] = ['widgets' => [['buttonList' => ['buttons' => [[
-                'text' => $order ? __('Open order') : __('Open'),
+                'text' => $entry['button'] ?? ($order ? __('Open order') : __('Open')),
                 'onClick' => ['openLink' => ['url' => $url]],
             ]]]]]];
         }
@@ -238,7 +332,7 @@ class GoogleChat
     // Walk the whole path for one person and say where it stops: the key, the token, the direct
     // message space, and (when $send) a real test message. Used by `php artisan google-chat:test`.
     // Returns [[label, ok, detail], ...]; stops at the first failed step.
-    public static function diagnose(string $googleId, bool $send, bool $fresh = true): array
+    public static function diagnose(string $googleId, bool $send, bool $fresh = true, ?int $userId = null): array
     {
         $steps = [];
         $stop = function (string $label, bool $ok, string $detail) use (&$steps) {
@@ -288,21 +382,23 @@ class GoogleChat
             return $steps;
         }
 
+        // The first message anyone gets is the Welcome. If this person already had it, send a plain
+        // connection check instead (never a made-up order).
+        if ($userId !== null && self::welcome($userId, $googleId)) {
+            $stop('Test message', true, 'sent (the Welcome message: they had not received it yet)');
+
+            return $steps;
+        }
+
         $post = Http::withToken($token)->timeout(8)->acceptJson()
             ->post(self::API . '/' . $space . '/messages', ['cardsV2' => [self::card([
-                'title' => 'Order ORD-TEST-0001 is ready for pick up',
-                'body' => 'If you can read this, Google Chat notifications work. This is how an order looks.',
-                'url' => '/my-orders',
-                'type' => 'order_ready',
-                'app' => \App\Models\Setting::appName(),
-                'order' => ['number' => 'ORD-TEST-0001', 'total' => 185, 'method' => 'Cash on Pick up', 'items' => [
-                    ['dish_name' => 'Chicken Adobo', 'quantity' => 2, 'sub_total' => 130],
-                    ['dish_name' => 'Garlic Rice', 'quantity' => 1, 'sub_total' => 55],
-                ]],
+                'title' => __('Google Chat is connected'),
+                'body' => __('This is a connection check from :app. Nothing else to do.', ['app' => self::appName()]),
+                'type' => 'connection_check',
+                'app' => self::appName(),
             ])]]);
 
-        $stop('Test message', $post->successful(), $post->successful() ? 'sent' : self::reason($post));
-
+        $stop('Test message', $post->successful(), $post->successful() ? 'sent (a connection check)' : self::reason($post));
         return $steps;
     }
 

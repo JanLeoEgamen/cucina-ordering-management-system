@@ -39,7 +39,7 @@ class GoogleChatTest extends Command
 
         $failed = false;
 
-        foreach (GoogleChat::diagnose((string) $user->google_id, ! $this->option('no-send')) as [$label, $ok, $detail]) {
+        foreach (GoogleChat::diagnose((string) $user->google_id, ! $this->option('no-send'), true, (int) $user->id) as [$label, $ok, $detail]) {
             $ok ? $this->info('[ok]   ' . $label . ': ' . $detail) : $this->error('[FAIL] ' . $label . ': ' . $detail);
             $failed = $failed || ! $ok;
         }

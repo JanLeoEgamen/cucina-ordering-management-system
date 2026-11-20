@@ -59,10 +59,12 @@ class GoogleChatNotificationTest extends TestCase
         config(['services.google_chat.credentials' => $this->keyFile]);
     }
 
-    private function googleCustomer(string $googleId = '111'): User
+    // Welcomed already by default: most tests are about the notification itself, and the first
+    // message anyone gets is the Welcome (see the tests at the end of this section).
+    private function googleCustomer(string $googleId = '111', bool $welcomed = true): User
     {
         $customer = $this->userWith('view menu', 'create orders', 'view my orders');
-        DB::table('users')->where('id', $customer->id)->update(['google_id' => $googleId]);
+        DB::table('users')->where('id', $customer->id)->update(['google_id' => $googleId, 'google_chat_welcomed_at' => $welcomed ? now() : null]);
 
         return $customer;
     }
@@ -204,6 +206,74 @@ class GoogleChatNotificationTest extends TestCase
         $this->assertStringContainsString('placed', $attempts[1]['text']);
     }
 
+    /* -------- the Welcome comes first -------- */
+
+    public function test_a_person_never_welcomed_gets_the_welcome_before_their_first_notification(): void
+    {
+        $this->configureKey();
+        $this->fakeGoogle();
+        Setting::setGoogleChatNotifications(true);
+        $customer = $this->googleCustomer('321', welcomed: false);
+
+        $this->place($customer);
+
+        $titles = array_map(fn (array $m) => $m['cardsV2'][0]['card']['header']['title'], $this->messagesPosted() ? array_map(fn ($r) => $r->data(), $this->messagesPosted()) : []);
+
+        $this->assertCount(2, $titles);
+        $this->assertStringContainsString('Welcome', $titles[0]);
+        $this->assertStringContainsString('placed', $titles[1]);
+        $this->assertNotNull(DB::table('users')->where('id', $customer->id)->value('google_chat_welcomed_at'));
+
+        // The next event is only the notification.
+        $this->actingAs($this->superAdmin())->postJson(route('orders.cancel', DB::table('orders')->value('order_id')))->assertOk();
+        $this->assertCount(3, $this->messagesPosted());
+    }
+
+    public function test_the_welcome_goes_once_even_when_one_job_carries_several_messages(): void
+    {
+        $this->configureKey();
+        $this->fakeGoogle();
+        $customer = $this->googleCustomer('321', welcomed: false);
+
+        (new \App\Jobs\SendGoogleChatMessages([
+            ['user_id' => $customer->id, 'title' => 'Order X placed', 'body' => 'a', 'url' => null],
+            ['user_id' => $customer->id, 'title' => 'Order Y placed', 'body' => 'b', 'url' => null],
+        ]))->handle();
+
+        $this->assertCount(3, $this->messagesPosted());
+    }
+
+    public function test_the_command_sends_the_welcome_first_and_a_plain_check_after_that(): void
+    {
+        $this->configureKey();
+        $this->fakeGoogle();
+        $user = $this->googleCustomer('555', welcomed: false);
+
+        $this->artisan('google-chat:test', ['email' => $user->email])->expectsOutputToContain('the Welcome message')->assertSuccessful();
+        $this->artisan('google-chat:test', ['email' => $user->email])->expectsOutputToContain('a connection check')->assertSuccessful();
+
+        $titles = array_map(fn ($r) => $r->data()['cardsV2'][0]['card']['header']['title'], $this->messagesPosted());
+
+        $this->assertCount(2, $titles);
+        $this->assertStringContainsString('Welcome', $titles[0]);
+        $this->assertStringContainsString('Google Chat is connected', $titles[1]);
+        // Never a made-up order.
+        $this->assertStringNotContainsString('ORD-TEST', json_encode($this->messagesPosted() ? array_map(fn ($r) => $r->data(), $this->messagesPosted()) : []));
+    }
+
+    public function test_the_card_can_list_points_and_name_its_own_button(): void
+    {
+        $this->assertSame('👋 Welcome', GoogleChat::card(['title' => 'Welcome', 'type' => 'welcome'])['card']['header']['title']);
+
+        url()->forceRootUrl('https://cucina.example');
+        url()->forceScheme('https');
+
+        $card = GoogleChat::card(['title' => 'T', 'points' => ['🧾 One', '✅ Two <b>'], 'url' => '/my-orders', 'button' => 'Open my orders']);
+        $json = json_encode($card['card'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        $this->assertStringContainsString('🧾 One<br>✅ Two &lt;b&gt;', $json);
+        $this->assertStringContainsString('"text":"Open my orders"', $json);
+    }
     public function test_the_token_request_is_a_signed_jwt_for_the_chat_scope(): void
     {
         $this->configureKey();
