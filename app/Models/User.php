@@ -30,7 +30,7 @@ class User extends Authenticatable
     protected $fillable = [
         'first_name',
         'last_name',
-        'company',
+        'company_id',
         'email',
         'password',
         'profile_completed_at',
@@ -79,11 +79,22 @@ class User extends Authenticatable
     {
         $roles = self::rolesByUser();
 
+        // The company is joined for its name; the feed keeps calling it `company`, as the table
+        // column and the export header do. Columns are qualified: companies has `deleted_at` too.
         return DB::table(self::TABLE)
-            ->whereNull('deleted_at')
-            ->select(['id', 'first_name', 'last_name', DB::raw(self::fullNameSql() . ' as name'), 'company', 'email'])
-            ->orderBy('first_name')
-            ->orderBy('last_name')
+            ->leftJoin('companies', 'companies.company_id', '=', self::TABLE . '.company_id')
+            ->whereNull(self::TABLE . '.deleted_at')
+            ->select([
+                self::TABLE . '.id',
+                self::TABLE . '.first_name',
+                self::TABLE . '.last_name',
+                DB::raw(self::fullNameSql() . ' as name'),
+                self::TABLE . '.company_id',
+                'companies.company_name as company',
+                self::TABLE . '.email',
+            ])
+            ->orderBy(self::TABLE . '.first_name')
+            ->orderBy(self::TABLE . '.last_name')
             ->get()
             ->map(function (object $user) use ($roles) {
                 $user->role_names = $roles[$user->id] ?? [];
@@ -106,6 +117,11 @@ class User extends Authenticatable
 
         // The view drawer prints the full name; the edit drawer fills the two parts.
         $user->name = trim($user->first_name . ' ' . $user->last_name);
+
+        // The view drawer prints the company's name; the edit drawer selects its id.
+        $user->company = $user->company_id
+            ? DB::table('companies')->where('company_id', $user->company_id)->value('company_name')
+            : null;
 
         // Ids tick the checkboxes in the edit drawer, names are printed by the
         // view drawer, so both travel with the record.
@@ -182,7 +198,7 @@ class User extends Authenticatable
         $userId = (int) DB::table(self::TABLE)->insertGetId([
             'first_name' => $attributes['first_name'],
             'last_name' => $attributes['last_name'],
-            'company' => $attributes['company'] ?? null,
+            'company_id' => $attributes['company_id'] ?? null,
             'email' => $attributes['email'],
             'password' => Hash::make($attributes['password']),
             // An admin typed the details in: nothing left to ask this person (see EnsureProfileIsComplete).
@@ -202,7 +218,7 @@ class User extends Authenticatable
         $values = [
             'first_name' => $attributes['first_name'],
             'last_name' => $attributes['last_name'],
-            'company' => $attributes['company'] ?? null,
+            'company_id' => $attributes['company_id'] ?? null,
             'email' => $attributes['email'],
             'updated_at' => now(),
         ];

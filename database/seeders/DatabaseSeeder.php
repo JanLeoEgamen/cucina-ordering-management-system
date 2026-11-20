@@ -24,7 +24,7 @@ class DatabaseSeeder extends Seeder
         // when that is empty. An existing account is left as it is (its password
         // may have been changed in the app).
         $admin = User::firstOrCreate(
-            ['email' => 'jbegamen@bounty.com.ph'],
+            ['email' => 'janleoegamen6@bounty.com.ph'],
             [
                 'first_name' => 'Admin',
                 'last_name' => 'Account',
@@ -34,7 +34,7 @@ class DatabaseSeeder extends Seeder
         );
 
         if ($admin->wasRecentlyCreated && ! env('SEED_ADMIN_PASSWORD')) {
-            $this->command?->warn('Admin jbegamen@bounty.com.ph created with password: ' . $password . ' (shown once; set SEED_ADMIN_PASSWORD in .env to choose it)');
+            $this->command?->warn('Admin janleoegamen6@bounty.com.ph created with password: ' . $password . ' (shown once; set SEED_ADMIN_PASSWORD in .env to choose it)');
         }
 
         // Jan Leo Egamen's account (UserSeeder), before the permissions so that
@@ -58,6 +58,9 @@ class DatabaseSeeder extends Seeder
         foreach ($methods as $method) {
             PaymentMethod::firstOrCreate(['method_name' => $method['method_name']], $method);
         }
+
+        // The companies people pick at registration (the Company dropdown is required).
+        $this->call(CompanySeeder::class);
 
         // The menu the app starts with: the real dishes and their types, from
         // database/seeders/data/menu.csv. (DishTypeSeeder / DishSeeder are the old

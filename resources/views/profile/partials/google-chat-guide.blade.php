@@ -31,8 +31,16 @@
                 [500, 1300, 2100, 3000, 3900, 4800].forEach((ms, i) => this.timers.push(setTimeout(() => { this.tick = i + 1; }, ms)));
             },
             proceed() {
-                window.open(this.$root.dataset.url, '_blank', 'noopener');
+                // A small window centred over this one, not a tab: Google does not allow its pages to be
+                // embedded in another site (X-Frame-Options), but the person never loses this page.
+                // noopener: the Google page gets no handle on this one.
+                const width = 520, height = 720;
+                const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - width) / 2));
+                const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - height) / 2));
+                window.open(this.$root.dataset.url, 'cucina-chat-install', 'popup=yes,noopener,width=' + width + ',height=' + height + ',left=' + left + ',top=' + top);
                 window.dispatchEvent(new CustomEvent('close-modal', { detail: 'google-chat-guide' }));
+                // The sign-in prompt listens: it comes back so the person can press Check again.
+                window.dispatchEvent(new CustomEvent('google-chat-guide-proceeded'));
             }
         }"
         data-url="{{ $url }}"

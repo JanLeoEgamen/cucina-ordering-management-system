@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Listeners\AuditAuthEvents;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
@@ -27,6 +28,15 @@ class AppServiceProvider extends ServiceProvider
     {
         // The audit trail's sign in / out / failed sign in entries.
         Event::subscribe(AuditAuthEvents::class);
+
+        // The Google Chat sign-in prompt asks once per login (GoogleChat::shouldPrompt). The
+        // "already asked" flag has to go on every sign-in, or someone who signs in again without
+        // signing out in between (the session is kept) would not be asked again until synced.
+        Event::listen(Login::class, function () {
+            if (app()->bound('session.store')) {
+                session()->forget('google_chat_checked');
+            }
+        });
 
         // The one password rule: register, reset password and change password all call
         // Password::defaults(). At least 8 characters with a letter, a number and a special

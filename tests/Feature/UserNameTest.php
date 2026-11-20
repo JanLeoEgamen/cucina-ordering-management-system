@@ -20,6 +20,7 @@ class UserNameTest extends TestCase
         return $overrides + [
             'first_name' => 'Jan Leo',
             'last_name' => 'Egamen',
+            'company_id' => \App\Models\Company::factory()->create()->company_id,
             'email' => 'jan@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',

@@ -10,6 +10,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderSessionController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoleController;
@@ -185,6 +186,16 @@ Route::middleware(['auth', 'profile.complete'])->group(function () {
     Route::get('/audit-logs/export', [AuditLogController::class, 'export'])->name('audit-logs.export');
     Route::get('/audit-logs/{id}', [AuditLogController::class, 'show'])
         ->whereNumber('id')->name('audit-logs.show');
+
+    // Companies: what the "Company" dropdown of register / profile / Users offers.
+    Route::get('/companies', [CompanyController::class, 'index'])->name('companies.index');
+    Route::post('/companies', [CompanyController::class, 'store'])->name('companies.store');
+    Route::get('/companies/{id}/edit', [CompanyController::class, 'edit'])
+        ->whereNumber('id')->name('companies.edit');
+    Route::put('/companies/{id}', [CompanyController::class, 'update'])
+        ->whereNumber('id')->name('companies.update');
+    Route::delete('/companies/{id}', [CompanyController::class, 'destroy'])
+        ->whereNumber('id')->name('companies.destroy');
 
     // Users
     Route::get('/users', [UserController::class, 'index'])->name('users.index');

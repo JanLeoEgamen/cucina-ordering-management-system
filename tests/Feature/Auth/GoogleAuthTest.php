@@ -93,7 +93,7 @@ class GoogleAuthTest extends TestCase
 
         // Not complete yet: the company is still unknown, so the app holds them on the form.
         $this->assertNull($user->profile_completed_at);
-        $this->assertNull($user->company);
+        $this->assertNull($user->company_id);
         $this->get('/dashboard')->assertRedirect(route('profile.complete'));
     }
 
@@ -111,13 +111,14 @@ class GoogleAuthTest extends TestCase
     {
         $this->enable();
         $this->google();
-        $existing = User::factory()->create(['email' => 'ana@example.com', 'company' => 'Acme']);
+        $company = \App\Models\Company::factory()->create(['company_name' => 'Acme']);
+        $existing = User::factory()->create(['email' => 'ana@example.com', 'company_id' => $company->company_id]);
 
         $this->get(route('google.callback'))->assertRedirect();
 
         $this->assertAuthenticatedAs($existing);
         $this->assertSame('g-123', $existing->fresh()->google_id);
-        $this->assertSame('Acme', $existing->fresh()->company);
+        $this->assertSame($company->company_id, $existing->fresh()->company_id);
         $this->assertSame(1, User::where('email', 'ana@example.com')->count());
     }
 

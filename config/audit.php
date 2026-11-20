@@ -57,6 +57,7 @@ return [
     'subjects' => [
         'users' => ['table' => 'users', 'key' => 'id', 'label' => ['first_name', 'last_name'], 'hide' => ['password', 'remember_token', 'google_id']],
         'roles' => ['table' => 'roles', 'key' => 'id', 'label' => ['name'], 'hide' => []],
+        'companies' => ['table' => 'companies', 'key' => 'company_id', 'label' => ['company_name'], 'hide' => []],
         'dishes' => ['table' => 'dishes', 'key' => 'dish_id', 'label' => ['dish_name'], 'hide' => []],
         'dish-types' => ['table' => 'dish_types', 'key' => 'dish_type_id', 'label' => ['type_name'], 'hide' => []],
         'payment-methods' => ['table' => 'payment_methods', 'key' => 'method_id', 'label' => ['method_name'], 'hide' => []],
@@ -76,6 +77,9 @@ return [
         'users.store' => 'Created a user',
         'users.update' => 'Edited a user',
         'users.destroy' => 'Deleted a user',
+        'companies.store' => 'Created a company',
+        'companies.update' => 'Edited a company',
+        'companies.destroy' => 'Deleted a company',
         'roles.store' => 'Created a role',
         'roles.update' => 'Edited a role',
         'roles.destroy' => 'Deleted a role',

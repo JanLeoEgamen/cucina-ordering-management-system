@@ -8,6 +8,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 // The Google Chat card of the Profile page: shown only while the feature is on and set up,
@@ -306,5 +308,129 @@ class ProfileGoogleChatTest extends TestCase
             ->assertSee('Synced with Google Chat');
 
         $this->assertFalse(\Illuminate\Support\Facades\Route::has('profile.google-chat.test'));
+    }
+
+    /* -------- the prompt after sign-in -------- */
+
+    public function test_the_welcome_status_says_whether_the_welcome_just_went_out(): void
+    {
+        $this->switchOn();
+        $this->fakeGoogle();
+        $user = $this->person();
+
+        $this->actingAs($user)->getJson(route('profile.google-chat.status'))
+            ->assertOk()->assertJsonPath('state', 'connected')->assertJsonPath('welcomed', true);
+
+        $this->actingAs($user)->getJson(route('profile.google-chat.status'))
+            ->assertOk()->assertJsonPath('welcomed', false);
+    }
+
+    public function test_the_prompt_is_drawn_for_someone_who_signed_in_with_google_and_is_not_synced(): void
+    {
+        $this->switchOn();
+
+        $this->actingAs($this->person())->get(route('dashboard'))->assertOk()
+            ->assertSee('google-chat-prompt', false)
+            ->assertSee('Get your order updates in Google Chat')
+            ->assertSee('Maybe later')
+            ->assertSee(route('profile.google-chat.status'), false)
+            // No listing address: the button opens Google Chat, there is no guide to open first.
+            // (The guide modal answers to `=== 'google-chat-guide'`; the prompt's own listener for the
+            // guide's "proceeded" event is not the guide.)
+            ->assertDontSee("=== 'google-chat-guide'", false);
+
+        config(['services.google_chat.app_url' => 'https://workspace.google.com/marketplace/app/cucina/1']);
+
+        $this->actingAs($this->person())->get(route('dashboard'))->assertOk()
+            ->assertSee('Install Cucina-Feliza')
+            ->assertSee("=== 'google-chat-guide'", false);
+    }
+
+    public function test_the_prompt_is_not_drawn_when_it_does_not_apply(): void
+    {
+        $this->switchOn();
+        $marker = 'Get your order updates in Google Chat';
+
+        // Never signed in with Google: they cannot be found, so nothing is offered.
+        $this->actingAs($this->person(false))->get(route('dashboard'))->assertOk()->assertDontSee($marker);
+
+        // Already welcomed.
+        $welcomed = $this->person();
+        DB::table('users')->where('id', $welcomed->id)->update(['google_chat_welcomed_at' => now()]);
+        $this->actingAs($welcomed->fresh())->get(route('dashboard'))->assertOk()->assertDontSee($marker);
+
+        // Already asked since this login.
+        $this->withSession(['google_chat_checked' => true])->actingAs($this->person())->get(route('dashboard'))->assertOk()->assertDontSee($marker);
+
+        // The Profile page has the full card (and its own guide): no second prompt on top of it.
+        $this->actingAs($this->person())->get(route('profile.edit'))->assertOk()->assertDontSee($marker);
+    }
+
+    public function test_the_prompt_is_not_drawn_while_google_chat_is_off_or_not_set_up(): void
+    {
+        $marker = 'Get your order updates in Google Chat';
+
+        // Switch off.
+        $this->actingAs($this->person())->get(route('dashboard'))->assertOk()->assertDontSee($marker);
+
+        // On, but no key file.
+        Setting::setGoogleChatNotifications(true);
+        config(['services.google_chat.credentials' => null]);
+        $this->actingAs($this->person())->get(route('dashboard'))->assertOk()->assertDontSee($marker);
+    }
+
+    public function test_the_status_marks_the_login_session_so_the_next_page_does_not_ask_again(): void
+    {
+        $this->switchOn();
+        $this->fakeGoogle(findStatus: 404);
+
+        $this->actingAs($this->person())->getJson(route('profile.google-chat.status'))
+            ->assertOk()->assertSessionHas('google_chat_checked', true);
+    }
+
+    public function test_maybe_later_stores_nothing_so_the_prompt_returns_at_every_login_until_synced(): void
+    {
+        $this->switchOn();
+        $user = $this->person();
+        $marker = 'Get your order updates in Google Chat';
+
+        // "Maybe later" is only a button that closes the dialog: there is no endpoint, no column.
+        $this->assertFalse(Schema::hasColumn('users', 'google_chat_prompt_dismissed_at'));
+        $this->assertFalse(Route::has('profile.google-chat.dismiss'));
+
+        // A visit where they were asked and closed it: not asked again on the next page...
+        $this->actingAs($user)->getJson(route('profile.google-chat.status'))->assertOk();
+        $this->get(route('dashboard'))->assertOk()->assertDontSee($marker);
+
+        // ...but the next login asks again, even when the session was kept (no sign out between).
+        $this->post(route('logout'));
+        $this->post(route('login'), ['email' => $user->email, 'password' => 'password'])->assertRedirect();
+        $this->get(route('dashboard'))->assertOk()->assertSee($marker);
+
+        // Until they are synced (welcomed): then never again.
+        DB::table('users')->where('id', $user->id)->update(['google_chat_welcomed_at' => now()]);
+        $this->actingAs($user->fresh())->get(route('dashboard'))->assertOk()->assertDontSee($marker);
+    }
+
+    public function test_a_sign_in_clears_the_asked_flag_even_without_signing_out(): void
+    {
+        $this->switchOn();
+        $user = $this->person();
+        $marker = 'Get your order updates in Google Chat';
+
+        $this->withSession(['google_chat_checked' => true])->get(route('login'));
+        $this->post(route('login'), ['email' => $user->email, 'password' => 'password'])->assertRedirect();
+
+        $this->assertNull(session('google_chat_checked'));
+        $this->get(route('dashboard'))->assertOk()->assertSee($marker);
+    }
+
+    public function test_should_prompt_follows_the_rules(): void
+    {
+        $this->switchOn();
+
+        $this->assertFalse(\App\Support\GoogleChat::shouldPrompt(null));
+        $this->assertTrue(\App\Support\GoogleChat::shouldPrompt($this->person()));
+        $this->assertFalse(\App\Support\GoogleChat::shouldPrompt($this->person(false)));
     }
 }

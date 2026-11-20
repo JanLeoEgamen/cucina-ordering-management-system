@@ -153,6 +153,43 @@ class GoogleChat
         }
     }
 
+    // What the Profile card and the sign-in prompt need, or null when Google Chat is not available
+    // (the switch is off or the key is not set up), so nobody is told to add an app nothing talks
+    // to. The key file is a free check; the setting costs a query, so it comes second.
+    public static function pageState(\App\Models\User $user): ?array
+    {
+        if (! self::configured() || ! \App\Models\Setting::googleChatNotifications()) {
+            return null;
+        }
+
+        return [
+            // Has signed in with Google once: the app finds them by that account's id.
+            'connected' => ! empty($user->google_id),
+            'app' => self::appName(),
+            'url' => (string) (config('services.google_chat.app_url') ?: 'https://chat.google.com'),
+            // The link is the app's own page (its Marketplace listing): the button then says Install.
+            'listing' => filled(config('services.google_chat.app_url')),
+        ];
+    }
+
+    // Should the one-time "get your updates in Google Chat" prompt open after sign-in? Only for a
+    // person who signed in with Google (the others cannot be found), is not synced / welcomed yet,
+    // and has not been checked since this login. It comes back at EVERY login until they are
+    // synced: "Maybe later" only closes it for the visit (the session flag below), nothing is
+    // remembered. The cheap checks come first, so most page views cost nothing.
+    public static function shouldPrompt(?\App\Models\User $user): bool
+    {
+        if (! $user || empty($user->google_id) || $user->google_chat_welcomed_at !== null) {
+            return false;
+        }
+
+        if (session('google_chat_checked')) {
+            return false;
+        }
+
+        return self::pageState($user) !== null;
+    }
+
     // The name people know the app by in Google Chat (Profile card and welcome message).
     public static function appName(): string
     {

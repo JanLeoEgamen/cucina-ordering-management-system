@@ -19,6 +19,7 @@ export default defineConfig({
                 'resources/js/pages/my-orders.js',
                 'resources/js/pages/my-pre-orders.js',
                 'resources/js/pages/menu.js',
+                'resources/js/pages/companies.js',
                 'resources/js/pages/payment-methods.js',
                 'resources/js/pages/payments.js',
                 'resources/js/pages/roles.js',

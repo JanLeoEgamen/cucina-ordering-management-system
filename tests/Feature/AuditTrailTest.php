@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AuditLog;
+use App\Models\Company;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -52,6 +53,7 @@ class AuditTrailTest extends TestCase
         $this->actingAs($admin)->putJson(route('users.update', $target->id), [
             'first_name' => 'New',
             'last_name' => 'Name',
+            'company_id' => $target->company_id,
             'email' => $target->email,
             'roles' => [$this->customerRoleId()],
         ])->assertOk();
@@ -81,6 +83,7 @@ class AuditTrailTest extends TestCase
         $this->actingAs($admin)->postJson(route('users.store'), [
             'first_name' => 'Pat',
             'last_name' => 'Lee',
+            'company_id' => Company::factory()->create()->company_id,
             'email' => 'pat@example.com',
             'password' => 'Sup3r-secret-pw',
             'password_confirmation' => 'Sup3r-secret-pw',
@@ -104,7 +107,7 @@ class AuditTrailTest extends TestCase
         $this->actingAs($admin)->putJson(route('users.update', $target->id), [
             'first_name' => $target->first_name,
             'last_name' => $target->last_name,
-            'company' => $target->company,
+            'company_id' => $target->company_id,
             'email' => $target->email,
             'password' => 'An0ther-pw-123',
             'password_confirmation' => 'An0ther-pw-123',

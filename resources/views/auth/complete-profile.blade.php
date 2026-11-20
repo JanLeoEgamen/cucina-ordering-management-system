@@ -23,9 +23,9 @@
 
         <!-- Company -->
         <div>
-            <x-input-label for="company" :value="__('Company')" />
-            <x-text-input id="company" class="mt-1 block w-full" type="text" name="company" :value="old('company', $user->company)" required autofocus autocomplete="organization" />
-            <x-input-error :messages="$errors->get('company')" class="mt-2" />
+            <x-input-label for="company_id" :value="__('Company')" />
+            <x-company-select class="mt-1" :companies="$companies" :selected="old('company_id', $user->company_id)" required autofocus autocomplete="organization" />
+            <x-input-error :messages="$errors->get('company_id')" class="mt-2" />
         </div>
 
         <x-primary-button class="w-full !py-3">
