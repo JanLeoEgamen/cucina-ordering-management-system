@@ -46,9 +46,9 @@ Route::middleware(['auth', 'profile.complete'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-    // "Send me a test message" on the Profile page (Google Chat). Three Google calls per press: throttled.
-    Route::post('/profile/google-chat/test', [ProfileController::class, 'googleChatTest'])
-        ->middleware('throttle:5,1')->name('profile.google-chat.test');
+    // The Profile card's "synced with Google Chat" indicator: one Google lookup, asked after the page loads.
+    Route::get('/profile/google-chat/status', [ProfileController::class, 'googleChatStatus'])
+        ->middleware('throttle:20,1')->name('profile.google-chat.status');
 
     // Dish Types: index serves the page and (on an AJAX request) the table feed.
     Route::get('/dish-types', [DishTypeController::class, 'index'])->name('dish-types.index');

@@ -112,7 +112,6 @@ return [
         'notifications.read-all' => 'Marked every notification as read',
         'settings.update' => 'Changed the system configuration',
         'profile.update' => 'Updated their profile',
-        'profile.google-chat.test' => 'Sent themselves a Google Chat test message',
         'profile.destroy' => 'Deleted their own account',
         'profile.complete.store' => 'Completed their profile',
         'password.update' => 'Changed their password',

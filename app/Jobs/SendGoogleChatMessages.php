@@ -41,21 +41,33 @@ class SendGoogleChatMessages implements ShouldQueue
 
     public function handle(): void
     {
-        // Their Google ids in ONE query; an account that never signed in with Google has none.
-        $googleIds = DB::table('users')
+        // Their Google ids (and whether they were welcomed) in ONE query; an account that never
+        // signed in with Google has no id.
+        $people = DB::table('users')
             ->whereIn('id', array_column($this->messages, 'user_id'))
             ->whereNull('deleted_at')
             ->whereNotNull('google_id')
-            ->pluck('google_id', 'id');
+            ->get(['id', 'google_id', 'google_chat_welcomed_at'])
+            ->keyBy('id');
+
+        // Welcomed in this run already (the mark is also in the database).
+        $welcomed = [];
 
         $orders = $this->orders();
         $app = $this->appName();
 
         foreach ($this->messages as $message) {
-            $googleId = $googleIds[$message['user_id']] ?? null;
+            $person = $people[$message['user_id']] ?? null;
+            $googleId = $person->google_id ?? null;
 
             if (! $googleId) {
                 continue;
+            }
+
+            // The first thing anyone gets from the app is the Welcome, never an order.
+            if ($person->google_chat_welcomed_at === null && empty($welcomed[$person->id])) {
+                $welcomed[$person->id] = true;
+                GoogleChat::welcome((int) $person->id, (string) $googleId);
             }
 
             GoogleChat::message((string) $googleId, [

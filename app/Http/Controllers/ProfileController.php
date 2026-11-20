@@ -38,14 +38,19 @@ class ProfileController extends Controller
         return [
             // Has signed in with Google once: the app finds them by that account's id.
             'connected' => ! empty($user->google_id),
-            'app' => (string) (config('services.google_chat.app_name') ?: Setting::appName()),
+            'app' => GoogleChat::appName(),
             'url' => (string) (config('services.google_chat.app_url') ?: 'https://chat.google.com'),
+            // The link is the app's own page (its Marketplace listing): the button then says Install.
+            'listing' => filled(config('services.google_chat.app_url')),
         ];
     }
 
-    // "Send me a test message": checks the person's own chat with the Chat app and sends them one
-    // card. The answer is in plain words and never shows the server's setup (keys, account names).
-    public function googleChatTest(Request $request)
+    // The "synced" indicator of the Profile card: is the person's chat with the Chat app there?
+    // Asked by the page after it has loaded (one Google lookup), so opening Profile never waits
+    // for Google. `state` is extra to the usual {status,message}: connected | not_added | error |
+    // no_google (never signed in with Google, so the app cannot find them). A person found
+    // connected for the first time is sent the Welcome message.
+    public function googleChatStatus(Request $request)
     {
         $state = $this->googleChatState($request->user());
 
@@ -53,23 +58,16 @@ class ProfileController extends Controller
             return $this->errorResponse('Google Chat notifications are not switched on.', 404);
         }
 
-        if (! $state['connected']) {
-            return $this->errorResponse('Sign in once with "Continue with Google" using this email first, so the app knows your Google account.', 422);
+        $result = $state['connected']
+            ? GoogleChat::directMessageState((string) $request->user()->google_id)
+            : 'no_google';
+
+        // The moment the chat exists, the app says hello (once; the first message is never an order).
+        if ($result === 'connected') {
+            GoogleChat::welcome((int) $request->user()->id, (string) $request->user()->google_id);
         }
 
-        foreach (GoogleChat::diagnose((string) $request->user()->google_id, true, false) as [$label, $ok, $detail]) {
-            if ($ok) {
-                continue;
-            }
-
-            if ($label === 'Direct message space' && str_contains($detail, 'HTTP 404')) {
-                return $this->errorResponse(__('We cannot find your chat with :app yet. Open Google Chat, search for :app, open it and say hi, then try again.', ['app' => $state['app']]), 422);
-            }
-
-            return $this->errorResponse('The test message could not be sent right now. Please tell the staff.', 422);
-        }
-
-        return $this->successResponse(__('Sent! Check your chat with :app in Google Chat.', ['app' => $state['app']]));
+        return response()->json(['status' => 'success', 'message' => $result, 'state' => $result]);
     }
 
     /**

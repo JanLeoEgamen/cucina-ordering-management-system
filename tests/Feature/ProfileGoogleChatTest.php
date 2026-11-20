@@ -55,7 +55,8 @@ class ProfileGoogleChatTest extends TestCase
         $user = $this->userWith('view my orders');
 
         if ($google) {
-            DB::table('users')->where('id', $user->id)->update(['google_id' => '123']);
+            // Unique per person (users.google_id is unique); not a fixed value.
+            DB::table('users')->where('id', $user->id)->update(['google_id' => '90' . $user->id]);
         }
 
         return $user->fresh();
@@ -65,7 +66,7 @@ class ProfileGoogleChatTest extends TestCase
     {
         $this->configureKey();
         Setting::setGoogleChatNotifications(true);
-        config(['services.google_chat.app_name' => 'Cucina-Feliza']);
+        config(['services.google_chat.app_name' => 'Cucina-Feliza', 'services.google_chat.app_url' => null]);
     }
 
     private function fakeGoogle(int $findStatus = 200, int $tokenStatus = 200): void
@@ -90,9 +91,15 @@ class ProfileGoogleChatTest extends TestCase
 
         $this->switchOn();
         $this->actingAs($user)->get(route('profile.edit'))->assertOk()
-            ->assertSee('Send me a test message')
+            ->assertDontSee('Send me a test message')
             ->assertSee('Search for Cucina-Feliza')
-            ->assertSee('https://chat.google.com', false);
+            ->assertSee('https://chat.google.com', false)
+            // No listing address: the button just opens Google Chat.
+            ->assertSee('Open Google Chat')
+            ->assertDontSee('Install Cucina-Feliza')
+            // No listing, no guide.
+            ->assertDontSee('google-chat-guide', false)
+            ->assertDontSee('Skip tutorial');
     }
 
     public function test_the_link_can_point_at_the_app_listing(): void
@@ -101,7 +108,18 @@ class ProfileGoogleChatTest extends TestCase
         config(['services.google_chat.app_url' => 'https://workspace.google.com/marketplace/app/cucina/1']);
 
         $this->actingAs($this->person())->get(route('profile.edit'))->assertOk()
-            ->assertSee('https://workspace.google.com/marketplace/app/cucina/1', false);
+            ->assertSee('https://workspace.google.com/marketplace/app/cucina/1', false)
+            // The link is the app's own page: the button and the first step say Install.
+            ->assertSee('Install Cucina-Feliza')
+            ->assertSee('Click Install Cucina-Feliza')
+            ->assertDontSee('say hi')
+            // No plain link to Google Chat any more (the guide's own step is titled "Open Google Chat and say hi").
+            ->assertDontSee('target="_blank" rel="noopener noreferrer"', false)
+            // ...and clicking it opens the how-to guide first; the guide's last step carries the address.
+            ->assertSee('google-chat-guide', false)
+            ->assertSee('data-url="https://workspace.google.com/marketplace/app/cucina/1"', false)
+            ->assertSee('Skip tutorial')
+            ->assertSee('Go to the installation page');
     }
 
     public function test_someone_who_never_signed_in_with_google_is_told_how_instead_of_a_button(): void
@@ -113,56 +131,180 @@ class ProfileGoogleChatTest extends TestCase
             ->assertDontSee('Send me a test message');
     }
 
-    public function test_the_test_message_is_sent_to_the_person_as_a_card(): void
+    /* -------- the "synced" indicator -------- */
+
+    public function test_the_page_carries_the_indicator_and_asks_for_the_status_after_it_loads(): void
+    {
+        $this->switchOn();
+
+        // Nothing is asked of Google while the page renders.
+        Http::fake();
+        $this->actingAs($this->person())->get(route('profile.edit'))->assertOk()
+            ->assertSee(route('profile.google-chat.status'), false)
+            ->assertSee('Synced with Google Chat')
+            ->assertSee('Not synced yet')
+            ->assertSee('Your notifications are sent to your chat with Cucina-Feliza.');
+        Http::assertNothingSent();
+
+        // Never signed in with Google: "not synced" straight away, no script, no status call.
+        $this->actingAs($this->person(false))->get(route('profile.edit'))->assertOk()
+            ->assertSee('Not synced yet')
+            ->assertDontSee(route('profile.google-chat.status'), false);
+    }
+
+    public function test_the_status_says_connected_when_the_chat_with_the_app_exists(): void
     {
         $this->switchOn();
         $this->fakeGoogle();
 
-        $this->actingAs($this->person())->postJson(route('profile.google-chat.test'))
-            ->assertOk()->assertJsonPath('status', 'success');
+        $this->actingAs($this->person())->getJson(route('profile.google-chat.status'))
+            ->assertOk()->assertJsonPath('status', 'success')->assertJsonPath('state', 'connected');
 
-        $posted = Http::recorded(fn (Request $request) => str_ends_with($request->url(), '/messages'));
+        // The lookup, and the Welcome (the first time they are found synced): nothing else is sent.
+        $sent = Http::recorded(fn (Request $request) => str_ends_with($request->url(), '/messages'));
 
-        $this->assertCount(1, $posted);
-        $this->assertArrayHasKey('cardsV2', $posted->first()[0]->data());
-        Http::assertSent(fn (Request $request) => str_contains(urldecode($request->url()), 'users/123'));
+        $this->assertCount(1, $sent);
+        $this->assertStringContainsString('Welcome', $sent->first()[0]->data()['cardsV2'][0]['card']['header']['title']);
     }
 
-    public function test_a_person_who_has_not_added_the_app_is_told_what_to_do(): void
+    public function test_the_status_says_not_added_when_google_has_no_chat_for_them(): void
     {
         $this->switchOn();
         $this->fakeGoogle(findStatus: 404);
 
-        $response = $this->actingAs($this->person())->postJson(route('profile.google-chat.test'))
-            ->assertStatus(422)->assertJsonPath('status', 'failed');
-
-        $this->assertStringContainsString('search for Cucina-Feliza', $response->json('message'));
-        $this->assertSame([], Http::recorded(fn (Request $request) => str_ends_with($request->url(), '/messages'))->all());
+        $this->actingAs($this->person())->getJson(route('profile.google-chat.status'))
+            ->assertOk()->assertJsonPath('state', 'not_added');
     }
 
-    public function test_a_server_problem_is_never_explained_to_the_customer(): void
+    public function test_the_status_is_a_live_lookup_not_the_remembered_chat(): void
+    {
+        $this->switchOn();
+        $this->fakeGoogle(findStatus: 404);
+
+        // A chat remembered from before; the person has since removed it.
+        $user = $this->person();
+        \Illuminate\Support\Facades\Cache::put('google-chat:space:' . $user->google_id, 'spaces/OLD', 3600);
+
+        $this->actingAs($user)->getJson(route('profile.google-chat.status'))
+            ->assertOk()->assertJsonPath('state', 'not_added');
+    }
+
+    public function test_the_status_is_error_when_google_cannot_be_asked_and_never_explains_why(): void
     {
         $this->switchOn();
         $this->fakeGoogle(tokenStatus: 500);
 
-        $response = $this->actingAs($this->person())->postJson(route('profile.google-chat.test'))->assertStatus(422);
+        $response = $this->actingAs($this->person())->getJson(route('profile.google-chat.status'))
+            ->assertOk()->assertJsonPath('state', 'error');
 
         $this->assertStringNotContainsString('gserviceaccount', $response->getContent());
-        $this->assertStringNotContainsString('secret-project', $response->getContent());
-        $this->assertStringContainsString('tell the staff', $response->json('message'));
     }
 
-    public function test_the_test_needs_the_feature_a_google_account_and_a_login(): void
+    public function test_the_status_for_a_person_without_google_and_the_guards(): void
     {
-        $this->postJson(route('profile.google-chat.test'))->assertUnauthorized();
+        $this->getJson(route('profile.google-chat.status'))->assertUnauthorized();
 
         // Feature off.
-        $this->actingAs($this->person())->postJson(route('profile.google-chat.test'))->assertNotFound();
+        $this->actingAs($this->person())->getJson(route('profile.google-chat.status'))->assertNotFound();
 
-        // On, but this person never signed in with Google.
         $this->switchOn();
         $this->fakeGoogle();
-        $this->actingAs($this->person(false))->postJson(route('profile.google-chat.test'))->assertStatus(422);
+        $this->actingAs($this->person(false))->getJson(route('profile.google-chat.status'))
+            ->assertOk()->assertJsonPath('state', 'no_google');
         Http::assertNothingSent();
+    }
+    /* -------- the Welcome message -------- */
+
+    private function messages(): array
+    {
+        return Http::recorded(fn (Request $request) => str_ends_with($request->url(), '/messages'))
+            ->map(fn (array $pair) => $pair[0]->data())->values()->all();
+    }
+
+    private function welcomedAt(User $user)
+    {
+        return DB::table('users')->where('id', $user->id)->value('google_chat_welcomed_at');
+    }
+
+    public function test_the_first_time_a_person_is_found_synced_the_app_welcomes_them_once(): void
+    {
+        $this->switchOn();
+        $this->fakeGoogle();
+        $user = $this->person();
+
+        $this->assertNull($this->welcomedAt($user));
+
+        $this->actingAs($user)->getJson(route('profile.google-chat.status'))->assertOk()->assertJsonPath('state', 'connected');
+
+        $messages = $this->messages();
+        $this->assertCount(1, $messages);
+
+        $card = $messages[0]['cardsV2'][0]['card'];
+        $everything = json_encode($card, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        // A welcome, not an order: no dishes, no total, nothing made up.
+        $this->assertSame('👋 Welcome to Cucina-Feliza', $card['header']['title']);
+        $this->assertStringContainsString('When your order is ready for pick up', $everything);
+        $this->assertStringNotContainsString('ORD-', $everything);
+        $this->assertStringNotContainsString('Total', $everything);
+        $this->assertNotNull($this->welcomedAt($user));
+
+        // Checking again (or reloading the page) never sends it a second time.
+        $this->actingAs($user)->getJson(route('profile.google-chat.status'))->assertOk();
+        $this->assertCount(1, $this->messages());
+    }
+
+    public function test_nobody_is_welcomed_twice(): void
+    {
+        $this->switchOn();
+        $this->fakeGoogle();
+
+        $done = $this->person();
+        DB::table('users')->where('id', $done->id)->update(['google_chat_welcomed_at' => now()]);
+
+        $this->actingAs($done)->getJson(route('profile.google-chat.status'))->assertOk()->assertJsonPath('state', 'connected');
+        $this->assertSame([], $this->messages());
+    }
+
+    public function test_nobody_is_welcomed_before_the_chat_exists(): void
+    {
+        $this->switchOn();
+        $this->fakeGoogle(findStatus: 404);
+
+        // No chat yet (404): not welcomed, nothing marked.
+        $waiting = $this->person();
+
+        $this->actingAs($waiting)->getJson(route('profile.google-chat.status'))->assertOk()->assertJsonPath('state', 'not_added');
+        $this->assertSame([], $this->messages());
+        $this->assertNull($this->welcomedAt($waiting));
+    }
+
+    public function test_a_welcome_google_refuses_is_tried_again_later(): void
+    {
+        $this->switchOn();
+        $user = $this->person();
+
+        Http::fake([
+            'oauth2.googleapis.com/*' => Http::response(['access_token' => 'tok', 'expires_in' => 3600]),
+            'chat.googleapis.com/v1/spaces:findDirectMessage*' => Http::response(['name' => 'spaces/AAA']),
+            'chat.googleapis.com/v1/spaces/AAA/messages' => Http::response(['error' => ['status' => 'INTERNAL']], 500),
+        ]);
+
+        $this->actingAs($user)->getJson(route('profile.google-chat.status'))->assertOk()->assertJsonPath('state', 'connected');
+
+        // The mark was given back: the welcome is not lost.
+        $this->assertNull($this->welcomedAt($user));
+    }
+
+    public function test_there_is_no_test_message_button_and_no_route_for_it(): void
+    {
+        $this->switchOn();
+        $this->fakeGoogle();
+
+        $this->actingAs($this->person())->get(route('profile.edit'))->assertOk()
+            ->assertDontSee('Send me a test message')
+            ->assertSee('Synced with Google Chat');
+
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('profile.google-chat.test'));
     }
 }
