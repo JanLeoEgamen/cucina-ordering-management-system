@@ -15,7 +15,7 @@ use Throwable;
 
 // System configuration: the values the rest of the app starts from: the app's name and logo,
 // the default start and end time of a new order session (the create drawer is pre-filled with
-// them), the pre-order limits, the public privacy policy and terms and who is notified. The page is laid out in sections so more
+// them), the pre-order limits, the public privacy policy and terms of service and who is notified. The page is laid out in sections so more
 // settings can be added beside them.
 class SettingController extends Controller implements HasMiddleware
 {
@@ -87,13 +87,13 @@ class SettingController extends Controller implements HasMiddleware
             // caller that sends neither changes nothing. An empty maximum = no limit.
             'pre_order_min_quantity' => ['sometimes', 'required', 'integer', 'min:1', 'max:100000'],
             'pre_order_max_quantity' => ['nullable', 'integer', 'min:1', 'max:100000', 'gte:pre_order_min_quantity'],
-            // The public legal pages (GET /privacy, GET /policy): Markdown text, and the address
+            // The public legal pages (GET /privacy-policy, GET /terms-of-service): Markdown text, and the address
             // people can write to. An empty text goes back to the built-in one. A caller that leaves
             // a field out changes nothing.
-            'privacy_content' => ['sometimes', 'nullable', 'string', 'max:' . Setting::LEGAL_MAX_LENGTH],
-            'privacy_contact_email' => ['sometimes', 'nullable', 'email', 'max:120'],
-            'policy_content' => ['sometimes', 'nullable', 'string', 'max:' . Setting::LEGAL_MAX_LENGTH],
-            'policy_contact_email' => ['sometimes', 'nullable', 'email', 'max:120'],
+            'privacy_policy_content' => ['sometimes', 'nullable', 'string', 'max:' . Setting::LEGAL_MAX_LENGTH],
+            'privacy_policy_contact_email' => ['sometimes', 'nullable', 'email', 'max:120'],
+            'terms_of_service_content' => ['sometimes', 'nullable', 'string', 'max:' . Setting::LEGAL_MAX_LENGTH],
+            'terms_of_service_contact_email' => ['sometimes', 'nullable', 'email', 'max:120'],
         ], [
             'app_name.required' => 'The app name cannot be empty.',
             'app_name.max' => 'The app name can have at most 60 characters.',
@@ -104,10 +104,10 @@ class SettingController extends Controller implements HasMiddleware
             'notification_watchers.*.exists' => 'One of the picked users does not exist any more.',
             'pre_order_min_quantity.min' => 'The minimum pre-order must be at least 1 plate.',
             'pre_order_max_quantity.gte' => 'The maximum pre-order cannot be lower than the minimum.',
-            'privacy_content.max' => 'The privacy policy can have at most :max characters.',
-            'privacy_contact_email.email' => 'The privacy contact must be a valid email address.',
-            'policy_content.max' => 'The terms and policy can have at most :max characters.',
-            'policy_contact_email.email' => 'The terms and policy contact must be a valid email address.',
+            'privacy_policy_content.max' => 'The privacy policy can have at most :max characters.',
+            'privacy_policy_contact_email.email' => 'The privacy contact must be a valid email address.',
+            'terms_of_service_content.max' => 'The terms of service can have at most :max characters.',
+            'terms_of_service_contact_email.email' => 'The terms of service contact must be a valid email address.',
         ]);
 
         // The new logo is written BEFORE the transaction (a file cannot be rolled back) and the
@@ -166,8 +166,10 @@ class SettingController extends Controller implements HasMiddleware
             }
 
             foreach (array_keys(Setting::LEGAL_PAGES) as $page) {
-                $content = $page . '_content';
-                $email = $page . '_contact_email';
+                // 'privacy-policy' -> privacy_policy_content / privacy_policy_contact_email
+                $field = str_replace('-', '_', $page);
+                $content = $field . '_content';
+                $email = $field . '_contact_email';
 
                 if (array_key_exists($content, $validated) || array_key_exists($email, $validated)) {
                     Setting::setLegalPage(

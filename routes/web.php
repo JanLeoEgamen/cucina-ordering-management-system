@@ -24,8 +24,8 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', WelcomeController::class)->name('welcome');
 
 // The legal pages: public (the sign in / sign up pages link to them); their text is a setting.
-Route::get('/privacy', [LegalPageController::class, 'show'])->defaults('page', 'privacy')->name('privacy');
-Route::get('/policy', [LegalPageController::class, 'show'])->defaults('page', 'policy')->name('policy');
+Route::get('/privacy-policy', [LegalPageController::class, 'show'])->defaults('page', 'privacy-policy')->name('privacy-policy');
+Route::get('/terms-of-service', [LegalPageController::class, 'show'])->defaults('page', 'terms-of-service')->name('terms-of-service');
 
 Route::get('/dashboard', function () {
     return view('dashboard', [
