@@ -211,6 +211,7 @@ No route creates, edits or deletes an entry (`POST` / `PUT` / `DELETE` on these 
 | `` `GET /dashboard` `` | `auth`, `verified` | Dashboard: greeting, the live session, the pending-payment count (with `view payments`) and "Jump to" tiles for what the user may open. |
 | `` `GET /profile` `` | auth | Profile form. |
 | `` `PATCH /profile` `` | auth | Update `first_name`, `last_name`, `company` (optional), `email`. |
+| `` `POST /profile/google-chat/test` `` | auth | **Send me a test message** on the Profile page's Google Chat card. No permission (it only ever messages the caller); throttled 5 / minute. Checks the caller's own chat with the Chat app and sends them one sample order card; answers `{status,message}` in plain words and never shows server setup. **404** while *Send notifications to Google Chat* is off or the key is not set up, **422** when the caller never signed in with Google (no `google_id`), when their chat with the app does not exist yet ("open Google Chat, search for the app, say hi"), or when Google refuses ("tell the staff"). |
 | `` `DELETE /profile` `` | auth | Delete own account (needs current password). |
 | `` `PUT /password` `` | auth | Change password. |
 | `` `GET /register` `` | guest | Public self-registration (new users get the **Customer** role — see security.md). |

@@ -19,6 +19,15 @@
                 </div>
             </div>
 
+            {{-- Only while Google Chat notifications are switched on and set up. --}}
+            @if ($googleChat)
+                <div class="p-4 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
+                    <div class="max-w-xl">
+                        @include('profile.partials.google-chat')
+                    </div>
+                </div>
+            @endif
+
             {{-- A Super Admin account cannot be deleted, so the section is not offered. --}}
             @unless (\App\Models\User::isSuperAdmin((int) auth()->id()))
                 <div class="p-4 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">

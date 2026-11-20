@@ -44,6 +44,10 @@ return [
         'credentials' => env('GOOGLE_CHAT_CREDENTIALS'),
         // Must match "Markup syntax" in the Chat API configuration: 'markdown' (default) or 'legacy'.
         'markup' => env('GOOGLE_CHAT_MARKUP', 'markdown'),
+        // The Profile page tells people to find the Chat app by this name (default: the app's name in
+        // System Configuration) and links to this address if given (e.g. the Marketplace listing).
+        'app_name' => env('GOOGLE_CHAT_APP_NAME'),
+        'app_url' => env('GOOGLE_CHAT_APP_URL'),
     ],
 
     'slack' => [

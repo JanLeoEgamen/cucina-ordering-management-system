@@ -2,6 +2,9 @@
 
 namespace App\Jobs;
 
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\Setting;
 use App\Support\GoogleChat;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -16,6 +19,9 @@ use Throwable;
 // NOT retried (tries = 1): a retry would message again everyone who already got it. Each
 // person is tried on its own; people without a Google account on file, or who have not added
 // the Chat app, are skipped (GoogleChat::message() answers false), never an error.
+//
+// What the card shows beyond the bell's words (the dishes, the total, the payment method) is
+// read here, in two queries for the whole event, from the order ids the notifier passed.
 class SendGoogleChatMessages implements ShouldQueue
 {
     use Queueable;
@@ -26,7 +32,7 @@ class SendGoogleChatMessages implements ShouldQueue
     public int $timeout = 120;
 
     /**
-     * @param  array<int, array{user_id: int, title: string, body: ?string, url: ?string}>  $messages
+     * @param  array<int, array{user_id: int, title: string, body: ?string, url: ?string, order_id?: ?int, type?: ?string}>  $messages
      */
     public function __construct(public array $messages)
     {
@@ -42,6 +48,9 @@ class SendGoogleChatMessages implements ShouldQueue
             ->whereNotNull('google_id')
             ->pluck('google_id', 'id');
 
+        $orders = $this->orders();
+        $app = $this->appName();
+
         foreach ($this->messages as $message) {
             $googleId = $googleIds[$message['user_id']] ?? null;
 
@@ -49,7 +58,50 @@ class SendGoogleChatMessages implements ShouldQueue
                 continue;
             }
 
-            GoogleChat::message((string) $googleId, $message['title'], $message['body'] ?? null, $message['url'] ?? null);
+            GoogleChat::message((string) $googleId, [
+                'title' => $message['title'],
+                'body' => $message['body'] ?? null,
+                'url' => $message['url'] ?? null,
+                'type' => $message['type'] ?? null,
+                'app' => $app,
+                'order' => $orders[$message['order_id'] ?? 0] ?? null,
+            ]);
+        }
+    }
+
+    // The orders the messages are about, ready for the card: number, total, payment method and
+    // the dishes. Two queries for all of them. If they cannot be read the messages still go out,
+    // without the details.
+    protected function orders(): array
+    {
+        $ids = array_values(array_unique(array_filter(array_column($this->messages, 'order_id'))));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        try {
+            $items = OrderItem::itemsByOrder($ids);
+
+            return Order::notificationSummaries($ids)->map(fn (object $order) => [
+                'number' => $order->order_number,
+                'total' => (float) $order->total_amount,
+                'method' => $order->method_name,
+                'items' => $items[$order->order_id] ?? [],
+            ])->all();
+        } catch (Throwable $exception) {
+            Log::warning('Google Chat: the order details could not be read', ['error' => $exception->getMessage()]);
+
+            return [];
+        }
+    }
+
+    protected function appName(): string
+    {
+        try {
+            return Setting::appName();
+        } catch (Throwable) {
+            return '';
         }
     }
 

@@ -198,7 +198,7 @@ class OrderNotifier
                 'order_id' => $order->order_id,
             ];
 
-            $mails[] = self::mailRow($person, $title, $body, $url);
+            $mails[] = self::mailRow($person, $title, $body, $url, (int) $order->order_id, $event);
         }
 
         UserNotification::insertMany($rows);
@@ -236,7 +236,7 @@ class OrderNotifier
             [$title, $body, $url] = self::customerText(self::READY, $order, [], $person);
 
             $rows[] = ['user_id' => $person->id, 'type' => self::READY, 'title' => $title, 'body' => $body, 'url' => $url, 'order_id' => $order->order_id];
-            $mails[] = self::mailRow($person, $title, $body, $url);
+            $mails[] = self::mailRow($person, $title, $body, $url, (int) $order->order_id, self::READY);
         }
 
         // The customer of a single order was just told in their own words: no second copy as a watcher.
@@ -258,7 +258,7 @@ class OrderNotifier
                 ];
 
             $rows[] = ['user_id' => $person->id, 'type' => self::READY, 'title' => $title, 'body' => $body, 'url' => $url, 'order_id' => $single?->order_id];
-            $mails[] = self::mailRow($person, $title, $body, $url);
+            $mails[] = self::mailRow($person, $title, $body, $url, $single ? (int) $single->order_id : null, self::READY);
         }
 
         UserNotification::insertMany($rows);
@@ -321,7 +321,7 @@ class OrderNotifier
                     'order_id' => null,
                 ];
 
-                $mails[] = self::mailRow($person, $title, $body, $url);
+                $mails[] = self::mailRow($person, $title, $body, $url, null, self::SOLD_OUT);
             }
         }
 
@@ -332,7 +332,7 @@ class OrderNotifier
     /* -------- Email -------- */
 
     // What the email job needs for one person: the same words as the bell.
-    protected static function mailRow(User $person, string $title, ?string $body, ?string $url): array
+    protected static function mailRow(User $person, string $title, ?string $body, ?string $url, ?int $orderId = null, ?string $type = null): array
     {
         return [
             'user_id' => (int) $person->id,
@@ -340,6 +340,9 @@ class OrderNotifier
             'title' => $title,
             'body' => $body,
             'url' => $url,
+            // Not for the email: the Google Chat card shows the dishes of this order and picks its icon from the type.
+            'order_id' => $orderId,
+            'type' => $type,
         ];
     }
 
@@ -368,6 +371,8 @@ class OrderNotifier
                     'title' => $mail['title'],
                     'body' => $mail['body'],
                     'url' => $mail['url'],
+                    'order_id' => $mail['order_id'] ?? null,
+                    'type' => $mail['type'] ?? null,
                 ], $mails)));
             }
         });
