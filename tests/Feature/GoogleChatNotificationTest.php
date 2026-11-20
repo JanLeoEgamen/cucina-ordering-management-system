@@ -123,14 +123,85 @@ class GoogleChatNotificationTest extends TestCase
         $posted = $this->messagesPosted();
 
         $this->assertCount(1, $posted);
-        $this->assertStringContainsString('placed', $posted[0]['text']);
-        $this->assertStringContainsString('/my-orders', $posted[0]['text']);
+
+        // A card: the bell's title in the header, the dishes, the total and the payment method.
+        $card = $posted[0]['cardsV2'][0]['card'];
+        $everything = json_encode($card, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        $this->assertStringContainsString('placed', $card['header']['title']);
+        $this->assertStringContainsString('🧾', $card['header']['title']);
+        $this->assertStringContainsString('1×', $everything);
+        $this->assertStringContainsString('Adobo', $everything);
+        $this->assertStringContainsString('₱50.00', $everything);
+        $this->assertStringContainsString('Cash on Pick up', $everything);
 
         // The person was found by their Google id, with the app's own token.
         Http::assertSent(fn (Request $request) => str_contains($request->url(), 'findDirectMessage') && str_contains(urldecode($request->url()), 'users/777') && $request->hasHeader('Authorization', 'Bearer tok'));
 
         // The bell row is there as always.
         $this->assertSame(1, DB::table('user_notifications')->where('user_id', $customer->id)->count());
+    }
+
+    public function test_the_card_lists_the_dishes_escapes_text_and_only_links_https(): void
+    {
+        $entry = [
+            'title' => 'Order X is ready for pick up',
+            'body' => 'Show your number.',
+            'url' => '/my-orders?order=5',
+            'type' => 'order_ready',
+            'app' => 'Cucina',
+            'order' => ['number' => 'ORD-1', 'total' => 185.5, 'method' => 'GCash', 'items' => [
+                ['dish_name' => 'Adobo <b>&</b>', 'quantity' => 2, 'sub_total' => 130],
+                ['dish_name' => 'Rice', 'quantity' => 1, 'sub_total' => 55.5],
+            ]],
+        ];
+
+        $card = GoogleChat::card($entry)['card'];
+        $json = json_encode($card, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        $this->assertSame('🍽️ Order X is ready for pick up', $card['header']['title']);
+        $this->assertSame('Cucina', $card['header']['subtitle']);
+        $this->assertStringContainsString('<b>2×</b> Adobo &lt;b&gt;&amp;&lt;/b&gt; — ₱130.00<br><b>1×</b> Rice — ₱55.50', $json);
+        $this->assertStringContainsString('<b>₱185.50</b>', $json);
+        $this->assertStringContainsString('Order ORD-1', $json);
+        $this->assertStringNotContainsString('buttonList', $json, 'a local http link has no button');
+
+        // https gets the button.
+        config(['app.url' => 'https://cucina.example']);
+        url()->forceRootUrl('https://cucina.example');
+        url()->forceScheme('https');
+        $this->assertStringContainsString('"openLink":{"url":"https://cucina.example/my-orders?order=5"}', json_encode(GoogleChat::card($entry)['card'], JSON_UNESCAPED_SLASHES));
+
+        // A long order is cut and counted; a message with nothing but a title still has a section.
+        $many = ['title' => 'T', 'order' => ['number' => 'O', 'total' => 1, 'method' => null, 'items' => array_fill(0, 15, ['dish_name' => 'D', 'quantity' => 1, 'sub_total' => 1])]];
+        $this->assertStringContainsString('+3 more', json_encode(GoogleChat::card($many)['card']));
+        $this->assertNotEmpty(GoogleChat::card(['title' => 'Only a title'])['card']['sections']);
+    }
+
+    public function test_a_card_google_refuses_is_sent_again_as_plain_text(): void
+    {
+        $this->configureKey();
+        Setting::setGoogleChatNotifications(true);
+        $customer = $this->googleCustomer();
+
+        $attempts = [];
+        Http::fake([
+            'oauth2.googleapis.com/*' => Http::response(['access_token' => 'tok', 'expires_in' => 3600]),
+            'chat.googleapis.com/v1/spaces:findDirectMessage*' => Http::response(['name' => 'spaces/AAA']),
+            'chat.googleapis.com/v1/spaces/AAA/messages' => function (Request $request) use (&$attempts) {
+                $attempts[] = $request->data();
+
+                return isset($request->data()['cardsV2'])
+                    ? Http::response(['error' => ['status' => 'INVALID_ARGUMENT', 'message' => 'bad card']], 400)
+                    : Http::response(['name' => 'spaces/AAA/messages/1']);
+            },
+        ]);
+
+        $this->place($customer);
+
+        $this->assertCount(2, $attempts);
+        $this->assertArrayHasKey('cardsV2', $attempts[0]);
+        $this->assertStringContainsString('placed', $attempts[1]['text']);
     }
 
     public function test_the_token_request_is_a_signed_jwt_for_the_chat_scope(): void
@@ -245,6 +316,55 @@ class GoogleChatNotificationTest extends TestCase
         // Google Chat's own syntax, for an app set to the legacy markup.
         config(['services.google_chat.markup' => 'legacy']);
         $this->assertSame("*Order X is ready*\nShow your order number.\n<$link|" . __('Open') . '>', GoogleChat::format('Order X is ready', 'Show your order number.', '/my-orders?order=5#order-5'));
+    }
+
+    /* -------- php artisan google-chat:test -------- */
+
+    public function test_the_command_names_the_step_that_fails(): void
+    {
+        $this->artisan('google-chat:test', ['email' => 'nobody@example.com'])->expectsOutputToContain('No such user.')->assertFailed();
+
+        $plain = $this->userWith();
+        $this->artisan('google-chat:test', ['email' => $plain->email])->expectsOutputToContain('no google_id')->assertFailed();
+
+        $user = $this->googleCustomer('555');
+
+        // No key file.
+        config(['services.google_chat.credentials' => null]);
+        $this->artisan('google-chat:test', ['email' => $user->email])->expectsOutputToContain('[FAIL] Key file')->assertFailed();
+
+        // The person has not added the app: Google answers 404, and the command says what that means.
+        $this->configureKey();
+        $tokenRefused = false;
+        Http::fake([
+            // By reference: an arrow function would copy the flag when it is created.
+            'oauth2.googleapis.com/*' => function () use (&$tokenRefused) {
+                return $tokenRefused
+                    ? Http::response(['error' => 'invalid_grant', 'error_description' => 'Invalid JWT Signature.'], 400)
+                    : Http::response(['access_token' => 'tok', 'expires_in' => 3600]);
+            },
+            'chat.googleapis.com/v1/spaces:findDirectMessage*' => Http::response(['error' => ['status' => 'NOT_FOUND', 'message' => 'Not found']], 404),
+        ]);
+        $this->artisan('google-chat:test', ['email' => $user->email])
+            ->expectsOutputToContain('[FAIL] Direct message space: HTTP 404 NOT_FOUND Not found')
+            ->assertFailed();
+
+        // The token is refused: Google's reason is shown.
+        $tokenRefused = true;
+        $this->artisan('google-chat:test', ['email' => $user->email])->expectsOutputToContain('[FAIL] Access token')->assertFailed();
+    }
+
+    public function test_the_command_sends_one_test_message_when_everything_works_and_not_with_no_send(): void
+    {
+        $this->configureKey();
+        $this->fakeGoogle();
+        $user = $this->googleCustomer('555');
+
+        $this->artisan('google-chat:test', ['email' => $user->email, '--no-send' => true])->expectsOutputToContain('[ok]   Direct message space: spaces/AAA')->assertSuccessful();
+        $this->assertSame([], $this->messagesPosted());
+
+        $this->artisan('google-chat:test', ['email' => $user->email])->expectsOutputToContain('[ok]   Test message: sent')->assertSuccessful();
+        $this->assertCount(1, $this->messagesPosted());
     }
 
     /* -------- System Configuration -------- */
