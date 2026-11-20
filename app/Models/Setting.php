@@ -47,21 +47,21 @@ class Setting
     // (which is Laravel's "Laravel" on a fresh install).
     public const DEFAULT_APP_NAME = 'Cucina';
 
-    // The two public legal pages, written by an admin in Markdown: the privacy policy (GET /privacy)
-    // and the terms of service of ordering (GET /terms). Each has its text (empty = the built-in
+    // The two public legal pages, written by an admin in Markdown: the privacy policy (GET /privacy-policy)
+    // and the terms of service of ordering (GET /terms-of-service). Each has its text (empty = the built-in
     // text in resources/legal/<page>.md) and an optional address people can write to.
-    public const PRIVACY_CONTENT = 'privacy.content';
+    public const PRIVACY_POLICY_CONTENT = 'privacy_policy.content';
 
-    public const PRIVACY_CONTACT_EMAIL = 'privacy.contact_email';
+    public const PRIVACY_POLICY_CONTACT_EMAIL = 'privacy_policy.contact_email';
 
-    public const TERMS_CONTENT = 'terms.content';
+    public const TERMS_OF_SERVICE_CONTENT = 'terms_of_service.content';
 
-    public const TERMS_CONTACT_EMAIL = 'terms.contact_email';
+    public const TERMS_OF_SERVICE_CONTACT_EMAIL = 'terms_of_service.contact_email';
 
     // page => the settings behind it.
     public const LEGAL_PAGES = [
-        'privacy' => ['content' => self::PRIVACY_CONTENT, 'email' => self::PRIVACY_CONTACT_EMAIL],
-        'terms' => ['content' => self::TERMS_CONTENT, 'email' => self::TERMS_CONTACT_EMAIL],
+        'privacy-policy' => ['content' => self::PRIVACY_POLICY_CONTENT, 'email' => self::PRIVACY_POLICY_CONTACT_EMAIL],
+        'terms-of-service' => ['content' => self::TERMS_OF_SERVICE_CONTENT, 'email' => self::TERMS_OF_SERVICE_CONTACT_EMAIL],
     ];
 
     // The longest page text. The value column is TEXT (65,535 BYTES) and a character can take
@@ -69,10 +69,10 @@ class Setting
     public const LEGAL_MAX_LENGTH = 15000;
 
     public const DEFAULTS = [
-        self::PRIVACY_CONTENT => '',
-        self::PRIVACY_CONTACT_EMAIL => '',
-        self::TERMS_CONTENT => '',
-        self::TERMS_CONTACT_EMAIL => '',
+        self::PRIVACY_POLICY_CONTENT => '',
+        self::PRIVACY_POLICY_CONTACT_EMAIL => '',
+        self::TERMS_OF_SERVICE_CONTENT => '',
+        self::TERMS_OF_SERVICE_CONTACT_EMAIL => '',
         self::APP_NAME => self::DEFAULT_APP_NAME,
         self::APP_LOGO => '',
         self::SESSION_START_TIME => '09:00',

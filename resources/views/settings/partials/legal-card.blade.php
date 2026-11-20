@@ -2,12 +2,13 @@
     One public legal page's card in System Configuration: its Markdown text and a contact email,
     saved with the rest of the form. Included once per page of Setting::LEGAL_PAGES.
 
-        page         'privacy' | 'terms' (the field names are <page>_content / <page>_contact_email)
+        page         'privacy-policy' | 'terms-of-service' (fields: privacy_policy_content, terms_of_service_content, and the same with _contact_email)
         heading      the card's title
         description  what the page is for
         legal        Setting::legalPage($page)
         label, input, canEdit   the settings page's shared classes and permission flag
 --}}
+@php($field = str_replace('-', '_', $page))
 <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
     <div class="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 px-6 py-4 dark:border-gray-700">
         <div class="min-w-0 flex-1">
@@ -25,7 +26,7 @@
         <div>
             <label for="{{ $page }}-content" class="{{ $label }}">{{ __('Page text') }}</label>
             <div class="mt-1">
-                <textarea name="{{ $page }}_content" id="{{ $page }}-content" rows="16" maxlength="{{ \App\Models\Setting::LEGAL_MAX_LENGTH }}"
+                <textarea name="{{ $field }}_content" id="{{ $page }}-content" rows="16" maxlength="{{ \App\Models\Setting::LEGAL_MAX_LENGTH }}"
                           spellcheck="true" @disabled(! $canEdit)
                           class="{{ $input }} font-mono leading-relaxed">{{ $legal['content'] }}</textarea>
             </div>
@@ -42,7 +43,7 @@
         <div>
             <label for="{{ $page }}-contact-email" class="{{ $label }}">{{ __('Contact email') }}</label>
             <div class="mt-1">
-                <input type="email" name="{{ $page }}_contact_email" id="{{ $page }}-contact-email" maxlength="120"
+                <input type="email" name="{{ $field }}_contact_email" id="{{ $page }}-contact-email" maxlength="120"
                        value="{{ $legal['contact_email'] }}" placeholder="hello@example.com" @disabled(! $canEdit)
                        class="{{ $input }}">
             </div>

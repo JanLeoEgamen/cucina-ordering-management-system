@@ -1012,56 +1012,56 @@ html [data-card-actions]:has(> :nth-child(4)) > a[data-row-link]::before {
    class only appears in one template, and the headings inside never carry a class of their own.
 --------------------------------------------------------------------------- */
 
-.policy-prose {
+.legal-prose {
     @apply text-base leading-relaxed text-gray-700 dark:text-gray-300;
     overflow-wrap: anywhere;
 }
 
-.policy-prose > :first-child {
+.legal-prose > :first-child {
     @apply mt-0;
 }
 
-.policy-prose h1,
-.policy-prose h2,
-.policy-prose h3 {
+.legal-prose h1,
+.legal-prose h2,
+.legal-prose h3 {
     @apply mt-8 text-xl font-semibold tracking-tight text-gray-900 dark:text-white;
 }
 
-.policy-prose h3 {
+.legal-prose h3 {
     @apply text-lg;
 }
 
-.policy-prose p,
-.policy-prose ul,
-.policy-prose ol,
-.policy-prose blockquote {
+.legal-prose p,
+.legal-prose ul,
+.legal-prose ol,
+.legal-prose blockquote {
     @apply mt-3;
 }
 
-.policy-prose ul {
+.legal-prose ul {
     @apply list-disc pl-6;
 }
 
-.policy-prose ol {
+.legal-prose ol {
     @apply list-decimal pl-6;
 }
 
-.policy-prose li + li {
+.legal-prose li + li {
     @apply mt-1.5;
 }
 
-.policy-prose strong {
+.legal-prose strong {
     @apply font-semibold text-gray-900 dark:text-white;
 }
 
-.policy-prose a {
+.legal-prose a {
     @apply font-medium text-gray-900 underline underline-offset-4 hover:text-gray-600 dark:text-white dark:hover:text-gray-300;
 }
 
-.policy-prose blockquote {
+.legal-prose blockquote {
     @apply border-l-4 border-gray-200 pl-4 text-gray-600 dark:border-gray-600 dark:text-gray-400;
 }
 
-.policy-prose hr {
+.legal-prose hr {
     @apply my-8 border-gray-200 dark:border-gray-700;
 }

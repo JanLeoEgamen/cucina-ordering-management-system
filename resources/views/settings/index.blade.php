@@ -179,17 +179,17 @@
 
             {{-- The two public legal pages (privacy policy, terms of service). Markdown; empty = the built-in text. --}}
             @include('settings.partials.legal-card', [
-                'page' => 'privacy',
+                'page' => 'privacy-policy',
                 'heading' => __('Privacy policy'),
                 'description' => __('The public page customers read before they sign up: what is collected and why. Linked from the home page, the sign in and sign up pages and the account menu.'),
-                'legal' => $legal['privacy'],
+                'legal' => $legal['privacy-policy'],
             ])
 
             @include('settings.partials.legal-card', [
-                'page' => 'terms',
+                'page' => 'terms-of-service',
                 'heading' => __('Terms of service'),
                 'description' => __('The public page with the rules of ordering: payment, pick up, cancelling. Linked from the same places as the privacy policy.'),
-                'legal' => $legal['terms'],
+                'legal' => $legal['terms-of-service'],
             ])
 
             {{--
