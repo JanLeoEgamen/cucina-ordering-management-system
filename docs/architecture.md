@@ -90,6 +90,10 @@ In-app notifications (a bell with an unread badge and a **Notifications** page),
 
 Every person's activity is written to `audit_logs` (`AuditLog` model, query builder, append only) by **one middleware, not by calls in controllers**: `App\Http\Middleware\AuditTrail` is in the `web` group, so a new route is covered the moment it exists. `handle()` notes who is acting and, for a route whose prefix is in `config/audit.php` `subjects`, the record as it was (label + values); `terminate()` runs after the response and writes the entry with the final status and the record's after-state diff. Sign in / out / failed sign in / lockout / registration / password reset come from Laravel's auth events (`App\Listeners\AuditAuthEvents`, subscribed in `AppServiceProvider`). The logic is in `App\Support\Audit`. Both entry points are inside `rescue()`: **an audit failure is logged and never reaches the request**. Viewing is `AuditLogController` (list, one entry, CSV; `view audit-logs`), retention is `audit:prune` (daily, `AUDIT_RETENTION_DAYS`). Rules, privacy and what is never stored: [security.md](security.md#audit-trail). A new action needs no audit code; a new state change that should read well adds a line to `config/audit.php` `actions`, and a new `{id}` resource adds its prefix to `subjects`.
 
+## Help and Support page
+
+A public page, `GET /support` (`SupportController`, no login, no form: visitors who cannot sign in need it most), configured in **System Configuration → Support** (`edit settings`, no new permission): `support.email`, `support.phone`, `support.hours` (each shown only when set) and `support.content`, a Markdown FAQ that defaults to the built-in `resources/support/default.md`, read together by `Setting::support()`. The Markdown goes through `App\Support\SafeMarkdown` (shared with the legal pages); the page shell is the `<x-public-page>` component (shared with them too). Support is deliberately **not** a ticket system: nobody writes to the app, people are sent to the shop's own email / phone. If tickets are wanted later they are a separate feature (own tables, a `view support-tickets` permission, notifications through `OrderNotifier`).
+
 ## Legal pages (privacy policy, terms of service)
 
 Two public pages, `GET /privacy-policy` and `GET /terms-of-service` (one `LegalPageController::show()`, route default `page`; no login: the sign in and sign up pages link to them), each with its own text in **System Configuration** (cards *Privacy policy* and *Terms of service*, `edit settings`, no new permission). Per page two settings, `privacy_policy.content` / `terms_of_service.content` (Markdown) and the matching `.contact_email`, read together by `Setting::legalPage($page)` (pages are listed in `Setting::LEGAL_PAGES`). Until an admin saves their own text a page shows its built-in text, `resources/legal/<page>.md` (the privacy text names what the app collects, the policy text the rules of ordering; `{app_name}` becomes the app's name). A third page = a `LEGAL_PAGES` entry + defaults + a title in `LegalPageController::TITLES` + a route + a card include. The form's text box is prefilled with whatever the page shows, and saving the built-in text unchanged, or an empty box, stores nothing, so the page keeps following the built-in text. "Last updated" is the `updated_at` of the page's two rows, so `Setting::setLegalPage()` writes only a value that changed. The Markdown is rendered with raw HTML escaped and unsafe links dropped (see [security.md](security.md)). Links to them: welcome footer, sign in / sign up pages, the register form and the account menu.
@@ -99,7 +103,7 @@ Two public pages, `GET /privacy-policy` and `GET /terms-of-service` (one `LegalP
 ```
 app/Http/Controllers/   one controller per resource + Auth/ + Controller.php (shared badges/responses)
 app/Models/             query-builder models (+ Role, User Eloquent)
-app/Support/            OrderNotifier (who is told what), GoogleChat (Chat API client), Audit (the audit trail's logic)
+app/Support/            OrderNotifier (who is told what), GoogleChat (Chat API client), Audit (the audit trail's logic), SafeMarkdown (admin Markdown -> safe HTML)
 app/Console/Commands/   notifications:prune, audit:prune, users:give-customer-role
 app/Http/Middleware/    AuditTrail (every request), EnsureProfileIsComplete   app/Listeners/  AuditAuthEvents
 config/audit.php        audit trail switches, retention, hidden fields, record map, action names
@@ -107,7 +111,7 @@ app/Jobs/               DeliverNotification, SendNotificationEmails, SendGoogleC
 config/notifications.php  the notifications queue name
 app/Exceptions/         StockRanOutException
 database/migrations/    schema            database/seeders/   starter data      database/factories/  test data
-resources/js/pages/     one module per page   resources/views/   Blade   resources/legal/  built-in text of the legal pages
+resources/js/pages/     one module per page   resources/views/   Blade   resources/legal/  built-in text of the legal pages   resources/support/  built-in FAQ of the support page
 routes/web.php          all app routes    routes/auth.php    Breeze routes
 tests/Feature/          feature tests     tests/TestCase.php helpers superAdmin() / userWith()
 docs/                   project docs      scripts/harness.php docs-drift + test harness

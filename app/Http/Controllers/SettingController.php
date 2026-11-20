@@ -15,7 +15,7 @@ use Throwable;
 
 // System configuration: the values the rest of the app starts from: the app's name and logo,
 // the default start and end time of a new order session (the create drawer is pre-filled with
-// them), the pre-order limits, the public privacy policy and terms of service and who is notified. The page is laid out in sections so more
+// them), the pre-order limits, the public support page, the privacy policy and terms of service and who is notified. The page is laid out in sections so more
 // settings can be added beside them.
 class SettingController extends Controller implements HasMiddleware
 {
@@ -35,6 +35,7 @@ class SettingController extends Controller implements HasMiddleware
             'brand' => Setting::brand(),
             'sessionWindow' => Setting::sessionWindow(),
             'preOrderLimits' => Setting::preOrderLimits(),
+            'support' => Setting::support(),
             // The public legal pages (privacy, policy), each with its text and contact email.
             'legal' => collect(array_keys(Setting::LEGAL_PAGES))
                 ->mapWithKeys(fn (string $page) => [$page => Setting::legalPage($page)])
@@ -87,6 +88,13 @@ class SettingController extends Controller implements HasMiddleware
             // caller that sends neither changes nothing. An empty maximum = no limit.
             'pre_order_min_quantity' => ['sometimes', 'required', 'integer', 'min:1', 'max:100000'],
             'pre_order_max_quantity' => ['nullable', 'integer', 'min:1', 'max:100000', 'gte:pre_order_min_quantity'],
+            // The public support page (GET /support): a Markdown help text (empty = the built-in one)
+            // and how to reach the shop. All optional; a caller that leaves a field out changes nothing.
+            'support_content' => ['sometimes', 'nullable', 'string', 'max:' . Setting::LEGAL_MAX_LENGTH],
+            'support_email' => ['sometimes', 'nullable', 'email', 'max:120'],
+            // Digits with the usual separators: +63 (2) 8123-4567, 0917 123 4567.
+            'support_phone' => ['sometimes', 'nullable', 'string', 'max:40', 'regex:/^[0-9+()\-.\s]*$/'],
+            'support_hours' => ['sometimes', 'nullable', 'string', 'max:120'],
             // The public legal pages (GET /privacy-policy, GET /terms-of-service): Markdown text, and the address
             // people can write to. An empty text goes back to the built-in one. A caller that leaves
             // a field out changes nothing.
@@ -104,6 +112,11 @@ class SettingController extends Controller implements HasMiddleware
             'notification_watchers.*.exists' => 'One of the picked users does not exist any more.',
             'pre_order_min_quantity.min' => 'The minimum pre-order must be at least 1 plate.',
             'pre_order_max_quantity.gte' => 'The maximum pre-order cannot be lower than the minimum.',
+            'support_content.max' => 'The support page can have at most :max characters.',
+            'support_email.email' => 'The support email must be a valid email address.',
+            'support_phone.regex' => 'The support phone can only hold digits, spaces and + ( ) - .',
+            'support_phone.max' => 'The support phone can have at most :max characters.',
+            'support_hours.max' => 'The support hours can have at most :max characters.',
             'privacy_policy_content.max' => 'The privacy policy can have at most :max characters.',
             'privacy_policy_contact_email.email' => 'The privacy contact must be a valid email address.',
             'terms_of_service_content.max' => 'The terms of service can have at most :max characters.',
@@ -163,6 +176,14 @@ class SettingController extends Controller implements HasMiddleware
 
             if ($request->has('pre_order_min_quantity')) {
                 Setting::setPreOrderLimits((int) $validated['pre_order_min_quantity'], $validated['pre_order_max_quantity'] ?? null);
+            }
+
+            $supportFields = ['support_content', 'support_email', 'support_phone', 'support_hours'];
+
+            if (array_intersect($supportFields, array_keys($validated)) !== []) {
+                $value = fn (string $key) => array_key_exists($key, $validated) ? (string) $validated[$key] : null;
+
+                Setting::setSupport($value('support_content'), $value('support_email'), $value('support_phone'), $value('support_hours'));
             }
 
             foreach (array_keys(Setting::LEGAL_PAGES) as $page) {

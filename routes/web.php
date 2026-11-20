@@ -14,6 +14,7 @@ use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\SupportController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WelcomeController;
 use App\Models\OrderSession;
@@ -22,6 +23,10 @@ use Illuminate\Support\Facades\Route;
 
 // The public landing page.
 Route::get('/', WelcomeController::class)->name('welcome');
+
+// The help and support page: public (visitors who cannot sign in need it too); its text and
+// contact details are settings.
+Route::get('/support', SupportController::class)->name('support');
 
 // The legal pages: public (the sign in / sign up pages link to them); their text is a setting.
 Route::get('/privacy-policy', [LegalPageController::class, 'show'])->defaults('page', 'privacy-policy')->name('privacy-policy');

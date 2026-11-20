@@ -177,6 +177,9 @@
                 </div>
             </section>
 
+            {{-- The public Help and Support page: contact details + a Markdown help text. --}}
+            @include('settings.partials.support-card', ['support' => $support])
+
             {{-- The two public legal pages (privacy policy, terms of service). Markdown; empty = the built-in text. --}}
             @include('settings.partials.legal-card', [
                 'page' => 'privacy-policy',
