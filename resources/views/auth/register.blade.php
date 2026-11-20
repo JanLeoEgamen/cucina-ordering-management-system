@@ -17,11 +17,11 @@
             </div>
         </div>
 
-        <!-- Company (optional) -->
+        <!-- Company (picked from the list staff keep) -->
         <div>
-            <x-input-label for="company" :value="__('Company')" />
-            <x-text-input id="company" class="mt-1 block w-full" type="text" name="company" :value="old('company')" autocomplete="organization" :placeholder="__('Optional')" />
-            <x-input-error :messages="$errors->get('company')" class="mt-2" />
+            <x-input-label for="company_id" :value="__('Company')" />
+            <x-company-select class="mt-1" :companies="$companies" :selected="old('company_id')" required autocomplete="organization" />
+            <x-input-error :messages="$errors->get('company_id')" class="mt-2" />
         </div>
 
         <!-- Email Address -->

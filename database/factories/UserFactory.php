@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Company;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -26,7 +27,7 @@ class UserFactory extends Factory
         return [
             'first_name' => fake()->firstName(),
             'last_name' => fake()->lastName(),
-            'company' => fake()->company(),
+            'company_id' => Company::factory(),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'profile_completed_at' => now(),
@@ -42,7 +43,7 @@ class UserFactory extends Factory
     {
         return $this->state(fn () => [
             'profile_completed_at' => null,
-            'company' => null,
+            'company_id' => null,
         ]);
     }
 

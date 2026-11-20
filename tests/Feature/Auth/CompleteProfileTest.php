@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\Company;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -39,7 +40,7 @@ class CompleteProfileTest extends TestCase
         $this->actingAs($this->incomplete())
             ->get(route('profile.complete'))
             ->assertOk()
-            ->assertSee('name="company"', false)
+            ->assertSee('name="company_id"', false)
             ->assertSee('value="Ana"', false)
             ->assertSee('value="Reyes"', false);
     }
@@ -47,13 +48,14 @@ class CompleteProfileTest extends TestCase
     public function test_saving_completes_the_profile_and_opens_the_app(): void
     {
         $user = $this->incomplete();
+        $company = Company::factory()->create(['company_name' => 'Acme Foods']);
 
         $this->actingAs($user)
-            ->post(route('profile.complete.store'), ['first_name' => 'Ana Marie', 'last_name' => 'Reyes', 'company' => 'Acme Foods'])
+            ->post(route('profile.complete.store'), ['first_name' => 'Ana Marie', 'last_name' => 'Reyes', 'company_id' => $company->company_id])
             ->assertRedirect(route('dashboard', absolute: false));
 
         $user->refresh();
-        $this->assertSame('Acme Foods', $user->company);
+        $this->assertSame($company->company_id, $user->company_id);
         $this->assertSame('Ana Marie', $user->first_name);
         $this->assertNotNull($user->profile_completed_at);
 
@@ -65,8 +67,8 @@ class CompleteProfileTest extends TestCase
         $user = $this->incomplete();
 
         $this->actingAs($user)
-            ->post(route('profile.complete.store'), ['first_name' => '', 'last_name' => '', 'company' => ''])
-            ->assertSessionHasErrors(['first_name', 'last_name', 'company']);
+            ->post(route('profile.complete.store'), ['first_name' => '', 'last_name' => '', 'company_id' => ''])
+            ->assertSessionHasErrors(['first_name', 'last_name', 'company_id']);
 
         $this->assertNull($user->fresh()->profile_completed_at);
         $this->get('/dashboard')->assertRedirect(route('profile.complete'));
@@ -82,13 +84,15 @@ class CompleteProfileTest extends TestCase
 
     public function test_a_complete_user_cannot_overwrite_their_details_through_the_form(): void
     {
-        $user = User::factory()->create(['company' => 'Initech']);
+        $initech = Company::factory()->create(['company_name' => 'Initech']);
+        $other = Company::factory()->create(['company_name' => 'Other']);
+        $user = User::factory()->create(['company_id' => $initech->company_id]);
 
         $this->actingAs($user)
-            ->post(route('profile.complete.store'), ['first_name' => 'X', 'last_name' => 'Y', 'company' => 'Other'])
+            ->post(route('profile.complete.store'), ['first_name' => 'X', 'last_name' => 'Y', 'company_id' => $other->company_id])
             ->assertRedirect(route('dashboard'));
 
-        $this->assertSame('Initech', $user->fresh()->company);
+        $this->assertSame($initech->company_id, $user->fresh()->company_id);
     }
 
     public function test_the_form_needs_a_login(): void
@@ -106,15 +110,17 @@ class CompleteProfileTest extends TestCase
 
     public function test_the_other_ways_to_get_an_account_are_complete_from_the_start(): void
     {
+        $company = Company::factory()->create();
+
         $this->post('/register', [
-            'first_name' => 'Test', 'last_name' => 'User', 'email' => 'reg@example.com',
+            'first_name' => 'Test', 'last_name' => 'User', 'company_id' => $company->company_id, 'email' => 'reg@example.com',
             'password' => 'Password123!', 'password_confirmation' => 'Password123!',
         ]);
         $this->assertNotNull(User::where('email', 'reg@example.com')->value('profile_completed_at'));
 
         $this->seedPermissions();
         $id = User::createUser([
-            'first_name' => 'A', 'last_name' => 'B', 'email' => 'admin-made@example.com', 'password' => 'password123',
+            'first_name' => 'A', 'last_name' => 'B', 'company_id' => $company->company_id, 'email' => 'admin-made@example.com', 'password' => 'password123',
         ], [DB::table('roles')->value('id')]);
         $this->assertNotNull(User::find($id)->profile_completed_at);
     }

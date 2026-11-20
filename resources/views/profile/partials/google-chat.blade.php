@@ -29,7 +29,7 @@
                 this.state = 'error';
             }
         }
-    }" x-init="check()" @endif>
+    }" x-init="check()" x-on:visibilitychange.document="if (! document.hidden && state === 'not_added') { check(); }" x-on:focus.window="if (state === 'not_added') { check(); }" @endif>
     <header>
         <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
             {{ __('Google Chat') }}

@@ -29,6 +29,7 @@ class Role extends SpatieRole
         'verify pre-order-payments', 'reject pre-order-payments', 'undo pre-order-payments',
         'view roles', 'create roles', 'edit roles', 'delete roles',
         'view users', 'create users', 'edit users', 'delete users',
+        'view companies', 'create companies', 'edit companies', 'delete companies',
         'view settings', 'edit settings',
         'view audit-logs',
     ];

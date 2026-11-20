@@ -6,6 +6,8 @@
     @php
         $label = 'block text-sm font-medium text-gray-700 dark:text-gray-300';
         $input = 'block w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm leading-5 text-gray-900 placeholder-gray-400 transition focus:border-gray-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700/60 dark:text-white dark:placeholder-gray-400 dark:focus:border-gray-300 dark:focus:bg-gray-700 dark:focus:ring-gray-600';
+        // A <select> has the input's look; pr-10 keeps the @tailwindcss/forms chevron off the value.
+        $select = $input . ' pr-10';
         $th = 'border-b border-gray-100 bg-transparent px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap dark:border-gray-700 dark:text-gray-400';
         $hint = 'mt-1 text-xs text-gray-500 dark:text-gray-400';
         $cancelButton = 'rounded-full border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:focus:ring-gray-700';
@@ -102,8 +104,15 @@
                 <div>
                     <label for="create-user-company" class="{{ $label }}">{{ __('Company') }}</label>
                     <div class="mt-1">
-                        <input type="text" name="company" id="create-user-company" autocomplete="off"
-                               class="{{ $input }}" placeholder="{{ __('Optional') }}">
+                        {{-- A new user can only join an active company. --}}
+                        <select name="company_id" id="create-user-company" required class="{{ $select }}">
+                            <option value="">{{ __('Select a company') }}</option>
+                            @foreach ($companyOptions as $companyOption)
+                                @if ($companyOption['is_active'])
+                                    <option value="{{ $companyOption['id'] }}">{{ $companyOption['name'] }}</option>
+                                @endif
+                            @endforeach
+                        </select>
                     </div>
                 </div>
 
@@ -199,8 +208,13 @@
                 <div>
                     <label for="edit-user-company" class="{{ $label }}">{{ __('Company') }}</label>
                     <div class="mt-1">
-                        <input type="text" name="company" id="edit-user-company" autocomplete="off"
-                               class="{{ $input }}" placeholder="{{ __('Optional') }}">
+                        {{-- Every company is listed: the user being edited may belong to one that was switched off. --}}
+                        <select name="company_id" id="edit-user-company" required class="{{ $select }}">
+                            <option value="">{{ __('Select a company') }}</option>
+                            @foreach ($companyOptions as $companyOption)
+                                <option value="{{ $companyOption['id'] }}">{{ $companyOption['name'] }}@unless ($companyOption['is_active']) ({{ __('inactive') }})@endunless</option>
+                            @endforeach
+                        </select>
                     </div>
                 </div>
 

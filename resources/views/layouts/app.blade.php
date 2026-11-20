@@ -153,6 +153,9 @@
 
         <x-ui.image-viewer />
 
+        {{-- One-time "get your updates in Google Chat" prompt after a Google sign-in (only when it applies). --}}
+        <x-google-chat-prompt />
+
         {{-- Page level scripts (the module views use @push('scripts')). --}}
         @stack('scripts')
     </body>

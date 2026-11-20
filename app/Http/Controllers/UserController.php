@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Company;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -83,6 +84,7 @@ class UserController extends Controller implements HasMiddleware
 
         return view('users.index', [
             'roleOptions' => Role::options(),
+            'companyOptions' => Company::allOptions(),
         ]);
     }
 
@@ -103,7 +105,8 @@ class UserController extends Controller implements HasMiddleware
         return $request->validate([
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
-            'company' => ['nullable', 'string', 'max:255'],
+            // The user being edited keeps their own company valid even if it was switched off since.
+            'company_id' => Company::rules($userId ? User::findById((int) $userId)->company_id ?? null : null),
             'email' => [
                 'required',
                 'string',

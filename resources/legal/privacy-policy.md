@@ -2,7 +2,7 @@ This policy explains what personal information {app_name} collects when you crea
 
 ## What we collect
 
-- **Your account:** your first and last name, your company (if you give one), your email address and a password. The password is stored scrambled (hashed); nobody, including our staff, can read it.
+- **Your account:** your first and last name, your company (chosen from the list our staff keep), your email address and a password. The password is stored scrambled (hashed); nobody, including our staff, can read it.
 - **Google sign-in:** if you sign in with Google we receive your name, your email address and your Google account ID. We never see your Google password.
 - **Your orders:** what you ordered and when, the order number, the total, the payment method you chose and the status of the order and its payment.
 - **Proof of payment:** if you pay by bank transfer or e-wallet, the screenshot or photo you upload to prove it.

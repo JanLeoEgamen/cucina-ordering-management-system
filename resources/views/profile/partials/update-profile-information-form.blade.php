@@ -32,9 +32,9 @@
         </div>
 
         <div>
-            <x-input-label for="company" :value="__('Company')" />
-            <x-text-input id="company" name="company" type="text" class="mt-1 block w-full" :value="old('company', $user->company)" autocomplete="organization" />
-            <x-input-error class="mt-2" :messages="$errors->get('company')" />
+            <x-input-label for="company_id" :value="__('Company')" />
+            <x-company-select class="mt-1" :companies="$companies" :selected="old('company_id', $user->company_id)" required autocomplete="organization" />
+            <x-input-error class="mt-2" :messages="$errors->get('company_id')" />
         </div>
 
         <div>

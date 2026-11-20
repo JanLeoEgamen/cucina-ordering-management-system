@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Company;
 use App\Models\Setting;
 use App\Models\User;
 use App\Support\GoogleChat;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -21,28 +23,16 @@ class ProfileController extends Controller
     {
         return view('profile.edit', [
             'user' => $request->user(),
+            // Active companies, plus the person's own if it was switched off since.
+            'companies' => Company::options($request->user()->company_id),
             'googleChat' => $this->googleChatState($request->user()),
         ]);
     }
 
-    // What the Profile page's Google Chat card needs, or null when the card is not shown: it only
-    // exists while the switch in System Configuration is on and the Chat key is set up, so nobody
-    // is told to add an app that nothing talks to.
+    // What the Profile card needs: see GoogleChat::pageState().
     protected function googleChatState(User $user): ?array
     {
-        // The key file is a free check; the setting costs a query, so it comes second (a test guards the number of settings queries per request).
-        if (! GoogleChat::configured() || ! Setting::googleChatNotifications()) {
-            return null;
-        }
-
-        return [
-            // Has signed in with Google once: the app finds them by that account's id.
-            'connected' => ! empty($user->google_id),
-            'app' => GoogleChat::appName(),
-            'url' => (string) (config('services.google_chat.app_url') ?: 'https://chat.google.com'),
-            // The link is the app's own page (its Marketplace listing): the button then says Install.
-            'listing' => filled(config('services.google_chat.app_url')),
-        ];
+        return GoogleChat::pageState($user);
     }
 
     // The "synced" indicator of the Profile card: is the person's chat with the Chat app there?
@@ -63,11 +53,14 @@ class ProfileController extends Controller
             : 'no_google';
 
         // The moment the chat exists, the app says hello (once; the first message is never an order).
-        if ($result === 'connected') {
-            GoogleChat::welcome((int) $request->user()->id, (string) $request->user()->google_id);
-        }
+        $welcomed = $result === 'connected'
+            && GoogleChat::welcome((int) $request->user()->id, (string) $request->user()->google_id);
 
-        return response()->json(['status' => 'success', 'message' => $result, 'state' => $result]);
+        // Asked once per login: the sign-in prompt does not ask again on the next page. A new
+        // sign-in clears this (AppServiceProvider), so it asks again until the person is synced.
+        session(['google_chat_checked' => true]);
+
+        return response()->json(['status' => 'success', 'message' => $result, 'state' => $result, 'welcomed' => $welcomed]);
     }
 
     /**
@@ -78,7 +71,8 @@ class ProfileController extends Controller
         $validated = $request->validate([
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
-            'company' => ['nullable', 'string', 'max:255'],
+            // The person's current company stays valid even if it was switched off since.
+            'company_id' => Company::rules($request->user()->company_id),
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)->ignore($request->user()->id)],
         ]);
 

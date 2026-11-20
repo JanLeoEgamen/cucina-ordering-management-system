@@ -287,8 +287,8 @@
             @endcanany
 
             {{-- Access --}}
-            @canany(['view roles', 'view users', 'view settings', 'view audit-logs'])
-                <div class="pt-3" data-nav-group="access" @if (request()->routeIs('roles.*', 'users.*', 'settings.*', 'audit-logs.*')) data-has-active @endif>
+            @canany(['view roles', 'view users', 'view companies', 'view settings', 'view audit-logs'])
+                <div class="pt-3" data-nav-group="access" @if (request()->routeIs('roles.*', 'users.*', 'companies.*', 'settings.*', 'audit-logs.*')) data-has-active @endif>
                     <div class="nav-group-panel space-y-1">
                     {{-- The title is a button: it folds the group (state: html[data-nav-closed], kept in
                          localStorage, see layouts/app.blade.php). The icon rail has no room for it, so a
@@ -320,6 +320,17 @@
                        class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('users.*') ? 'bg-gray-900 text-white shadow-sm dark:bg-mist dark:text-ink' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white' }}">
                         <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" /></svg>
                         <span class="sidebar-label">{{ __('Users') }}</span>
+                    </a>
+                @endcan
+
+                @can('view companies')
+                    <a href="{{ route('companies.index') }}"
+                       @click="open = false"
+                       title="{{ __('Companies') }}"
+                       @if (request()->routeIs('companies.*')) aria-current="page" @endif
+                       class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('companies.*') ? 'bg-gray-900 text-white shadow-sm dark:bg-mist dark:text-ink' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white' }}">
+                        <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" /></svg>
+                        <span class="sidebar-label">{{ __('Companies') }}</span>
                     </a>
                 @endcan
 

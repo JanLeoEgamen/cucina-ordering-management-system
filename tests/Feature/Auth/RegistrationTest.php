@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\Company;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,7 @@ class RegistrationTest extends TestCase
         $response = $this->post('/register', [
             'first_name' => 'Test',
             'last_name' => 'User',
+            'company_id' => Company::factory()->create()->company_id,
             'email' => 'test@example.com',
             'password' => 'Password123!',
             'password_confirmation' => 'Password123!',
@@ -37,6 +39,7 @@ class RegistrationTest extends TestCase
         $this->post('/register', [
             'first_name' => 'Test',
             'last_name' => 'User',
+            'company_id' => Company::factory()->create()->company_id,
             'email' => 'test@example.com',
             'password' => 'Password123!',
             'password_confirmation' => 'Password123!',

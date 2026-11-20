@@ -53,6 +53,18 @@ Managed from the **Manage Types** drawer on the Dish Masterlist page (`GET /dish
 | `` `PUT /payment-methods/{id}` `` | `edit payment-methods` | As create + `remove_image`. **422** for protected methods (`PaymentMethod::PROTECTED`: *Cash on Pick up*). |
 | `` `DELETE /payment-methods/{id}` `` | `delete payment-methods` | **422** for protected methods. |
 
+## Companies
+
+The list behind the **Company** dropdown of register, complete-profile, profile and the Users drawers. Page: *Companies* (Access group of the sidebar). Same `{status,message}` replies as the other CRUD pages.
+
+| Endpoint | Permission | Notes |
+|---|---|---|
+| `` `GET /companies` `` | `view companies` | Page / table feed: `company_id`, `company_name` (as typed, the page escapes it), `users_count` (live users in it), `is_active` (rendered badge), `action`. |
+| `` `POST /companies` `` | `create companies` | `company_name` (required, ≤255, unique among live companies; a deleted company's name can be reused), `is_active`. |
+| `` `GET /companies/{id}/edit` `` | `view companies` | JSON of one company: the fields above, `users_count` and the rendered `status` badge (the edit and the read-only *View* drawers both load it). **404** when deleted / unknown. |
+| `` `PUT /companies/{id}` `` | `edit companies` | As create. **404** when deleted / unknown; **422** for a protected company (`Company::PROTECTED`: *Guest*). |
+| `` `DELETE /companies/{id}` `` | `delete companies` | Soft delete. **422** for a protected company, and **422** while any live user still belongs to it (switch it off instead: an inactive company is no longer offered, its people keep it). |
+
 ## Payments
 
 Every payment of every order. The payment row is created with the order, and its **order id is its key**, so `{id}` is an order id.
@@ -185,9 +197,9 @@ A person's own in-app notifications; see [architecture.md](architecture.md) for 
 | Endpoint | Permission | Notes |
 |---|---|---|
 | `` `GET /users` `` | `view users` | Page / table feed (with role chips). |
-| `` `POST /users` `` | `create users` | `first_name`, `last_name`, `company` (optional, ≤255), `email` (unique), `password` (≥8, `confirmed`), `roles[]` (≥1). |
-| `` `GET /users/{id}/edit` `` | `edit users` | JSON of one user (`first_name`, `last_name`, `company` (null when none), and `name` = full name) + role ids. The table feed rows carry the same four. |
-| `` `PUT /users/{id}` `` | `edit users` | Password optional on update; a blank `company` clears it. |
+| `` `POST /users` `` | `create users` | `first_name`, `last_name`, `company_id` (**required**: an active company, see *Companies*), `email` (unique), `password` (≥8, `confirmed`), `roles[]` (≥1). |
+| `` `GET /users/{id}/edit` `` | `edit users` | JSON of one user (`first_name`, `last_name`, `company_id`, `company` = the company's name (null when none, e.g. an account that predates companies), and `name` = full name) + role ids. The table feed rows carry the same fields. |
+| `` `PUT /users/{id}` `` | `edit users` | Password optional on update. `company_id` is required here too; the user's **own** company stays valid even if it was switched off since (so renaming such a user does not fail), but nobody can be moved *into* an inactive or deleted one. |
 | `` `DELETE /users/{id}` `` | `delete users` | Soft delete; **422** when deleting your own account or any Super Admin account. |
 
 ## Audit trail — permission `view audit-logs` (read only)
@@ -210,16 +222,16 @@ No route creates, edits or deletes an entry (`POST` / `PUT` / `DELETE` on these 
 | `` `GET /terms-of-service` `` | public | **Terms of service** page: the rules of ordering (payment, pick up, cancelling). Same behaviour as `GET /privacy-policy` with its own text (System Configuration → Terms of service, else `resources/legal/terms-of-service.md`), its own contact email and its own "Last updated". Both are served by `LegalPageController::show()` (route default `page`). |
 | `` `GET /dashboard` `` | `auth`, `verified` | Dashboard: greeting, the live session, the pending-payment count (with `view payments`) and "Jump to" tiles for what the user may open. |
 | `` `GET /profile` `` | auth | Profile form. |
-| `` `PATCH /profile` `` | auth | Update `first_name`, `last_name`, `company` (optional), `email`. |
-| `` `GET /profile/google-chat/status` `` | auth | The Profile card's **"synced with Google Chat"** indicator, asked by the page after it has loaded. No permission (only about the caller); throttled 20 / minute. One **live** Google lookup of the caller's chat with the Chat app (not the remembered one). The first time it finds the chat (`connected`) it also sends the person the app's **Welcome message** (`GoogleChat::welcome`, once, tracked in `users.google_chat_welcomed_at`); after that nothing is sent. Returns `{status:'success', message, state}` with `state` = `connected` (their chat exists) / `not_added` (Google says it does not: they have not opened the app) / `error` (key, token or Google failed; never says why) / `no_google` (never signed in with Google, so the app cannot find them; no Google call). **404** while *Send notifications to Google Chat* is off or the key is not set up. |
+| `` `PATCH /profile` `` | auth | Update `first_name`, `last_name`, `company_id` (**required**; the dropdown lists the active companies plus the person's own), `email`. |
+| `` `GET /profile/google-chat/status` `` | auth | The Profile card's **"synced with Google Chat"** indicator, asked by the page after it has loaded. No permission (only about the caller); throttled 20 / minute. One **live** Google lookup of the caller's chat with the Chat app (not the remembered one). The first time it finds the chat (`connected`) it also sends the person the app's **Welcome message** (`GoogleChat::welcome`, once, tracked in `users.google_chat_welcomed_at`); after that nothing is sent. Also marks the login session as checked (`google_chat_checked`), so the sign-in prompt asks only once per login. Returns `{status:'success', message, state, welcomed}` (`welcomed` true only when the Welcome message went out just now) with `state` = `connected` (their chat exists) / `not_added` (Google says it does not: they have not opened the app) / `error` (key, token or Google failed; never says why) / `no_google` (never signed in with Google, so the app cannot find them; no Google call). **404** while *Send notifications to Google Chat* is off or the key is not set up. |
 | `` `DELETE /profile` `` | auth | Delete own account (needs current password). |
 | `` `PUT /password` `` | auth | Change password. |
 | `` `GET /register` `` | guest | Public self-registration (new users get the **Customer** role — see security.md). |
-| `` `POST /register` `` | guest, `throttle:register` (5 / minute and 30 / hour per IP, **429** past it; invalid attempts count) | `first_name`, `last_name`, `company` (optional, ≤255), `email`, `password`. Redirects to the page the visitor was sent away from (`url.intended`, e.g. the menu), else the dashboard. |
+| `` `POST /register` `` | guest, `throttle:register` (5 / minute and 30 / hour per IP, **429** past it; invalid attempts count) | `first_name`, `last_name`, `company_id` (**required**, an active company chosen from the form's dropdown; the register page lists `Company::options()` and says so when there are none), `email`, `password`. Redirects to the page the visitor was sent away from (`url.intended`, e.g. the menu), else the dashboard. |
 | `` `GET /login` `` | guest | |
 | `` `POST /login` `` | guest | |
-| `` `GET /complete-profile` `` | auth (outside `profile.complete`) | "One last step" form for a Google sign-up: `first_name`, `last_name` (prefilled) and `company`. Redirects to `/dashboard` when the profile is already complete. |
-| `` `POST /complete-profile` `` | auth (outside `profile.complete`) | `first_name`, `last_name`, `company`, all **required**, ≤255. Sets `profile_completed_at`, then goes to the intended URL / `/dashboard`. A complete user is redirected, their details untouched. **Gate:** every other signed-in page (everything in `web.php` behind `auth`, including `/dashboard`) answers an incomplete user with a redirect here, or **403** JSON `Complete your profile first.` for AJAX; logout is not gated. |
+| `` `GET /complete-profile` `` | auth (outside `profile.complete`) | "One last step" form for a Google sign-up: `first_name`, `last_name` (prefilled) and the `company_id` dropdown. Redirects to `/dashboard` when the profile is already complete. |
+| `` `POST /complete-profile` `` | auth (outside `profile.complete`) | `first_name`, `last_name`, `company_id`, all **required** (the company must be an active one). Sets `profile_completed_at`, then goes to the intended URL / `/dashboard`. A complete user is redirected, their details untouched. **Gate:** every other signed-in page (everything in `web.php` behind `auth`, including `/dashboard`) answers an incomplete user with a redirect here, or **403** JSON `Complete your profile first.` for AJAX; logout is not gated. |
 | `` `GET /auth/google` `` | guest, `throttle:20,1` | "Continue with Google": 302 to Google's consent screen. **404** until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set. |
 | `` `GET /auth/google/callback` `` | guest, `throttle:20,1` | Google's return (`code`, `state`). Signs in the account with that `google_id`, else the account with the same verified email (and links it), else creates one with the **Customer** role and an **incomplete profile** (see `/complete-profile`). Refuses (back to `/login` with an `email` error): failed exchange, unverified Google email, deactivated (soft deleted) account, email linked to another Google account. Success: `/dashboard` (or the intended URL). |
 | `` `POST /logout` `` | auth | |

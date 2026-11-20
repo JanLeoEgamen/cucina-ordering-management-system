@@ -13,7 +13,7 @@ class PermissionSeeder extends Seeder
     // The accounts that get the Super Admin role when they exist (DatabaseSeeder and UserSeeder make them).
     public const SUPER_ADMIN_EMAILS = [
         'test@example.com',
-        'jbegamen@bounty.com.ph',
+        'janleoegamen6@bounty.com.ph',
         'jleoegamen6@gmail.com',
     ];
 
