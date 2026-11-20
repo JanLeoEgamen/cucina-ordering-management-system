@@ -132,6 +132,8 @@
                     @endisset
 
                     <p class="mt-4 text-center text-xs text-gray-400 dark:text-gray-500">
+                        <a href="{{ route('support') }}" class="underline-offset-4 hover:text-gray-600 hover:underline dark:hover:text-gray-300">{{ __('Help and Support') }}</a>
+                        <span aria-hidden="true">&middot;</span>
                         <a href="{{ route('privacy-policy') }}" class="underline-offset-4 hover:text-gray-600 hover:underline dark:hover:text-gray-300">{{ __('Privacy Policy') }}</a>
                         <span aria-hidden="true">&middot;</span>
                         <a href="{{ route('terms-of-service') }}" class="underline-offset-4 hover:text-gray-600 hover:underline dark:hover:text-gray-300">{{ __('Terms of Service') }}</a>

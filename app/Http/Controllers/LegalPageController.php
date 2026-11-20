@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Setting;
-use Illuminate\Support\Str;
+use App\Support\SafeMarkdown;
 
 // The two public legal pages: the privacy policy (GET /privacy-policy) and the terms of service of
 // ordering (GET /terms-of-service). Anyone may read them (the sign in and sign up pages link to them, so they
@@ -24,23 +24,9 @@ class LegalPageController extends Controller
 
         return view('legal', [
             'title' => __(self::TITLES[$page]),
-            'html' => $this->render($content['content']),
+            'html' => SafeMarkdown::render($content['content']),
             'contactEmail' => $content['contact_email'],
             'updatedAt' => $content['updated_at'],
         ]);
-    }
-
-    // Markdown -> HTML, safe to print unescaped: raw HTML in the text is escaped (an admin can
-    // write headings, lists, bold and links, never a script) and javascript: style links are dropped.
-    // {app_name} is filled in AFTER the conversion, escaped, so a name with markdown characters
-    // in it cannot change the layout.
-    protected function render(string $markdown): string
-    {
-        $html = Str::markdown($markdown, [
-            'html_input' => 'escape',
-            'allow_unsafe_links' => false,
-        ]);
-
-        return str_replace('{app_name}', e(Setting::appName()), $html);
     }
 }

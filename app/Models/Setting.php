@@ -64,11 +64,25 @@ class Setting
         'terms-of-service' => ['content' => self::TERMS_OF_SERVICE_CONTENT, 'email' => self::TERMS_OF_SERVICE_CONTACT_EMAIL],
     ];
 
+    // The public support page (GET /support): a Markdown help text (empty = the built-in one in
+    // resources/support/default.md) and the ways to reach whoever runs the place. All optional.
+    public const SUPPORT_CONTENT = 'support.content';
+
+    public const SUPPORT_EMAIL = 'support.email';
+
+    public const SUPPORT_PHONE = 'support.phone';
+
+    public const SUPPORT_HOURS = 'support.hours';
+
     // The longest page text. The value column is TEXT (65,535 BYTES) and a character can take
     // four, so 15,000 characters always fit.
     public const LEGAL_MAX_LENGTH = 15000;
 
     public const DEFAULTS = [
+        self::SUPPORT_CONTENT => '',
+        self::SUPPORT_EMAIL => '',
+        self::SUPPORT_PHONE => '',
+        self::SUPPORT_HOURS => '',
         self::PRIVACY_POLICY_CONTENT => '',
         self::PRIVACY_POLICY_CONTACT_EMAIL => '',
         self::TERMS_OF_SERVICE_CONTENT => '',
@@ -223,6 +237,31 @@ class Setting
             'updated_at' => $rows->isEmpty() ? null : Carbon::parse($rows->max()),
         ];
     }
+    // The built-in help text of the support page (Markdown, with {app_name}); '' if unreadable.
+    public static function defaultSupportContent(): string
+    {
+        $text = @file_get_contents(resource_path('support/default.md'));
+
+        return $text === false ? '' : str_replace("\r\n", "\n", trim($text));
+    }
+
+    // The support page as the public page and the configuration form need it:
+    //   content   the Markdown to show (what was saved, else the built-in text)
+    //   custom    true when an admin saved their own text
+    //   email, phone, hours   how to reach the shop ('' = not given)
+    public static function support(): array
+    {
+        $saved = trim((string) self::get(self::SUPPORT_CONTENT));
+
+        return [
+            'content' => $saved !== '' ? $saved : self::defaultSupportContent(),
+            'custom' => $saved !== '',
+            'email' => trim((string) self::get(self::SUPPORT_EMAIL)),
+            'phone' => trim((string) self::get(self::SUPPORT_PHONE)),
+            'hours' => trim((string) self::get(self::SUPPORT_HOURS)),
+        ];
+    }
+
     // The ids of the users who receive every notification, as ints. A damaged
     // value reads as "nobody" rather than breaking an order.
     public static function notificationWatchers(): array
@@ -301,6 +340,33 @@ class Setting
             }
         });
     }
+    // Save the support page (the caller has validated everything). As for the legal pages, text equal
+    // to the built-in one is stored as '' (= keep following it) and only a changed value is written.
+    // A null argument leaves that value alone.
+    public static function setSupport(?string $content, ?string $email, ?string $phone, ?string $hours): void
+    {
+        $values = [];
+
+        if ($content !== null) {
+            $content = trim(str_replace("\r\n", "\n", $content));
+            $values[self::SUPPORT_CONTENT] = $content === self::defaultSupportContent() ? '' : $content;
+        }
+
+        foreach ([self::SUPPORT_EMAIL => $email, self::SUPPORT_PHONE => $phone, self::SUPPORT_HOURS => $hours] as $key => $value) {
+            if ($value !== null) {
+                $values[$key] = trim($value);
+            }
+        }
+
+        DB::transaction(function () use ($values) {
+            foreach ($values as $key => $value) {
+                if ((string) self::get($key) !== $value) {
+                    self::set($key, $value);
+                }
+            }
+        });
+    }
+
     // Save who receives every notification.
     public static function setNotificationWatchers(array $userIds): void
     {
