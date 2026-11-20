@@ -1004,3 +1004,64 @@ html [data-card-actions]:has(> :nth-child(4)) > button[data-row-action]::before,
 html [data-card-actions]:has(> :nth-child(4)) > a[data-row-link]::before {
     display: none;
 }
+
+/* ---------------------------------------------------------------------------
+   The privacy policy text (resources/views/privacy.blade.php). It is Markdown turned into HTML
+   by the controller, so it carries bare h2 / p / ul / a tags and no classes: they are styled
+   here. Plain CSS (not @layer components) for the reason given at the top of this file: the
+   class only appears in one template, and the headings inside never carry a class of their own.
+--------------------------------------------------------------------------- */
+
+.policy-prose {
+    @apply text-base leading-relaxed text-gray-700 dark:text-gray-300;
+    overflow-wrap: anywhere;
+}
+
+.policy-prose > :first-child {
+    @apply mt-0;
+}
+
+.policy-prose h1,
+.policy-prose h2,
+.policy-prose h3 {
+    @apply mt-8 text-xl font-semibold tracking-tight text-gray-900 dark:text-white;
+}
+
+.policy-prose h3 {
+    @apply text-lg;
+}
+
+.policy-prose p,
+.policy-prose ul,
+.policy-prose ol,
+.policy-prose blockquote {
+    @apply mt-3;
+}
+
+.policy-prose ul {
+    @apply list-disc pl-6;
+}
+
+.policy-prose ol {
+    @apply list-decimal pl-6;
+}
+
+.policy-prose li + li {
+    @apply mt-1.5;
+}
+
+.policy-prose strong {
+    @apply font-semibold text-gray-900 dark:text-white;
+}
+
+.policy-prose a {
+    @apply font-medium text-gray-900 underline underline-offset-4 hover:text-gray-600 dark:text-white dark:hover:text-gray-300;
+}
+
+.policy-prose blockquote {
+    @apply border-l-4 border-gray-200 pl-4 text-gray-600 dark:border-gray-600 dark:text-gray-400;
+}
+
+.policy-prose hr {
+    @apply my-8 border-gray-200 dark:border-gray-700;
+}

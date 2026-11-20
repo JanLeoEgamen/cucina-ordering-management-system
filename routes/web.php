@@ -4,6 +4,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\PreOrderController;
 use App\Http\Controllers\PreOrderSessionController;
 use App\Http\Controllers\DishController;
+use App\Http\Controllers\LegalPageController;
 use App\Http\Controllers\DishTypeController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrderController;
@@ -21,6 +22,10 @@ use Illuminate\Support\Facades\Route;
 
 // The public landing page.
 Route::get('/', WelcomeController::class)->name('welcome');
+
+// The legal pages: public (the sign in / sign up pages link to them); their text is a setting.
+Route::get('/privacy', [LegalPageController::class, 'show'])->defaults('page', 'privacy')->name('privacy');
+Route::get('/policy', [LegalPageController::class, 'show'])->defaults('page', 'policy')->name('policy');
 
 Route::get('/dashboard', function () {
     return view('dashboard', [

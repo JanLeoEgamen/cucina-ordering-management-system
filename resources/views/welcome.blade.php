@@ -305,6 +305,10 @@
 
         <footer class="border-t border-gray-200 py-6 text-center text-xs text-gray-400 dark:border-gray-800 dark:text-gray-500">
             &copy; {{ date('Y') }} {{ \App\Models\Setting::appName() }}
+            <span aria-hidden="true">&middot;</span>
+            <a href="{{ route('privacy') }}" class="underline-offset-4 hover:text-gray-600 hover:underline dark:hover:text-gray-300">{{ __('Privacy Policy') }}</a>
+            <span aria-hidden="true">&middot;</span>
+            <a href="{{ route('policy') }}" class="underline-offset-4 hover:text-gray-600 hover:underline dark:hover:text-gray-300">{{ __('Terms and Policy') }}</a>
         </footer>
     </body>
 </html>

@@ -18,7 +18,7 @@
         --}}
         <form id="settings-form" method="POST" action="{{ route('settings.update') }}" enctype="multipart/form-data"
               data-confirm-title="{{ __('Confirm Save') }}"
-              data-confirm-message="{{ __('Are you sure you want to save the system configuration? The app name and logo change on every page, new order sessions will start from these times, and the pre-order limits apply to every new pre-order.') }}"
+              data-confirm-message="{{ __('Are you sure you want to save the system configuration? The app name and logo change on every page, new order sessions will start from these times, the pre-order limits apply to every new pre-order, and the public privacy policy page changes.') }}"
               data-confirm-label="{{ __('Save Configuration') }}"
               data-label-edited="{{ __('Edited') }}"
               data-label-was="{{ __('Was') }}"
@@ -176,6 +176,21 @@
                     </div>
                 </div>
             </section>
+
+            {{-- The two public legal pages (privacy policy, terms and policy). Markdown; empty = the built-in text. --}}
+            @include('settings.partials.legal-card', [
+                'page' => 'privacy',
+                'heading' => __('Privacy policy'),
+                'description' => __('The public page customers read before they sign up: what is collected and why. Linked from the home page, the sign in and sign up pages and the account menu.'),
+                'legal' => $legal['privacy'],
+            ])
+
+            @include('settings.partials.legal-card', [
+                'page' => 'policy',
+                'heading' => __('Terms and policy'),
+                'description' => __('The public page with the rules of ordering: payment, pick up, cancelling. Linked from the same places as the privacy policy.'),
+                'legal' => $legal['policy'],
+            ])
 
             {{--
                 Who receives a copy of EVERY notification. Customers always get their own
