@@ -55,7 +55,10 @@ const start = () => {
     const copy = (name, fallback) => form.dataset[name] ?? fallback;
     const summary = document.querySelector('#settings-changes');
 
-    const controls = [...form.querySelectorAll('input:not([type="hidden"]), select')].filter((control) => control.id);
+    const controls = [...form.querySelectorAll('input:not([type="hidden"]), select, textarea')].filter((control) => control.id);
+
+    // "Was: ..." for a long text (the privacy policy) is its first words, not a whole page.
+    const brief = (text) => (text.length > 80 ? text.slice(0, 80).trimEnd() + '…' : text);
 
     // A picked user reads "Name · email": the name is enough to recognise it.
     const nameOf = (text) => String(text).split(' · ')[0].trim();
@@ -87,7 +90,7 @@ const start = () => {
 
         const value = (fromPage ? control.defaultValue : control.value).trim();
 
-        return { key: value, text: value !== '' ? value : (control.placeholder || '—'), value };
+        return { key: value, text: value !== '' ? brief(value.replace(/\s+/g, ' ')) : (control.placeholder || '—'), value };
     };
 
     const baseline = new Map(controls.map((control) => [control, snapshot(control, true)]));

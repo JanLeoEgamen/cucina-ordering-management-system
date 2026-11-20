@@ -130,6 +130,12 @@
                     @isset($footer)
                         <p class="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">{{ $footer }}</p>
                     @endisset
+
+                    <p class="mt-4 text-center text-xs text-gray-400 dark:text-gray-500">
+                        <a href="{{ route('privacy') }}" class="underline-offset-4 hover:text-gray-600 hover:underline dark:hover:text-gray-300">{{ __('Privacy Policy') }}</a>
+                        <span aria-hidden="true">&middot;</span>
+                        <a href="{{ route('policy') }}" class="underline-offset-4 hover:text-gray-600 hover:underline dark:hover:text-gray-300">{{ __('Terms and Policy') }}</a>
+                    </p>
                 </div>
             </main>
         </div>

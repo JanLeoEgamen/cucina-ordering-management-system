@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -46,7 +47,32 @@ class Setting
     // (which is Laravel's "Laravel" on a fresh install).
     public const DEFAULT_APP_NAME = 'Cucina';
 
+    // The two public legal pages, written by an admin in Markdown: the privacy policy (GET /privacy)
+    // and the terms and policy of ordering (GET /policy). Each has its text (empty = the built-in
+    // text in resources/legal/<page>.md) and an optional address people can write to.
+    public const PRIVACY_CONTENT = 'privacy.content';
+
+    public const PRIVACY_CONTACT_EMAIL = 'privacy.contact_email';
+
+    public const POLICY_CONTENT = 'policy.content';
+
+    public const POLICY_CONTACT_EMAIL = 'policy.contact_email';
+
+    // page => the settings behind it.
+    public const LEGAL_PAGES = [
+        'privacy' => ['content' => self::PRIVACY_CONTENT, 'email' => self::PRIVACY_CONTACT_EMAIL],
+        'policy' => ['content' => self::POLICY_CONTENT, 'email' => self::POLICY_CONTACT_EMAIL],
+    ];
+
+    // The longest page text. The value column is TEXT (65,535 BYTES) and a character can take
+    // four, so 15,000 characters always fit.
+    public const LEGAL_MAX_LENGTH = 15000;
+
     public const DEFAULTS = [
+        self::PRIVACY_CONTENT => '',
+        self::PRIVACY_CONTACT_EMAIL => '',
+        self::POLICY_CONTENT => '',
+        self::POLICY_CONTACT_EMAIL => '',
         self::APP_NAME => self::DEFAULT_APP_NAME,
         self::APP_LOGO => '',
         self::SESSION_START_TIME => '09:00',
@@ -168,6 +194,35 @@ class Setting
         return ['min' => $min, 'max' => $max];
     }
 
+    // The built-in text of a legal page (Markdown, with {app_name}); '' if the file cannot be read.
+    public static function defaultLegalContent(string $page): string
+    {
+        $text = @file_get_contents(resource_path('legal/' . $page . '.md'));
+
+        return $text === false ? '' : str_replace("\r\n", "\n", trim($text));
+    }
+
+    // A legal page as the public page and the configuration form need it ($page: a key of LEGAL_PAGES):
+    //   content       the Markdown to show (what was saved, else the built-in text)
+    //   custom        true when an admin saved their own text
+    //   contact_email the address to write to, or '' for none
+    //   updated_at    when the text or the address last changed (null while nothing was saved)
+    public static function legalPage(string $page): array
+    {
+        $keys = self::LEGAL_PAGES[$page];
+
+        $saved = trim((string) self::get($keys['content']));
+        $email = trim((string) self::get($keys['email']));
+
+        $rows = DB::table(self::TABLE)->whereIn('key', array_values($keys))->pluck('updated_at');
+
+        return [
+            'content' => $saved !== '' ? $saved : self::defaultLegalContent($page),
+            'custom' => $saved !== '',
+            'contact_email' => $email,
+            'updated_at' => $rows->isEmpty() ? null : Carbon::parse($rows->max()),
+        ];
+    }
     // The ids of the users who receive every notification, as ints. A damaged
     // value reads as "nobody" rather than breaking an order.
     public static function notificationWatchers(): array
@@ -220,6 +275,32 @@ class Setting
         });
     }
 
+    // Save a legal page (the caller has validated both). Only a value that really changed is
+    // written, so "last updated" moves when the page does and not on every save of the form. The
+    // text equal to the built-in one, or empty, is stored as '' (= keep following the built-in
+    // text). A null argument leaves that value alone.
+    public static function setLegalPage(string $page, ?string $content, ?string $contactEmail): void
+    {
+        $keys = self::LEGAL_PAGES[$page];
+        $values = [];
+
+        if ($content !== null) {
+            $content = trim(str_replace("\r\n", "\n", $content));
+            $values[$keys['content']] = $content === self::defaultLegalContent($page) ? '' : $content;
+        }
+
+        if ($contactEmail !== null) {
+            $values[$keys['email']] = trim($contactEmail);
+        }
+
+        DB::transaction(function () use ($values) {
+            foreach ($values as $key => $value) {
+                if ((string) self::get($key) !== $value) {
+                    self::set($key, $value);
+                }
+            }
+        });
+    }
     // Save who receives every notification.
     public static function setNotificationWatchers(array $userIds): void
     {
