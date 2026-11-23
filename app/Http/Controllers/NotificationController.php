@@ -28,7 +28,7 @@ class NotificationController extends Controller
         ]);
     }
 
-    // What the bell polls (AJAX, JSON, about every 8 seconds, only while the tab
+    // What the bell polls (AJAX, JSON, about every second, only while the tab
     // is visible). Cheap by design:
     //  - without `after` (the first call of a page) it answers the unread count and
     //    the newest id only, no list;

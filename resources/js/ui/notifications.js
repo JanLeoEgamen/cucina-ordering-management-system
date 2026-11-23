@@ -9,7 +9,7 @@
  *
  *   - the page itself runs no notification query: the badge is filled by the first
  *     call, which answers only the unread count and the newest id (no list);
- *   - after that one small GET about every 8 s (+ jitter, so a room full of people
+ *   - after that one small GET about every second (+ a little jitter, so a room full of people
  *     does not ask at the same second) with `after=<newest id seen>`; the answer
  *     carries the new ones, and almost always none (an indexed range read);
  *   - nothing is asked while the tab is hidden; coming back to it (or coming back
@@ -21,7 +21,7 @@
 import { showToast } from './toast';
 import { leaveToLogin } from './session-guard';
 
-const POLL_MS = 8000;
+const POLL_MS = 1000;
 const MAX_TOASTS = 2;
 
 // A notification row of the panel. Built with textContent, never innerHTML: the title and
@@ -199,7 +199,7 @@ const start = () => {
         timer = setTimeout(async () => {
             await refresh();
             schedule();
-        }, POLL_MS + Math.random() * 3000);
+        }, POLL_MS + Math.random() * 300);
     };
 
     // "Mark all as read" in the panel: one POST, then the badge and the list are repainted.
