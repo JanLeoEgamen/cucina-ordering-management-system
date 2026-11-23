@@ -14,7 +14,7 @@ proof upload). Admins manage dishes and their types (one **Dish Masterlist** pag
 | Google sign-in | laravel/socialite ^5 (optional, needs `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`) |
 | Tables | yajra/laravel-datatables-oracle (server feed) + datatables.net (browser) |
 | Frontend | Blade, Alpine.js 3, Tailwind 3, Vite 6, axios |
-| DB / cache / queue / session | SQLite locally; `database` driver for cache, queue and sessions |
+| DB / cache / queue / session | SQLite locally, MySQL when the app is deployed; `file` driver for cache and sessions (no network trip), `database` for the queue |
 | Tests | PHPUnit 11 (`php artisan test`), SQLite in-memory |
 
 ## Request flow
@@ -102,6 +102,22 @@ Two public pages, `GET /privacy-policy` and `GET /terms-of-service` (one `LegalP
 
 ## Directory map
 
+## Performance: queries are the cost
+
+When the database is on another machine, **each query is a network round trip** (measured: ~350 ms to a remote MySQL, a new connection ~1.2 s; PHP itself is under 5 ms), so an endpoint's time is its number of queries. `php scripts/profile-endpoints.php` times every GET endpoint in-process and prints ms, query count and ms in queries (`--only=orders --sql` lists the SQL). What keeps requests cheap:
+
+- **Sessions and cache are files** (`SESSION_DRIVER=file`, `CACHE_STORE=file`), not tables: no session read / write, no permission-cache read per request.
+- **`Setting` reads one cached array** (`Setting::all()`, key `settings.all`, forever) instead of a query per key; `Setting::set()` forgets it after commit. Never `DB::table('settings')` for a read.
+- **The bell poll (`UserNotification::state()`) is cached per person** (60 s at most) and forgotten by `insertMany` / `markRead` / `markAllRead`; a poll with nothing new runs no notification query and skips the list read. A new write path to `user_notifications` must forget `notifications.state.{id}` too.
+- **`PaymentMethod::activeOptions()` is remembered for the request** (cash + bank options were two identical queries); the writes forget it.
+- **`DB_PERSISTENT=true`** keeps the MySQL connection between web requests of a PHP worker; `AppServiceProvider::sendConnectionSetupOnce()` then sends `SET NAMES` + strict `sql_mode` once as the connection's init command instead of on every request, and skips Laravel's redundant `use db` (`use_db_after_connecting=false`) (web only; the console keeps Laravel's normal setup). Leave it off when a proxy such as ProxySQL / PgBouncer-style pooling sits in front, or if a PHP fatal error leaving a transaction open on a reused connection worries you.
+- **The signed-in user is cached** (`App\Auth\CachedUserProvider` + `App\Support\AuthCache`, config `auth.cache_ttl` / env `AUTH_CACHE_TTL`, 300 s, 0 = off): the session's user comes from the cache with their roles and direct permissions preloaded, so identifying the person and the `permission:` middleware cost **no query** (they were 3 round trips on every request, and every bell / stock poll). It is never served stale: see **One listener drops every cached read** below.
+- **Master data and the staff feeds are cached with their tables** (`App\Support\TableCache::remember($tables, $key, $closure)`): dishes, dish types, companies, roles, users, payment methods, the orders / payments feeds, the order and pre-order session rows, the pending-payments count and a customer's plain My Orders pages. A cached read carries the version of each table it names; a write to any of them gives that table a new version, so the old entry is never asked for again.
+- **One listener drops every cached read** (`TableCache::watch()`, booted in `AppServiceProvider`): it looks at every non-SELECT statement the app runs, from any process (web, console, queue worker, seeder), and `touch()`es the table it writes (also when the transaction commits, so a reader in between cannot cache the old rows). Writes to `users`, `roles`, `permissions` and the three spatie pivots also bump the auth epoch. No controller or model has to clear anything. **Rules for a new cached read:** (1) it must depend ONLY on the rows of the tables you name: no `now()`, no auth user, no request value (a status computed from the clock is worked out AFTER the cached rows, see `OrderSession::getAll`); (2) name EVERY table it reads, including joined ones and the ones a foreign-key cascade writes to (a cascade is not a statement the listener sees); (3) never put free text a customer types into the key (`Order::pageOfUser` caches only plain views, otherwise a search would create a cache file per keystroke). The TTL (10 min, `TableCache::TTL`) only covers rows edited by hand in the database and another server's cache.
+- Left per request on a warm cache: the page's own uncached reads (the live session, a customer's search, the dashboard's live session). A **cold** request after a write pays the real queries once. With several app servers the file cache is per server: set `AUTH_CACHE_TTL=0` and move the cache to Redis (a shared cache makes the listener's bumps visible to all).
+
+Open: the staff tables are fed by `DataTables::collection(getAll())`, i.e. **every row in one response**: caching removes the query, not the payload, so they still grow with the data (known-issues F22).
+
 ```
 app/Http/Controllers/   one controller per resource + Auth/ + Controller.php (shared badges/responses)
 app/Models/             query-builder models (+ Role, User Eloquent)
@@ -116,7 +132,7 @@ database/migrations/    schema            database/seeders/   starter data      
 resources/js/pages/     one module per page (default export `start`)   resources/js/ui/  shared UI, incl. soft-nav.js (page swap)   resources/views/   Blade   resources/legal/  built-in text of the legal pages   resources/support/  built-in FAQ of the support page
 routes/web.php          all app routes    routes/auth.php    Breeze routes
 tests/Feature/          feature tests     tests/TestCase.php helpers superAdmin() / userWith()
-docs/                   project docs      scripts/harness.php docs-drift + test harness
+docs/                   project docs      scripts/harness.php docs-drift + test harness   scripts/profile-endpoints.php ms + queries per endpoint
 ```
 
 ## Related docs

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -13,6 +14,9 @@ use Throwable;
 class Setting
 {
     protected const TABLE = 'settings';
+
+    // Every row lives in the cache under this key (see all()).
+    protected const CACHE_KEY = 'settings.all';
 
     // The keys the app knows, with the value used until one is saved.
     public const SESSION_START_TIME = 'order_session.default_start_time';
@@ -107,9 +111,20 @@ class Setting
     // One setting: the saved value, else the key's default (null for an unknown key).
     public static function get(string $key): ?string
     {
-        $value = DB::table(self::TABLE)->where('key', $key)->value('value');
+        $value = self::all()[$key]['value'] ?? null;
 
         return $value ?? (self::DEFAULTS[$key] ?? null);
+    }
+
+    // Every saved row as [key => ['value', 'updated_at']] from ONE query, then kept in the cache.
+    // The table is small and read on every request (name, logo, switches); with a database on
+    // another machine each query is a network trip. set() forgets it (after commit) on every change.
+    protected static function all(): array
+    {
+        return Cache::rememberForever(self::CACHE_KEY, fn () => DB::table(self::TABLE)
+            ->get(['key', 'value', 'updated_at'])
+            ->mapWithKeys(fn (object $row) => [$row->key => ['value' => $row->value, 'updated_at' => $row->updated_at]])
+            ->all());
     }
 
     // The app's name and logo: ['name' => string, 'logo' => ?path, 'logo_url' => ?url].
@@ -133,10 +148,8 @@ class Setting
         $brand = ['name' => self::DEFAULT_APP_NAME, 'logo' => null, 'logo_url' => null];
 
         try {
-            $saved = DB::table(self::TABLE)->whereIn('key', [self::APP_NAME, self::APP_LOGO])->pluck('value', 'key');
-
-            $name = trim((string) ($saved[self::APP_NAME] ?? ''));
-            $logo = trim((string) ($saved[self::APP_LOGO] ?? ''));
+            $name = trim((string) (self::all()[self::APP_NAME]['value'] ?? ''));
+            $logo = trim((string) (self::all()[self::APP_LOGO]['value'] ?? ''));
 
             if ($name !== '') {
                 $brand['name'] = $name;
@@ -228,7 +241,7 @@ class Setting
         $saved = trim((string) self::get($keys['content']));
         $email = trim((string) self::get($keys['email']));
 
-        $rows = DB::table(self::TABLE)->whereIn('key', array_values($keys))->pluck('updated_at');
+        $rows = collect(array_values($keys))->map(fn (string $key) => self::all()[$key]['updated_at'] ?? null)->filter();
 
         return [
             'content' => $saved !== '' ? $saved : self::defaultLegalContent($page),
@@ -387,6 +400,10 @@ class Setting
         if ($changed === 0 && ! DB::table(self::TABLE)->where('key', $key)->exists()) {
             DB::table(self::TABLE)->insert(['key' => $key, 'value' => $value, 'created_at' => $now, 'updated_at' => $now]);
         }
+
+        // Forget the cached rows once the write is visible to others (inside a transaction: at its
+        // commit), or a request in between could cache the old value for good.
+        DB::afterCommit(fn () => Cache::forget(self::CACHE_KEY));
     }
 
     // Save the default order session window.

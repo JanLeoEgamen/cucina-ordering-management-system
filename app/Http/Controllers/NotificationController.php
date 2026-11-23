@@ -38,21 +38,20 @@ class NotificationController extends Controller
     {
         $userId = (int) auth()->id();
 
-        $payload = [
-            'status' => 'success',
-            'unread' => UserNotification::unreadCount($userId),
-            'latest_id' => UserNotification::latestId($userId),
-            'items' => [],
-        ];
+        // Both numbers come from the cache (see UserNotification::state()): no query while nothing changed.
+        $payload = ['status' => 'success', ...UserNotification::state($userId), 'items' => []];
 
-        if ($request->has('after')) {
+        // Nothing newer than the poller's last id: skip the list read.
+        $after = max(0, (int) $request->query('after'));
+
+        if ($request->has('after') && $payload['latest_id'] > $after) {
             $payload['items'] = array_map(fn (object $item) => [
                 'id' => (int) $item->id,
                 'type' => $item->type,
                 'title' => $item->title,
                 'body' => $item->body,
                 'open_url' => route('notifications.open', $item->id),
-            ], UserNotification::since($userId, max(0, (int) $request->query('after'))));
+            ], UserNotification::since($userId, $after));
         }
 
         // `recent=1`: the bell's panel was opened (or something new arrived while it is

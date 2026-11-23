@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\TableCache;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -74,6 +75,12 @@ class Role extends SpatieRole
 
     // Get every role with the number of permissions and users it has, for the feed.
     public static function getAll(): Collection
+    {
+        return TableCache::remember(['roles', 'role_has_permissions', 'model_has_roles'], 'role.all', fn () => self::loadAll());
+    }
+
+    // The query behind the cached method above.
+    protected static function loadAll(): Collection
     {
         $permissions = DB::table(self::PIVOT_ROLE)
             ->selectRaw('count(*)')
@@ -186,6 +193,12 @@ class Role extends SpatieRole
     // Every permission as a choice for the picker, in PERMISSIONS order.
     public static function permissionOptions(): array
     {
+        return TableCache::remember(['permissions'], 'role.permission_options', fn () => self::loadPermissionOptions());
+    }
+
+    // The query behind the cached method above.
+    protected static function loadPermissionOptions(): array
+    {
         return DB::table(self::TABLE_PERMISSION)
             ->get(['id', 'name'])
             ->sortBy(function (object $permission) {
@@ -204,6 +217,12 @@ class Role extends SpatieRole
 
     // Every role as a choice for the user form's picker.
     public static function options(): array
+    {
+        return TableCache::remember(['roles'], 'role.options', fn () => self::loadOptions());
+    }
+
+    // The query behind the cached method above.
+    protected static function loadOptions(): array
     {
         return DB::table(self::TABLE)
             ->orderBy('name')

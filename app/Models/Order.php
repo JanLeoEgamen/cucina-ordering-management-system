@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\TableCache;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -67,6 +68,12 @@ class Order extends Model
     // The orders of one session, or of all of them, with the customer, the session
     // they were placed in, the payment and the lines.
     protected static function list(?int $sessionId = null): array
+    {
+        return TableCache::remember(['orders', 'users', 'order_sessions', 'payments', 'payment_methods', 'order_items', 'session_dishes', 'dishes'], 'order.list.' . ($sessionId ?? 'all'), fn () => self::loadList($sessionId));
+    }
+
+    // The queries behind list().
+    protected static function loadList(?int $sessionId): array
     {
         $orders = DB::table(self::TABLE)
             ->join('users', 'users.id', '=', self::TABLE . '.user_id')
@@ -164,6 +171,31 @@ class Order extends Model
     // The same list, one page at a time, for the customer's own page: only the orders
     // of the page get their lines read. $filters narrow it (see applyUserFilters()).
     public static function pageOfUser(int $userId, array $filters = [], int $perPage = self::USER_PAGE_SIZE): LengthAwarePaginator
+    {
+        $status = (string) ($filters['status'] ?? '');
+        $payment = (string) ($filters['payment'] ?? '');
+        $page = \Illuminate\Pagination\Paginator::resolveCurrentPage();
+
+        // Only the plain views are cached (no search text, no dates, a known status, an early page):
+        // anything a customer can type freely would make a cache file per keystroke.
+        $cacheable = trim((string) ($filters['q'] ?? '')) === '' && empty($filters['from']) && empty($filters['to'])
+            && ($status === '' || in_array($status, self::USER_ORDER_STATUSES, true))
+            && ($payment === '' || in_array($payment, self::USER_PAYMENT_STATUSES, true))
+            && $page <= 10;
+
+        if (! $cacheable) {
+            return self::loadPageOfUser($userId, $filters, $perPage);
+        }
+
+        return TableCache::remember(
+            ['orders', 'order_sessions', 'payments', 'payment_methods', 'order_items', 'session_dishes', 'dishes'],
+            'order.user.' . $userId . '.' . $status . '.' . $payment . '.' . $perPage . '.' . $page,
+            fn () => self::loadPageOfUser($userId, $filters, $perPage)
+        );
+    }
+
+    // The queries behind pageOfUser().
+    protected static function loadPageOfUser(int $userId, array $filters, int $perPage): LengthAwarePaginator
     {
         $query = self::userListQuery($userId);
         self::applyUserFilters($query, $filters);

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\TableCache;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -57,6 +58,12 @@ class PaymentMethod extends Model
 
     // Get all live methods, for the table feed.
     public static function getAll(): Collection
+    {
+        return TableCache::remember(['payment_methods'], 'payment_method.all', fn () => self::loadAll());
+    }
+
+    // The query behind the cached method above.
+    protected static function loadAll(): Collection
     {
         return DB::table(self::TABLE)
             ->whereNull('deleted_at')
@@ -116,10 +123,12 @@ class PaymentMethod extends Model
         return in_array($name, self::PROTECTED, true);
     }
 
-    // The live and available methods, for the checkout picker.
+    // The live and available methods, for the checkout picker. Cached with its table (a write to
+    // payment_methods drops it), so the cash option AND the bank options of one page, and every page
+    // after it, cost no query.
     public static function activeOptions(): Collection
     {
-        return DB::table(self::TABLE)
+        return TableCache::remember(['payment_methods'], 'payment_method.active', fn () => DB::table(self::TABLE)
             ->whereNull('deleted_at')
             ->where('is_active', true)
             ->orderBy('method_name')
@@ -128,7 +137,7 @@ class PaymentMethod extends Model
                 $method->qr_image = self::qrUrl($method->qr_image);
 
                 return $method;
-            });
+            }));
     }
 
     // Is this the method for orders collected at the counter? It is paid when
@@ -169,6 +178,7 @@ class PaymentMethod extends Model
     // Update a method; returns the number of changed rows (0 when it is gone).
     public static function updatePaymentMethod(int $methodId, array $attributes): int
     {
+
         return DB::table(self::TABLE)
             ->where('method_id', $methodId)
             ->whereNull('deleted_at')

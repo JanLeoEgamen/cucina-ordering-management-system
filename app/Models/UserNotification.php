@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 // A person's in-app notifications. Like Setting it is a set of static query builder
@@ -12,7 +13,26 @@ class UserNotification
 {
     protected const TABLE = 'user_notifications';
 
+    // How long the bell's numbers are trusted at most, if a write ever forgot to clear them.
+    protected const STATE_TTL = 60;
+
     /* -------- Reads -------- */
+
+    // What the bell polls (about once a second per open tab): [unread, latest id]. Kept in the cache
+    // and cleared by every write below, so a poll with nothing new costs no query at all (against a
+    // remote database each one is a network trip). The TTL only bounds a race between a poll and a write.
+    public static function state(int $userId): array
+    {
+        return Cache::remember(self::stateKey($userId), self::STATE_TTL, fn () => [
+            'unread' => self::unreadCount($userId),
+            'latest_id' => self::latestId($userId),
+        ]);
+    }
+
+    protected static function stateKey(int $userId): string
+    {
+        return 'notifications.state.' . $userId;
+    }
 
     // How many are unread (the badge). Answered from the (user_id, read_at, id) index.
     public static function unreadCount(int $userId): int
@@ -89,6 +109,8 @@ class UserNotification
 
         $now = now();
 
+        $userIds = array_unique(array_map(fn (array $row) => (int) $row['user_id'], $rows));
+
         DB::table(self::TABLE)->insert(array_map(fn (array $row) => [
             'user_id' => (int) $row['user_id'],
             'type' => $row['type'],
@@ -99,25 +121,37 @@ class UserNotification
             'read_at' => null,
             'created_at' => $now,
         ], $rows));
+
+        foreach ($userIds as $userId) {
+            Cache::forget(self::stateKey($userId));
+        }
     }
 
     // Mark one as read; true when it was unread (a second click changes nothing).
     public static function markRead(int $userId, int $id): bool
     {
-        return DB::table(self::TABLE)
+        $changed = DB::table(self::TABLE)
             ->where('user_id', $userId)
             ->where('id', $id)
             ->whereNull('read_at')
             ->update(['read_at' => now()]) === 1;
+
+        Cache::forget(self::stateKey($userId));
+
+        return $changed;
     }
 
     // Mark every unread one of the person as read, with a single UPDATE.
     public static function markAllRead(int $userId): int
     {
-        return DB::table(self::TABLE)
+        $changed = DB::table(self::TABLE)
             ->where('user_id', $userId)
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
+
+        Cache::forget(self::stateKey($userId));
+
+        return $changed;
     }
 
     // Delete read notifications older than $readDays and any older than $anyDays

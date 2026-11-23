@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\TableCache;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -80,6 +81,12 @@ class Payment extends Model
     // Newest first.
     public static function getAll(): Collection
     {
+        return TableCache::remember(['orders', 'users', 'order_sessions', 'payments', 'payment_methods', 'order_items', 'session_dishes', 'dishes'], 'payment.all', fn () => self::loadAll());
+    }
+
+    // The queries behind getAll().
+    protected static function loadAll(): Collection
+    {
         return self::hydrate(
             self::listQuery()
                 ->orderByDesc(self::TABLE . '.created_at')
@@ -90,6 +97,12 @@ class Payment extends Model
 
     // How many payments are waiting for a decision (for the dashboard).
     public static function pendingCount(): int
+    {
+        return TableCache::remember(['payments', 'orders'], 'payment.pending_count', fn () => self::loadPendingCount());
+    }
+
+    // The query behind pendingCount().
+    protected static function loadPendingCount(): int
     {
         return DB::table(self::TABLE)
             ->join('orders', 'orders.order_id', '=', self::TABLE . '.order_id')
