@@ -177,10 +177,12 @@ class OrderSessionController extends Controller implements HasMiddleware
 
         $this->refuseOverlap($validated);
 
-        OrderSession::createSession(
+        $sessionId = OrderSession::createSession(
             $validated + ['created_by' => auth()->id()],
             $this->postedStocks($request, $validated['dish_ids'])
         );
+
+        OrderNotifier::sessionOpened($sessionId);
 
         return $this->successResponse('Order session created successfully.');
     }

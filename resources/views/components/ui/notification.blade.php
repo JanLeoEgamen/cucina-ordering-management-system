@@ -1,5 +1,5 @@
 @props([
-    'timeout' => 5000,
+    'timeout' => null,
 ])
 
 @php
@@ -11,6 +11,9 @@
     $show    = $success || $error || $warning || $info;
     $message = $success ?? $error ?? $warning ?? $info;
     $type    = $success ? 'success' : ($error ? 'error' : ($warning ? 'warning' : 'info'));
+
+    // Same reading time as the AJAX toasts (resources/js/ui/toast.js): errors and warnings stay longer.
+    $timeout ??= in_array($type, ['error', 'warning'], true) ? 9000 : 7000;
 
     $title = match ($type) {
         'success' => __('Success'),
@@ -39,18 +42,20 @@
     backdrop, which locked the whole UI for {{ $timeout }}ms after every save.
 --}}
 @if ($show)
-    <div x-data="{ show: true }"
-         x-init="setTimeout(() => show = false, {{ $timeout }})"
+    <div x-data="{ show: true, t: null, run() { this.t = setTimeout(() => this.show = false, {{ $timeout }}) }, hold() { clearTimeout(this.t) } }"
+         x-init="run()"
+         @mouseenter="hold()"
+         @mouseleave="run()"
          x-show="show"
          x-cloak
          role="status"
          aria-live="polite"
          x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0 translate-y-2"
-         x-transition:enter-end="opacity-100 translate-y-0"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100 translate-y-0"
-         x-transition:leave-end="opacity-0 translate-y-2"
+         x-transition:enter-start="opacity-0 translate-x-6"
+         x-transition:enter-end="opacity-100 translate-x-0"
+         x-transition:leave="transition ease-in duration-300"
+         x-transition:leave-start="opacity-100 translate-x-0"
+         x-transition:leave-end="opacity-0 translate-x-6"
          class="fixed bottom-4 right-4 z-[100] w-[calc(100%-2rem)] max-w-sm">
 
         <div class="{{ $color }} flex items-start gap-3 rounded-lg border-l-4 p-4 shadow-lg">

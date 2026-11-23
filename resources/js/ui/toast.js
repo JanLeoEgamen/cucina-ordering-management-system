@@ -10,13 +10,23 @@
  * like the status dots elsewhere), a round outlined close button, and a thin bar that
  * runs down while the toast waits to go. The text is the only thing that varies.
  *
- * Kept quiet on purpose: the same message never stacks (a repeated action
- * refreshes the toast that is already up), and no more than three are ever on
- * screen, so hammering a button cannot fill the page with them.
+ * Built to be noticed, not to nag:
+ *   - it stays long enough to read (errors and warnings longer than successes), and the
+ *     countdown PAUSES while the pointer or the keyboard focus is on it;
+ *   - it glides in from the right, and on the way out it fades and folds its height away,
+ *     so the toasts under it slide up instead of jumping;
+ *   - toasts that arrive together are shown one after another (GAP_MS apart), not all in
+ *     the same frame, so each one gets its moment;
+ *   - the same message never stacks (a repeated action refreshes the toast that is
+ *     already up), and no more than three are ever on screen.
+ *
+ * `onShow` (third argument) runs the moment the toast really appears, after any wait in
+ * the line: the bell uses it to swing in step with each toast.
  */
 const VISIBLE_LIMIT = 3;
-const LIFETIME_MS = 4000;
-const LEAVE_MS = 180;
+const LIFETIME_MS = { success: 7000, error: 9000, warning: 9000 };
+const LEAVE_MS = 300;
+const GAP_MS = 700;
 
 // The icon of each kind, as the inner markup of a 24px stroke svg.
 const ICONS = {
@@ -32,11 +42,30 @@ const TONES = {
     warning: { icon: 'bg-amber-500 text-white', bar: 'bg-amber-500' },
 };
 
-export function showToast(message, type = 'success') {
+// When the next toast may appear (a timestamp): toasts that arrive together queue up behind it.
+let nextSlot = 0;
+
+const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+export function showToast(message, type = 'success', onShow = null) {
     if (!message) {
         return;
     }
 
+    const now = Date.now();
+    const slot = Math.max(now, nextSlot);
+
+    // The pause lasts only while something else is in the line: a lone toast is immediate.
+    nextSlot = slot + GAP_MS;
+
+    if (slot > now) {
+        setTimeout(() => render(message, type, onShow), slot - now);
+    } else {
+        render(message, type, onShow);
+    }
+}
+
+function render(message, type, onShow) {
     const kind = TONES[type] ? type : 'success';
 
     let host = document.getElementById('cucina-toast-host');
@@ -51,26 +80,30 @@ export function showToast(message, type = 'success') {
         document.body.appendChild(host);
     }
 
+    const live = [...host.children].filter((toast) => !toast.dataset.leaving);
+
     // The same message is already up: let it live a little longer instead of
     // adding a second copy of it.
-    const existing = [...host.children].find((toast) => toast.dataset.message === message);
+    const existing = live.find((toast) => toast.dataset.message === message);
 
     if (existing) {
-        restartTimer(existing);
+        startCountdown(existing);
+        onShow?.();
 
         return;
     }
 
     // Oldest first: three at a time is plenty.
-    while (host.children.length >= VISIBLE_LIMIT) {
-        host.firstElementChild.remove();
+    for (const old of live.slice(0, Math.max(0, live.length - VISIBLE_LIMIT + 1))) {
+        dismiss(old);
     }
 
     const toast = document.createElement('div');
 
     toast.setAttribute('role', kind === 'error' ? 'alert' : 'status');
     toast.dataset.message = message;
-    toast.className = 'pointer-events-auto relative flex animate-pop items-center gap-3 overflow-hidden rounded-2xl border border-gray-200 bg-white py-3 pl-3.5 pr-3 shadow-card-lift transition duration-200 dark:border-gray-700 dark:bg-gray-800';
+    toast.dataset.kind = kind;
+    toast.className = 'pointer-events-auto relative flex animate-toast-in items-center gap-3 overflow-hidden rounded-2xl border border-gray-200 bg-white py-3 pl-3.5 pr-3 shadow-card-lift dark:border-gray-700 dark:bg-gray-800';
 
     // Fixed markup; the message itself goes in as text, never as HTML.
     toast.innerHTML = '<span data-icon class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full ' + TONES[kind].icon + '">'
@@ -85,34 +118,63 @@ export function showToast(message, type = 'success') {
     toast.querySelector('[data-text]').textContent = message;
     toast.addEventListener('click', () => dismiss(toast));
 
+    // Reading time: the countdown stands still while the toast is being looked at.
+    toast.addEventListener('mouseenter', () => toast.countdown?.pause());
+    toast.addEventListener('mouseleave', () => {
+        if (!toast.contains(document.activeElement)) {
+            toast.countdown?.play();
+        }
+    });
+    toast.addEventListener('focusin', () => toast.countdown?.pause());
+    toast.addEventListener('focusout', () => toast.countdown?.play());
+
     host.appendChild(toast);
 
-    restartTimer(toast);
+    startCountdown(toast);
+    onShow?.();
 }
 
-// Fade the toast out, then take it away.
+// Fade the toast out and fold its height away, then take it away.
 function dismiss(toast) {
-    clearTimeout(toast.timer);
-    toast.classList.add('-translate-y-1', 'opacity-0');
-    setTimeout(() => toast.remove(), LEAVE_MS);
-}
-
-// One timer per toast, resettable when its message repeats. The bar below the message
-// runs down over the same time (a transform, so it is cheap); with reduced motion the
-// transition is cut to nothing by app.css, so the bar is simply gone at once.
-function restartTimer(toast) {
-    clearTimeout(toast.timer);
-
-    const bar = toast.querySelector('[data-bar]');
-
-    if (bar) {
-        bar.style.transition = 'none';
-        bar.style.transform = 'scaleX(1)';
-        // Force a reflow so the reset above is painted before the run starts.
-        void bar.offsetWidth;
-        bar.style.transition = 'transform ' + LIFETIME_MS + 'ms linear';
-        bar.style.transform = 'scaleX(0)';
+    if (toast.dataset.leaving) {
+        return;
     }
 
-    toast.timer = setTimeout(() => dismiss(toast), LIFETIME_MS);
+    toast.dataset.leaving = '1';
+    toast.countdown?.cancel();
+
+    if (reducedMotion() || !toast.animate) {
+        toast.remove();
+
+        return;
+    }
+
+    const box = toast.getBoundingClientRect().height;
+    const folded = { height: '0px', paddingTop: '0px', paddingBottom: '0px', borderWidth: '0px', marginBottom: '-10px', opacity: 0, transform: 'translateX(28px)' };
+    const leave = toast.animate(
+        [{ height: box + 'px', opacity: 1, transform: 'translateX(0)' }, folded],
+        { duration: LEAVE_MS, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'forwards' },
+    );
+
+    leave.onfinish = () => toast.remove();
+}
+
+// One countdown per toast, restartable when its message repeats. The bar below the message
+// IS the clock: when it has run down, the toast goes. Pausing the bar pauses the toast.
+function startCountdown(toast) {
+    const bar = toast.querySelector('[data-bar]');
+
+    toast.countdown?.cancel();
+
+    toast.countdown = bar.animate(
+        [{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }],
+        { duration: LIFETIME_MS[toast.dataset.kind], easing: 'linear', fill: 'forwards' },
+    );
+
+    toast.countdown.onfinish = () => dismiss(toast);
+
+    // The pointer may already be on it when the same message comes again.
+    if (toast.matches(':hover') || toast.contains(document.activeElement)) {
+        toast.countdown.pause();
+    }
 }

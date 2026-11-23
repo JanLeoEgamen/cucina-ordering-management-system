@@ -109,6 +109,11 @@ export default {
                     '0%': { opacity: '0', transform: 'scale(0.94)' },
                     '100%': { opacity: '1', transform: 'scale(1)' },
                 },
+                // A toast glides in from the right edge, a little slower than a pop.
+                'toast-in': {
+                    '0%': { opacity: '0', transform: 'translateX(28px)' },
+                    '100%': { opacity: '1', transform: 'translateX(0)' },
+                },
                 'cart-bump': {
                     '0%, 100%': { transform: 'scale(1)' },
                     '35%': { transform: 'scale(1.18)' },
@@ -143,6 +148,7 @@ export default {
                 'fade-up': 'fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards',
                 'fade-in': 'fade-in 0.25s ease-out backwards',
                 pop: 'pop 0.25s cubic-bezier(0.22, 1, 0.36, 1) backwards',
+                'toast-in': 'toast-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards',
                 'cart-bump': 'cart-bump 0.45s ease-out',
                 'live-dot': 'live-dot 1.6s ease-in-out infinite',
                 'marquee-up': 'marquee-up 60s linear infinite',

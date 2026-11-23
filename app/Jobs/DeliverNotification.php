@@ -27,7 +27,7 @@ class DeliverNotification implements ShouldQueue
     public int $timeout = 30;
 
     /**
-     * @param  string  $kind  'order' (one order's event), 'ready' (orders announced ready) or 'sold-out'
+     * @param  string  $kind  'order' (one order's event), 'ready' (orders announced ready), 'session-opened' or 'sold-out'
      * @param  array<string, mixed>  $data
      */
     public function __construct(
@@ -48,6 +48,7 @@ class DeliverNotification implements ShouldQueue
     {
         match ($this->kind) {
             'ready' => OrderNotifier::deliverReady($this->data['order_ids'], $this->actorId),
+            'session-opened' => OrderNotifier::deliverSessionOpened($this->data['session_id'], $this->actorId),
             'sold-out' => OrderNotifier::deliverSoldOut($this->data['session_dish_ids'], $this->data['session_id'], $this->actorId),
             default => OrderNotifier::deliver($this->data['order_id'], $this->data['event'], $this->data['context'] ?? [], $this->actorId),
         };
