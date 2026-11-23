@@ -220,7 +220,7 @@ class PreOrderSessionController extends Controller implements HasMiddleware
             'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
             'min_quantity' => ['required', 'integer', 'min:' . $limits['min'], 'max:' . ($limits['max'] ?? 100000)],
             'dish_ids' => ['required', 'array', 'min:1'],
-            'dish_ids.*' => ['integer', 'exists:dishes,dish_id'],
+            'dish_ids.*' => ['integer', $this->dishExistsRule($request)],
         ], [
             'dish_ids.required' => 'Pick at least one dish.',
             'dish_ids.min' => 'Pick at least one dish.',

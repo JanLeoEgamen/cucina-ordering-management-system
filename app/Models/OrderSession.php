@@ -222,16 +222,20 @@ class OrderSession extends Model
     {
         $now = now();
 
-        $sessionId = (int) DB::table(self::TABLE)->insertGetId(self::values($attributes) + [
-            'created_by' => (int) $attributes['created_by'],
-            'is_active' => 1,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
+        // One transaction: a session never exists without its dishes, and the database commits once
+        // instead of once per dish.
+        return DB::transaction(function () use ($attributes, $stocks, $now) {
+            $sessionId = (int) DB::table(self::TABLE)->insertGetId(self::values($attributes) + [
+                'created_by' => (int) $attributes['created_by'],
+                'is_active' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
 
-        self::syncStocks($sessionId, $stocks);
+            self::syncStocks($sessionId, $stocks);
 
-        return $sessionId;
+            return $sessionId;
+        });
     }
 
     // Update a session and replace its dish list; returns the number of changed rows.
@@ -239,14 +243,16 @@ class OrderSession extends Model
     // see syncStocks.
     public static function updateSession(int $sessionId, array $attributes, array $stocks, array $loaded = []): int
     {
-        $changed = DB::table(self::TABLE)
-            ->where('session_id', $sessionId)
-            ->whereNull('deleted_at')
-            ->update(self::values($attributes) + ['updated_at' => now()]);
+        return DB::transaction(function () use ($sessionId, $attributes, $stocks, $loaded) {
+            $changed = DB::table(self::TABLE)
+                ->where('session_id', $sessionId)
+                ->whereNull('deleted_at')
+                ->update(self::values($attributes) + ['updated_at' => now()]);
 
-        self::syncStocks($sessionId, $stocks, $loaded);
+            self::syncStocks($sessionId, $stocks, $loaded);
 
-        return $changed;
+            return $changed;
+        });
     }
 
     // Soft delete a session and its dish list; false when it was already deleted.
@@ -297,16 +303,20 @@ class OrderSession extends Model
     public static function syncStocks(int $sessionId, array $stocks, array $loaded = []): void
     {
         $now = now();
-        $posted = [];
+        $posted = array_map('intval', array_keys($stocks));
+        $new = [];
+
+        // One read for every posted dish and one INSERT for the new ones (it was a read and a write
+        // per dish: 3 queries a dish with the validation, ~100 for a 30 dish session).
+        $rows = DB::table(self::TABLE_SESSION_DISH)
+            ->where('session_id', $sessionId)
+            ->whereIn('dish_id', $posted)
+            ->get()
+            ->keyBy('dish_id');
 
         foreach ($stocks as $dishId => $stock) {
             $dishId = (int) $dishId;
-            $posted[] = $dishId;
-
-            $existing = DB::table(self::TABLE_SESSION_DISH)
-                ->where('session_id', $sessionId)
-                ->where('dish_id', $dishId)
-                ->first();
+            $existing = $rows->get($dishId);
 
             if ($existing) {
                 // Re-offering a dish that left the session restores its row (and the
@@ -332,7 +342,7 @@ class OrderSession extends Model
                 continue;
             }
 
-            DB::table(self::TABLE_SESSION_DISH)->insert([
+            $new[] = [
                 'session_id' => $sessionId,
                 'dish_id' => $dishId,
                 'available_stock' => (int) $stock,
@@ -341,7 +351,11 @@ class OrderSession extends Model
                 'is_active' => 1,
                 'created_at' => $now,
                 'updated_at' => $now,
-            ]);
+            ];
+        }
+
+        if ($new) {
+            DB::table(self::TABLE_SESSION_DISH)->insert($new);
         }
 
         $removed = DB::table(self::TABLE_SESSION_DISH)

@@ -86,4 +86,48 @@ class QueryBudgetTest extends TestCase
 
         $this->actingAs($user)->getJson(route('notifications.feed'))->assertJsonPath('unread', 0);
     }
+    // A session used to cost ~3 queries per dish (an `exists` check, a lookup and an insert, each insert
+    // committing on its own): ~100 for 30 dishes, which is what made "Add Session" take seconds.
+    public function test_creating_a_session_costs_the_same_number_of_queries_for_any_number_of_dishes(): void
+    {
+        $admin = $this->superAdmin();
+        $dishes = \App\Models\Dish::factory()->count(25)->create()->pluck('dish_id')->all();
+
+        $post = function (array $ids) use ($admin) {
+            $payload = [
+                'order_date' => now()->addDay()->toDateString(), 'start_time' => '09:00', 'end_time' => '17:00',
+                'dish_ids' => $ids, 'stocks' => array_fill_keys($ids, 10),
+            ];
+
+            return $this->queriesDuring(fn () => $this->actingAs($admin)->postJson(route('order-sessions.store'), $payload)->assertOk());
+        };
+
+        $post(array_slice($dishes, 0, 1)); // warm-up: the first request also loads the permissions
+        DB::table('order_sessions')->delete();
+        $few = $post(array_slice($dishes, 0, 2));
+        DB::table('order_sessions')->delete();
+        $many = $post($dishes);
+
+        $this->assertSame($few, $many, "2 dishes ran $few queries, 25 dishes ran $many");
+        $this->assertSame(25, DB::table('session_dishes')->whereNull('deleted_at')->count());
+    }
+
+    public function test_a_session_is_not_left_behind_when_one_of_its_dishes_cannot_be_saved(): void
+    {
+        $admin = $this->superAdmin();
+        $dish = \App\Models\Dish::factory()->create();
+
+        try {
+            \App\Models\OrderSession::createSession(
+                ['order_date' => now()->toDateString(), 'start_time' => '09:00', 'end_time' => '17:00', 'created_by' => $admin->id],
+                [$dish->dish_id => 5, 999999 => 5] // the second dish does not exist: a foreign key refuses it
+            );
+            $this->fail('the second dish should have been refused');
+        } catch (\Illuminate\Database\QueryException) {
+            // expected
+        }
+
+        $this->assertSame(0, DB::table('order_sessions')->count());
+        $this->assertSame(0, DB::table('session_dishes')->count());
+    }
 }

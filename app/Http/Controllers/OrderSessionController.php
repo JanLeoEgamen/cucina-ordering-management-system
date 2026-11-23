@@ -266,7 +266,7 @@ class OrderSessionController extends Controller implements HasMiddleware
             'start_time' => ['required', 'date_format:H:i'],
             'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
             'dish_ids' => ['required', 'array', 'min:1'],
-            'dish_ids.*' => ['integer', 'exists:dishes,dish_id'],
+            'dish_ids.*' => ['integer', $this->dishExistsRule($request)],
             'stocks' => ['required', 'array'],
             'stocks.*' => ['nullable', 'integer', 'min:0'],
             // What each stock box showed when the edit form was opened.
