@@ -10,7 +10,11 @@ use App\Models\PaymentMethod;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\Support\TableCache;
+use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -143,5 +147,44 @@ class TableCacheTest extends TestCase
         \App\Models\Payment::factory()->create(['payment_status' => 'pending']);
 
         $this->assertSame(1, \App\Models\Payment::pendingCount());
+    }
+    public function test_the_database_cache_driver_cannot_disturb_the_id_of_an_insert(): void
+    {
+        // The listener used to write the cache INSIDE the statement event: with the database driver on
+        // SQLite that insert replaced the id insertGetId was about to read (migrate:fresh --seed died
+        // with a foreign key error because the role got the wrong id).
+        config(['cache.default' => 'database']);
+        Cache::forgetDriver('database');
+
+        $id = DB::table('roles')->insertGetId(['name' => 'Cook', 'guard_name' => 'web', 'created_at' => now(), 'updated_at' => now()]);
+
+        $this->assertSame($id, (int) DB::table('roles')->where('name', 'Cook')->value('id'));
+    }
+
+    public function test_a_missing_cache_table_never_breaks_a_write(): void
+    {
+        // migrate:fresh writes rows while the cache table is not there yet.
+        config(['cache.default' => 'database']);
+        Cache::forgetDriver('database');
+        Schema::drop('cache');
+
+        Dish::factory()->create();
+        TableCache::settle();
+
+        $this->assertSame(1, DB::table('dishes')->count());
+    }
+
+    public function test_finishing_a_migration_starts_the_cache_from_nothing(): void
+    {
+        Dish::factory()->create();
+        $this->assertCount(1, Dish::getAll());
+
+        // Rows changed behind the listener's back (what migrate:fresh does to a file cache).
+        DB::connection()->getPdo()->exec('delete from dishes');
+        $this->assertCount(1, Dish::getAll(), 'still served from the cache');
+
+        event(new MigrationsEnded('up', []));
+
+        $this->assertCount(0, Dish::getAll());
     }
 }

@@ -30,6 +30,9 @@ class AuthCache
 
     public static function key(int|string $userId): string
     {
+        // A write earlier in this process must be versioned before the epoch is read.
+        TableCache::flush();
+
         return 'auth.user.' . Cache::get(self::EPOCH, '0') . '.' . $userId;
     }
 

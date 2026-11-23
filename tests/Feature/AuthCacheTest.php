@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Role;
 use App\Models\User;
+use App\Support\TableCache;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -48,6 +49,7 @@ class AuthCacheTest extends TestCase
     public function test_a_second_request_identifies_the_user_without_a_query(): void
     {
         $user = $this->superAdmin();
+        TableCache::settle(); // the setup writes are final, so the entry cached next is not versioned again
         $this->listRoles($user)->assertOk(); // fills the cache
 
         $this->assertSame(0, $this->identityQueries(fn () => $this->listRoles($user)->assertOk()));
