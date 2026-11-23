@@ -1,7 +1,7 @@
 # Testing
 
 ```
-php artisan test                      # all (baseline 2026-11-23: 757 passed)
+php artisan test                      # all (baseline 2026-11-23: 761 passed)
 php artisan test --filter=DishTest    # one class
 php scripts/harness.php               # docs drift check + full suite
 ```
@@ -67,6 +67,8 @@ php scripts/harness.php               # docs drift check + full suite
 | Notification links (a new link carries `?order=ID#order-ID`; opening an **old** `/my-orders#order-ID` link redirects through `?order=ID`; other links unchanged) | `NotificationTest` |
 | Signed-in user cache (a second request identifies the user with no query; a role taken away, a direct permission revoked, a role's permissions emptied and a deleted account are felt on the very next request; `AUTH_CACHE_TTL=0` reads the database again; run through the real session guard, not `actingAs`) | `AuthCacheTest` |
 | Table cache (a second read costs no query; Eloquent insert, query builder update and soft delete are each seen by the next read; a joined table (dish types) is followed; checkout methods, users + roles, the orders feed, My Orders (per customer, statuses, a search read fresh) and the pending-payments count follow their tables; a session's status still follows the clock while its rows are cached; the `database` cache driver cannot change the id `insertGetId` returns, a missing cache table never breaks a write, a finished migration starts the cache from nothing) | `TableCacheTest` |
+| `perf:check` (runs, and leaves no scratch table behind) | `PerfCheckTest` |
+| Server-Timing diagnostics (off by default; on gives `total` + `db` + query count to staff who read the audit trail, nobody else, not guests) | `ServerTimingTest` |
 | Query budget (`Setting` read once and never stale after a save, also inside a transaction; the bell poll runs no notification query while nothing changed and sees a new row, a read-all at once; creating a session runs the same number of queries for 2 or 25 dishes; a session is not left behind when one of its dishes cannot be saved) | `QueryBudgetTest` |
 | Audit trail paging (25 a page newest first across 3 pages with the right "Showing x–y of z"; the 10 / 25 / 50 / 100 choice; any other `per_page` refused and nothing run as SQL; the size and page links keep the filters, size links drop `page`; the current size marked; the footer for a single page and none for an empty list; a page past the end lands on the last; the CSV ignores the size and still needs the permission. The pager's look is **not** browser-tested) | `AuditLogPagingTest` |
 | App name and logo (defaults to Cucina + built-in mark; saved name trimmed and shown on login / welcome / app / error pages; escaped; empty, blank and 61-char names refused, a missing field changes nothing; only `edit settings` may change it; logo stored under `branding/`, replaced and removed with the old file deleted, a new file wins over Remove; PDF / SVG / GIF / over 2 MB refused and nothing stored; a vanished file reads as no logo; an error page survives a missing `settings` table; ONE settings query per web request; the notification email carries the name; the page's fields. The JS (preview, reload) is **not** tested: no browser tool) | `BrandingTest` |
