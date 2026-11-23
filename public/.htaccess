@@ -5,6 +5,10 @@
 
     RewriteEngine On
 
+    # Vite files in /build carry a content hash in their name (app-D_TLWSpS.css), so a browser may keep
+    # them for a year instead of asking the server again on every page. Tagged here, sent below.
+    RewriteRule ^build/ - [E=BUILD_ASSET:1]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
@@ -22,4 +26,18 @@
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
+</IfModule>
+
+# Compress what is text: the pages are 80-350 KB of HTML (about 10-15 % of that once compressed), and the
+# table feeds are JSON. Without this a slow connection spends most of a page load downloading it.
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/xml text/javascript application/javascript application/json application/xml image/svg+xml
+</IfModule>
+
+<IfModule mod_headers.c>
+    # A compressed and a plain copy of one URL must not be mixed up by a proxy / cache.
+    Header append Vary Accept-Encoding
+
+    # See BUILD_ASSET above.
+    Header set Cache-Control "public, max-age=31536000, immutable" env=BUILD_ASSET
 </IfModule>
