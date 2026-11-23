@@ -708,7 +708,7 @@
     </x-ui.modal>
 
     @push('scripts')
-        {{-- Page behaviour lives in resources/js/pages/menu.js; see vite.config.js. --}}
-        @vite('resources/js/pages/menu.js')
+        {{-- Page behaviour lives in resources/js/pages/menu.js; started by resources/js/ui/soft-nav.js. --}}
+        <x-page-module name="menu" />
     @endpush
 </x-app-layout>

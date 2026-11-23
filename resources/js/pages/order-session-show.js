@@ -394,8 +394,6 @@ const start = () => {
 
 };
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start);
-} else {
-    start();
-}
+// Started by resources/js/ui/soft-nav.js on every visit (see <x-page-module>); what start() adds to
+// document / window is removed when the page is left.
+export default start;

@@ -295,7 +295,7 @@
     @endif
 
     @push('scripts')
-        {{-- Page behaviour lives in resources/js/pages/settings.js; see vite.config.js. --}}
-        @vite('resources/js/pages/settings.js')
+        {{-- Page behaviour lives in resources/js/pages/settings.js; started by resources/js/ui/soft-nav.js. --}}
+        <x-page-module name="settings" />
     @endpush
 </x-app-layout>

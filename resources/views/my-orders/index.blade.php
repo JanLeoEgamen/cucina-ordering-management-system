@@ -279,7 +279,7 @@
     <x-ui.order-popup />
 
     @push('scripts')
-        {{-- Page behaviour lives in resources/js/pages/my-orders.js; see vite.config.js. --}}
-        @vite('resources/js/pages/my-orders.js')
+        {{-- Page behaviour lives in resources/js/pages/my-orders.js; started by resources/js/ui/soft-nav.js. --}}
+        <x-page-module name="my-orders" />
     @endpush
 </x-app-layout>

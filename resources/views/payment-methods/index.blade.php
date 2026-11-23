@@ -351,7 +351,7 @@
     />
 
     @push('scripts')
-        {{-- Page behaviour lives in resources/js/pages/payment-methods.js; see vite.config.js. --}}
-        @vite('resources/js/pages/payment-methods.js')
+        {{-- Page behaviour lives in resources/js/pages/payment-methods.js; started by resources/js/ui/soft-nav.js. --}}
+        <x-page-module name="payment-methods" />
     @endpush
 </x-app-layout>

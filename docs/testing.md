@@ -1,7 +1,7 @@
 # Testing
 
 ```
-php artisan test                      # all (baseline 2026-11-20: 678 passed)
+php artisan test                      # all (baseline 2026-11-23: 682 passed)
 php artisan test --filter=DishTest    # one class
 php scripts/harness.php               # docs drift check + full suite
 ```
@@ -27,6 +27,7 @@ php scripts/harness.php               # docs drift check + full suite
 | Image viewer present; drawer images zoomable | `ImageViewerTest` |
 | Theme shell: dark / light switch (top right of both bars, login) + before-paint script, the account menu's identity card (initials + name + role, once, none in the sidebar, no external avatar), ink active pill, dashboard tiles by permission + pending count + live session, status badges are one gray pill with `data-status` | `ThemeShellTest` |
 | Menu bar: search, sort options, every filter control | `MenuCheckoutTest` |
+| Soft navigation markup contract: `#page-root` wraps heading + main, the sidebar `<nav>` is `data-soft-nav`, `asset-hash` meta, a view names its script module with `<x-page-module>` (no `<script>` in the page area), every `pages/*.js` ends in `export default start;` and is named by a view, signed-out pages have no swap area (the swap itself runs in the browser and is not covered: see known-issues F21) | `SoftNavigationTest` |
 | Table toolbar on every module: one search field, the module's sort choices, a Filter dropdown only where there are filters, the view tabs; filters keep their ids | `TableToolbarTest` |
 | Menu dish cards: photo-first markup, stock level dots, sold-out flag | `MenuCheckoutTest` |
 | Checkout: the error banner is pinned (sticky, assertive) and the proof drop zone exists for the script to flag | `MenuCheckoutTest` |

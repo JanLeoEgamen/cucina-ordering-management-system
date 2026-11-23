@@ -320,7 +320,7 @@
     />
 
     @push('scripts')
-        {{-- Page behaviour lives in resources/js/pages/users.js; see vite.config.js. --}}
-        @vite('resources/js/pages/users.js')
+        {{-- Page behaviour lives in resources/js/pages/users.js; started by resources/js/ui/soft-nav.js. --}}
+        <x-page-module name="users" />
     @endpush
 </x-app-layout>

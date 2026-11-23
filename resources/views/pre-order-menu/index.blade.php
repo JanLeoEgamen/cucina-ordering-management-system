@@ -352,7 +352,7 @@
     </x-ui.modal>
 
     @push('scripts')
-        {{-- Page behaviour lives in resources/js/pages/pre-order-menu.js; see vite.config.js. --}}
-        @vite('resources/js/pages/pre-order-menu.js')
+        {{-- Page behaviour lives in resources/js/pages/pre-order-menu.js; started by resources/js/ui/soft-nav.js. --}}
+        <x-page-module name="pre-order-menu" />
     @endpush
 </x-app-layout>

@@ -103,7 +103,7 @@
 
     @push('scripts')
         @if ($canEnd)
-            @vite('resources/js/pages/pre-order-session-show.js')
+            <x-page-module name="pre-order-session-show" />
         @endif
     @endpush
 </x-app-layout>

@@ -531,12 +531,12 @@
     />
 
     @push('scripts')
-        {{-- Page behaviour lives in resources/js/pages/dishes.js; see vite.config.js. --}}
-        @vite('resources/js/pages/dishes.js')
+        {{-- Page behaviour lives in resources/js/pages/dishes.js; started by resources/js/ui/soft-nav.js. --}}
+        <x-page-module name="dishes" />
 
         {{-- The Manage Types drawer (resources/js/pages/dish-types-manager.js). --}}
         @can('view dish-types')
-            @vite('resources/js/pages/dish-types-manager.js')
+            <x-page-module name="dish-types-manager" />
         @endcan
     @endpush
 </x-app-layout>

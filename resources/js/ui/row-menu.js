@@ -41,7 +41,6 @@ export const rowMenuHtml = (actionsHtml, label = 'Actions') => {
 };
 
 let openMenu = null;
-let wired = false;
 
 const close = (returnFocus = false) => {
     if (!openMenu) {
@@ -92,11 +91,16 @@ const open = (menu) => {
 
 // Once per page: the rows are injected (and re-injected) by DataTables, so everything is delegated.
 export const initRowMenus = () => {
-    if (wired) {
+    // The mark sits on the page's <main>, not in a module variable: a soft navigation (ui/soft-nav.js)
+    // replaces <main> and removes these listeners, so the next page has to wire them again.
+    const page = document.querySelector('main') ?? document.body;
+
+    if (page.dataset.rowMenusWired) {
         return;
     }
 
-    wired = true;
+    page.dataset.rowMenusWired = '1';
+    openMenu = null;
 
     document.addEventListener('click', (event) => {
         const toggle = event.target.closest('[data-row-menu-toggle]');

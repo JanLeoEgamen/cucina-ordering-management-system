@@ -28,6 +28,9 @@ import './ui/theme';
 import './ui/session-guard';
 // The notification bell's badge and toasts (a small poll; see the file).
 import './ui/notifications';
+// Sidebar links swap only the page area (no browser reload) and start / stop each page's module.
+// Imported last: it starts the current page's module, which may use anything above.
+import './ui/soft-nav';
 
 /*
  * Every <select> gets the app's own dropdown (resources/js/ui/select-menu.js), the

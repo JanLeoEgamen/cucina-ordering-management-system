@@ -39,7 +39,8 @@ Route (routes/web.php, group: auth)
 6. **Business rules in the controller + model, not the view.** Examples: protected roles/payment methods, "creator ends the session", "no delete while it has orders".
 7. **Money is `decimal(10,2)`**, line prices are copied into `order_items` at order time.
 8. **Stock** is changed only through `SessionDish::reserve()` / `release()` (conditional UPDATE) inside a transaction.
-9. **Comments explain *why*, in plain sentences**; the codebase uses `' . '` string concatenation with spaces
+9. **Soft navigation.** Sidebar (and dashboard tile) links do not reload the browser: `resources/js/ui/soft-nav.js` swaps `#page-root` and starts / stops the page's script module (`pages/*.js`, `export default start`, named by `<x-page-module>`). Keep a signed-in view's page area free of `<script>` tags and keep page state inside `start()`; see [frontend.md](frontend.md).
+10. **Comments explain *why*, in plain sentences**; the codebase uses `' . '` string concatenation with spaces
    (Pint's default would rewrite it — do **not** run `pint` over existing files).
 
 ## Domain model
@@ -112,7 +113,7 @@ app/Jobs/               DeliverNotification, SendNotificationEmails, SendGoogleC
 config/notifications.php  the notifications queue name
 app/Exceptions/         StockRanOutException
 database/migrations/    schema            database/seeders/   starter data      database/factories/  test data
-resources/js/pages/     one module per page   resources/views/   Blade   resources/legal/  built-in text of the legal pages   resources/support/  built-in FAQ of the support page
+resources/js/pages/     one module per page (default export `start`)   resources/js/ui/  shared UI, incl. soft-nav.js (page swap)   resources/views/   Blade   resources/legal/  built-in text of the legal pages   resources/support/  built-in FAQ of the support page
 routes/web.php          all app routes    routes/auth.php    Breeze routes
 tests/Feature/          feature tests     tests/TestCase.php helpers superAdmin() / userWith()
 docs/                   project docs      scripts/harness.php docs-drift + test harness

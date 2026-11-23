@@ -250,7 +250,7 @@
     </form>
 
     @push('scripts')
-        {{-- Page behaviour lives in resources/js/pages/pre-order-sessions.js; see vite.config.js. --}}
-        @vite('resources/js/pages/pre-order-sessions.js')
+        {{-- Page behaviour lives in resources/js/pages/pre-order-sessions.js; started by resources/js/ui/soft-nav.js. --}}
+        <x-page-module name="pre-order-sessions" />
     @endpush
 </x-app-layout>

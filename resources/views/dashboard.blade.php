@@ -84,7 +84,7 @@
             <section>
                 <h3 class="mb-3 text-sm font-semibold text-gray-500 dark:text-gray-400">{{ __('Jump to') }}</h3>
 
-                <div class="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 lg:grid-cols-3">
+                <div data-soft-nav class="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 lg:grid-cols-3">
                     @foreach ($tiles as $tile)
                         <a href="{{ route($tile['route']) }}"
                            class="group animate-fade-up flex items-start justify-between gap-3 rounded-2xl bg-white p-5 shadow-card transition duration-200 hover:-translate-y-0.5 hover:shadow-card-lift dark:bg-gray-800 dark:ring-1 dark:ring-white/5"

@@ -1500,7 +1500,7 @@ const start = () => {
     const refreshStock = async () => {
         // Not while an order is in flight (its own answer carries the stock), and
         // not when nobody can see the page.
-        if (! stockUrl || ! sessionId || polling || placing || sessionClosed || document.hidden) {
+        if (! stockUrl || ! sessionId || polling || placing || sessionClosed || document.hidden || ! root.isConnected) {
             return;
         }
 
@@ -1554,6 +1554,12 @@ const start = () => {
         clearTimeout(pollTimer);
 
         pollTimer = setTimeout(async () => {
+            // The person went to another page by soft navigation (ui/soft-nav.js): this menu is
+            // gone from the document, so stop asking for its stock.
+            if (! root.isConnected) {
+                return;
+            }
+
             await refreshStock();
 
             if (! sessionClosed) {
@@ -1828,9 +1834,6 @@ const start = () => {
     }
 };
 
-// Loaded as a module (deferred), so the DOM is normally already parsed.
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start);
-} else {
-    start();
-}
+// Started by resources/js/ui/soft-nav.js on every visit (see <x-page-module>); what start() adds to
+// document / window is removed when the page is left.
+export default start;

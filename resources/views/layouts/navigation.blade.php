@@ -34,7 +34,7 @@
         </svg>
     </button>
 
-    <a href="{{ route('dashboard') }}" class="flex items-center gap-2">
+    <a href="{{ route('dashboard') }}" data-soft-nav class="flex items-center gap-2">
         <x-application-logo class="block h-8 w-auto fill-current text-gray-800 dark:text-white" />
         <span class="font-semibold tracking-tight text-gray-900 dark:text-white">{{ \App\Models\Setting::appName() }}</span>
     </a>
@@ -87,7 +87,7 @@
     <div class="flex h-full min-h-0 flex-col overflow-hidden">
         {{-- Brand --}}
         <div class="sidebar-brand flex h-14 flex-shrink-0 items-center gap-2 px-3">
-            <a href="{{ route('dashboard') }}" class="flex items-center gap-2">
+            <a href="{{ route('dashboard') }}" data-soft-nav @click="open = false" class="flex items-center gap-2">
                 <x-application-logo class="block h-8 w-auto flex-shrink-0 fill-current text-gray-800 dark:text-white" />
                 <span class="sidebar-label font-semibold tracking-tight text-gray-900 dark:text-white">{{ \App\Models\Setting::appName() }}</span>
             </a>
@@ -106,7 +106,7 @@
 
         {{-- Links, in one white rounded panel --}}
         <div class="mt-1 flex min-h-0 flex-1 flex-col rounded-2xl bg-white shadow-card dark:bg-gray-800">
-        <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="{{ __('Main navigation') }}">
+        <nav data-soft-nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="{{ __('Main navigation') }}">
             <a href="{{ route('dashboard') }}"
                @click="open = false"
                title="{{ __('Dashboard') }}"
