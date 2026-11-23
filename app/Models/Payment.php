@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\TableCache;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -80,6 +81,12 @@ class Payment extends Model
     // Newest first.
     public static function getAll(): Collection
     {
+        return TableCache::remember(['orders', 'users', 'order_sessions', 'payments', 'payment_methods', 'order_items', 'session_dishes', 'dishes'], 'payment.all', fn () => self::loadAll());
+    }
+
+    // The queries behind getAll().
+    protected static function loadAll(): Collection
+    {
         return self::hydrate(
             self::listQuery()
                 ->orderByDesc(self::TABLE . '.created_at')
@@ -90,6 +97,12 @@ class Payment extends Model
 
     // How many payments are waiting for a decision (for the dashboard).
     public static function pendingCount(): int
+    {
+        return TableCache::remember(['payments', 'orders'], 'payment.pending_count', fn () => self::loadPendingCount());
+    }
+
+    // The query behind pendingCount().
+    protected static function loadPendingCount(): int
     {
         return DB::table(self::TABLE)
             ->join('orders', 'orders.order_id', '=', self::TABLE . '.order_id')
@@ -178,6 +191,15 @@ class Payment extends Model
             ]);
     }
 
+    // The order's total changed (a discount was rejected): the payment is for the new amount.
+    public static function setAmount(int $orderId, float $amount): int
+    {
+        return DB::table(self::TABLE)
+            ->where('order_id', $orderId)
+            ->whereNull('deleted_at')
+            ->update(['amount' => $amount, 'updated_at' => now()]);
+    }
+
     // Verify, reject or put back to pending. The reviewer and the moment are
     // stamped (and cleared again for pending, when $verifiedBy is null); the
     // reason belongs to a rejection only, so any other status clears it.
@@ -219,6 +241,7 @@ class Payment extends Model
                 self::TABLE . '.created_at',
                 'orders.order_number',
                 'orders.order_status',
+                'orders.discount_status',
                 'orders.session_id',
                 self::TABLE . '.payment_method_id',
                 'order_sessions.start_time',

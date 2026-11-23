@@ -228,10 +228,11 @@ class MyOrdersPopupAndPagingTest extends TestCase
     {
         $this->actingAs($this->customer())->get(route('my-orders.index'))
             ->assertOk()
-            // Customer and Verified By carry the marker the script hides when the data has no such key.
+            // Customer, Verified By and the discount's ID picture carry the marker the script hides when the
+            // data has no such key; the discount's "why it was rejected" row hides when there is no reason.
             ->assertSee('data-popup-field', false);
 
-        $this->assertSame(2, substr_count(file_get_contents(resource_path('views/components/ui/order-popup.blade.php')), 'data-popup-field>'));
+        $this->assertSame(4, substr_count(file_get_contents(resource_path('views/components/ui/order-popup.blade.php')), 'data-popup-field>'));
     }
 
     /* -------- My Pre-Orders -------- */

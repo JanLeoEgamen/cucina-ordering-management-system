@@ -11,6 +11,8 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderSessionController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\CompanyController;
+use App\Http\Controllers\DiscountController;
+use App\Http\Controllers\OrderDiscountController;
 use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoleController;
@@ -148,6 +150,14 @@ Route::middleware(['auth', 'profile.complete'])->group(function () {
     // ...or call it off: pending -> cancelled, and its dishes go back on the menu.
     Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel'])
         ->whereNumber('id')->name('orders.cancel');
+    // Staff decide the discount an order was placed with (review discounts), and look at the ID
+    // the customer sent (private file: its customer and order staff only).
+    Route::post('/orders/{id}/discount/approve', [OrderDiscountController::class, 'approve'])
+        ->whereNumber('id')->name('orders.discount.approve');
+    Route::post('/orders/{id}/discount/reject', [OrderDiscountController::class, 'reject'])
+        ->whereNumber('id')->name('orders.discount.reject');
+    Route::get('/orders/{id}/discount-proof', [OrderDiscountController::class, 'proof'])
+        ->whereNumber('id')->name('orders.discount.proof');
     // The customer's own orders: what they placed, and how they paid.
     Route::get('/my-orders', [OrderController::class, 'mine'])->name('my-orders.index');
     // A rejected payment can be fixed by its customer: a new proof, or cash on pickup.
@@ -155,6 +165,9 @@ Route::middleware(['auth', 'profile.complete'])->group(function () {
         ->whereNumber('id')->middleware('throttle:10,1')->name('my-orders.payment.proof');
     Route::post('/my-orders/{id}/payment/cash', [OrderController::class, 'switchToCash'])
         ->whereNumber('id')->middleware('throttle:10,1')->name('my-orders.payment.cash');
+    // A rejected discount can be tried again with a new ID (only while discounts are offered on orders).
+    Route::post('/my-orders/{id}/discount/proof', [OrderController::class, 'resubmitDiscountProof'])
+        ->whereNumber('id')->middleware('throttle:10,1')->name('my-orders.discount.proof');
     // The customer cancels their own pending order (only while System Configuration allows it).
     Route::post('/my-orders/{id}/cancel', [OrderController::class, 'cancelMine'])
         ->whereNumber('id')->middleware('throttle:10,1')->name('my-orders.cancel');
@@ -196,6 +209,16 @@ Route::middleware(['auth', 'profile.complete'])->group(function () {
         ->whereNumber('id')->name('companies.update');
     Route::delete('/companies/{id}', [CompanyController::class, 'destroy'])
         ->whereNumber('id')->name('companies.destroy');
+
+    // Discounts: what a customer can pick at checkout (the master switch is in System Configuration).
+    Route::get('/discounts', [DiscountController::class, 'index'])->name('discounts.index');
+    Route::post('/discounts', [DiscountController::class, 'store'])->name('discounts.store');
+    Route::get('/discounts/{id}/edit', [DiscountController::class, 'edit'])
+        ->whereNumber('id')->name('discounts.edit');
+    Route::put('/discounts/{id}', [DiscountController::class, 'update'])
+        ->whereNumber('id')->name('discounts.update');
+    Route::delete('/discounts/{id}', [DiscountController::class, 'destroy'])
+        ->whereNumber('id')->name('discounts.destroy');
 
     // Users
     Route::get('/users', [UserController::class, 'index'])->name('users.index');

@@ -10,6 +10,7 @@ use App\Models\PaymentMethod;
 use App\Models\Setting;
 use App\Models\User;
 use App\Models\UserNotification;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -55,9 +56,17 @@ class OrderNotifier
 
     public const READY = 'order_ready';
 
+    public const DISCOUNT_APPROVED = 'discount_approved';
+
+    public const DISCOUNT_REJECTED = 'discount_rejected';
+
+    public const DISCOUNT_RESENT = 'discount_resent';
+
+    public const SESSION_OPENED = 'session_opened';
+
     // Events the customer does not need a notification about (they just did it,
     // or it is about the kitchen).
-    protected const STAFF_ONLY = [self::PAYMENT_RESENT, self::SOLD_OUT];
+    protected const STAFF_ONLY = [self::PAYMENT_RESENT, self::SOLD_OUT, self::DISCOUNT_RESENT];
 
     /* -------- The events -------- */
 
@@ -77,6 +86,30 @@ class OrderNotifier
     public static function paymentRejected(int $orderId, ?string $reason): void
     {
         self::later($orderId, self::PAYMENT_REJECTED, ['reason' => $reason]);
+    }
+
+    // Staff approved the order's discount.
+    public static function discountApproved(int $orderId): void
+    {
+        self::later($orderId, self::DISCOUNT_APPROVED);
+    }
+
+    // Staff rejected the order's discount, with the reason the customer is shown, the total
+    // before and after, and whether a bank / e-wallet payment was sent back with it.
+    public static function discountRejected(int $orderId, string $reason, float $oldTotal, float $newTotal, bool $paymentSentBack): void
+    {
+        self::later($orderId, self::DISCOUNT_REJECTED, [
+            'reason' => $reason,
+            'old_total' => $oldTotal,
+            'new_total' => $newTotal,
+            'payment_sent_back' => $paymentSentBack,
+        ]);
+    }
+
+    // The customer sent a new ID for a rejected discount (staff only: they just did it themselves).
+    public static function discountResent(int $orderId): void
+    {
+        self::later($orderId, self::DISCOUNT_RESENT);
     }
 
     // Staff handed the order over.
@@ -108,6 +141,15 @@ class OrderNotifier
 
         rescue(fn () => Bus::dispatch(new DeliverNotification('ready', [
             'order_ids' => array_map('intval', $orderIds),
+        ], auth()->id())));
+    }
+
+    // Staff published an order session: everyone who can see the menu is told (the job
+    // writes all the rows with one insert, however many customers there are).
+    public static function sessionOpened(int $sessionId): void
+    {
+        rescue(fn () => Bus::dispatch(new DeliverNotification('session-opened', [
+            'session_id' => $sessionId,
         ], auth()->id())));
     }
 
@@ -265,6 +307,61 @@ class OrderNotifier
         self::copies($mails);
     }
 
+    // Run by the queue worker for sessionOpened(): everyone with "view menu" (the Customer role
+    // and staff who may order) except whoever published it.
+    public static function deliverSessionOpened(int $sessionId, ?int $actorId): void
+    {
+        $session = DB::table('order_sessions')->where('session_id', $sessionId)->whereNull('deleted_at')->first();
+
+        if (! $session) {
+            return;
+        }
+
+        $when = Carbon::parse($session->order_date)->format('D, M j') . ' · '
+            . Carbon::parse($session->start_time)->format('g:i A') . ' - ' . Carbon::parse($session->end_time)->format('g:i A');
+        $title = __('A new order session is open');
+        $body = __('Order from the menu on :when.', ['when' => $when]);
+
+        // What can be ordered: dishes with plates left, first few by name (the text is stored
+        // in 500 characters, and the same words go to email and Google Chat).
+        $dishes = DB::table('session_dishes')
+            ->join('dishes', 'dishes.dish_id', '=', 'session_dishes.dish_id')
+            ->where('session_dishes.session_id', $sessionId)
+            ->where('session_dishes.available_stock', '>', 0)
+            ->whereNull('session_dishes.deleted_at')
+            ->whereNull('dishes.deleted_at')
+            ->orderBy('dishes.dish_name')
+            ->get(['dishes.dish_name', 'dishes.price']);
+
+        // The Google Chat message shows the dishes as a list (one per line) under the short sentence.
+        $chatBody = $body;
+        $points = $dishes->take(12)->map(fn (object $dish) => '• ' . $dish->dish_name . ' — ' . self::money($dish->price))->all();
+
+        if ($dishes->count() > 12) {
+            $points[] = '+' . ($dishes->count() - 12) . ' ' . __('more');
+        }
+
+        if ($dishes->isNotEmpty()) {
+            $shown = $dishes->take(6)->map(fn (object $dish) => $dish->dish_name . ' ' . self::money($dish->price))->implode(', ');
+            $more = $dishes->count() > 6 ? ' ' . __('and :count more', ['count' => $dishes->count() - 6]) : '';
+            $body .= ' ' . __('Available: :dishes', ['dishes' => $shown]) . $more . '.';
+        }
+
+        $rows = [];
+        $mails = [];
+
+        foreach (User::permission('view menu')->where('id', '!=', (int) $actorId)->get() as $person) {
+            $url = route('menu.index', [], false);
+
+            $rows[] = ['user_id' => $person->id, 'type' => self::SESSION_OPENED, 'title' => $title, 'body' => $body, 'url' => $url, 'order_id' => null];
+            $mails[] = self::mailRow($person, $title, $body, $url, null, self::SESSION_OPENED)
+                + ['chat_body' => $chatBody, 'points' => $points, 'points_title' => $points === [] ? null : __('Available now'), 'button' => __('Open menu')];
+        }
+
+        UserNotification::insertMany($rows);
+        self::copies($mails);
+    }
+
     public static function deliverSoldOut(array $sessionDishIds, int $sessionId, ?int $actorId): void
     {
         $watchers = Setting::notificationWatchers();
@@ -373,6 +470,10 @@ class OrderNotifier
                     'url' => $mail['url'],
                     'order_id' => $mail['order_id'] ?? null,
                     'type' => $mail['type'] ?? null,
+                    'chat_body' => $mail['chat_body'] ?? null,
+                    'points' => $mail['points'] ?? [],
+                    'points_title' => $mail['points_title'] ?? null,
+                    'button' => $mail['button'] ?? null,
                 ], $mails)));
             }
         });
@@ -416,12 +517,29 @@ class OrderNotifier
             ? route('my-orders.index', ['order' => $order->order_id], false) . '#order-' . $order->order_id
             : null;
 
+        $discount = (string) ($order->discount_name ?? '');
+
         $text = match ($event) {
             self::PLACED => [
                 __('Order :number placed', ['number' => $number]),
-                $cash
+                trim(($cash
                     ? __('Total :total · Cash on Pick up. Pay at the counter when you collect it.', ['total' => self::money($order->total_amount)])
-                    : __('Total :total · :method. We will check your payment and let you know.', ['total' => self::money($order->total_amount), 'method' => $method]),
+                    : __('Total :total · :method. We will check your payment and let you know.', ['total' => self::money($order->total_amount), 'method' => $method]))
+                    // The price is final only once staff looked at the ID.
+                    . (($order->discount_status ?? 'none') === 'pending' ? ' ' . __('Staff will check your :discount discount first.', ['discount' => $discount]) : '')),
+            ],
+            self::DISCOUNT_APPROVED => [
+                __('Discount approved'),
+                __('Your :discount discount on order :number was approved. Total :total.', ['discount' => $discount, 'number' => $number, 'total' => self::money($order->total_amount)]),
+            ],
+            self::DISCOUNT_REJECTED => [
+                __('Discount not approved'),
+                trim(__('Your :discount discount on order :number was not approved.', ['discount' => $discount, 'number' => $number])
+                    . ($context['reason'] ?? null ? ' ' . $context['reason'] . '.' : '')
+                    . ' ' . __('The total is now :new (it was :old).', ['new' => self::money($context['new_total'] ?? $order->total_amount), 'old' => self::money($context['old_total'] ?? $order->total_amount)])
+                    . ' ' . (($context['payment_sent_back'] ?? false)
+                        ? __('Open My Orders to send a new proof for the full amount or pay with cash on pickup.')
+                        : ($cash ? __('Pay the full amount in cash when you collect it.') : ''))),
             ],
             self::PAYMENT_VERIFIED => [
                 __('Payment verified'),
@@ -473,10 +591,26 @@ class OrderNotifier
             default => null,
         };
 
+        $discount = (string) ($order->discount_name ?? '');
+
         $text = match ($event) {
             self::PLACED => [
                 __(':who placed order :number', ['who' => $who, 'number' => $number]),
-                __('Total :total · :method', ['total' => $total, 'method' => $method]),
+                __('Total :total · :method', ['total' => $total, 'method' => $method])
+                    . (($order->discount_status ?? 'none') === 'pending' ? ' · ' . __(':discount discount to check', ['discount' => $discount]) : ''),
+            ],
+            self::DISCOUNT_APPROVED => [
+                __('Discount approved: :number', ['number' => $number]),
+                __(":who's :discount discount was approved. Total :total.", ['who' => $who, 'discount' => $discount, 'total' => $total]),
+            ],
+            self::DISCOUNT_RESENT => [
+                __(':who sent a new ID for :number', ['who' => $who, 'number' => $number]),
+                __('The :discount discount (total :total) is waiting to be checked again.', ['discount' => $discount, 'total' => $total]),
+            ],
+            self::DISCOUNT_REJECTED => [
+                __('Discount rejected: :number', ['number' => $number]),
+                trim(__(":who's :discount discount was rejected. Total :total.", ['who' => $who, 'discount' => $discount, 'total' => $total])
+                    . ($context['reason'] ?? null ? ' ' . $context['reason'] : '')),
             ],
             self::PAYMENT_VERIFIED => [
                 __('Payment verified: :number', ['number' => $number]),

@@ -74,11 +74,9 @@ class GoogleChat
 
     // Send one direct message. True when Google accepted it.
     //
-    // $entry: title, body?, url?, type? (an OrderNotifier event, picks the icon), app? (the name
-    // in the card's header) and order? (number, total, method, items[] of dish_name / quantity /
-    // sub_total: the card then lists the dishes). It goes out as a card; if Google refuses the
-    // card (HTTP 400) the same words are sent as plain text, so a card problem never costs the
-    // notification.
+    // $entry: see format(): title, body?, url?, type? (an OrderNotifier event, picks the icon) and
+    // order? (number, total, method, items[] of dish_name / quantity / sub_total: the message then
+    // lists the dishes). It goes out as plain text, not a card.
     public static function message(string $googleId, array $entry): bool
     {
         try {
@@ -94,16 +92,8 @@ class GoogleChat
                 return false;
             }
 
-            $post = fn (array $payload) => Http::withToken($token)->timeout(8)->acceptJson()
-                ->post(self::API . '/' . $space . '/messages', $payload);
-
-            $response = $post(['cardsV2' => [self::card($entry)]]);
-
-            if ($response->status() === 400) {
-                Log::warning('Google Chat card was refused, sending plain text', ['reason' => self::reason($response)]);
-
-                $response = $post(['text' => self::format($entry['title'], $entry['body'] ?? null, $entry['url'] ?? null)]);
-            }
+            $response = Http::withToken($token)->timeout(8)->acceptJson()
+                ->post(self::API . '/' . $space . '/messages', ['text' => self::format($entry)]);
 
             if ($response->successful()) {
                 return true;
@@ -257,7 +247,11 @@ class GoogleChat
         'order_completed' => '🎉',
         'order_cancelled' => '❌',
         'payment_resent' => '💳',
+        'discount_approved' => '🏷️',
+        'discount_rejected' => '⚠️',
+        'discount_resent' => '🪪',
         'dish_sold_out' => '📢',
+        'session_opened' => '🍽️',
         'welcome' => '👋',
         'connection_check' => '✅',
     ];
@@ -265,23 +259,29 @@ class GoogleChat
     // A long order stays readable: only this many dishes are listed, the rest is counted.
     protected const MAX_DISHES = 12;
 
-    // The card (Chat API cardsV2): a header with the title and the app's name, the words, for an
-    // order its dishes with quantities and prices, the total and the payment method, and a button
-    // to open it. Card text takes a little HTML, so everything typed by people is escaped.
-    public static function card(array $entry): array
+    // What the person reads, as plain text (a card would show as "sent an attachment" in the
+    // notification preview; text shows its first line): the icon and the title in bold, the words,
+    // an optional list (the dishes of a new session, what the Welcome promises), for an order its
+    // dishes with quantities and prices and the total / payment method, and a link on its own line.
+    // $entry: title, body?, chat_body? (replaces body here), points? (lines printed as they are),
+    // points_title?, order? (see message()), url?, button? (the link's label), type?.
+    // The syntax follows the "Markup syntax" of the app in the Google Chat API configuration
+    // (config services.google_chat.markup): 'markdown' (the default for new Chat apps: **bold**,
+    // [text](url)) or 'legacy' (Google Chat's own: *bold*, <url|text>).
+    public static function format(array $entry): string
     {
-        $esc = fn ($value) => htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $legacy = config('services.google_chat.markup') === 'legacy';
+        $bold = fn (string $text) => $legacy ? '*' . $text . '*' : '**' . $text . '**';
         $money = fn ($amount) => '₱' . number_format((float) $amount, 2);
 
-        $sections = [];
+        $head = (self::ICONS[$entry['type'] ?? ''] ?? '🔔') . ' ' . $bold(trim($entry['title']));
+        $words = trim((string) ($entry['chat_body'] ?? $entry['body'] ?? ''));
 
-        if (! empty($entry['body'])) {
-            $sections[] = ['widgets' => [['textParagraph' => ['text' => $esc($entry['body'])]]]];
-        }
+        // A blank line, not a single break: Chat's markdown joins a single break into one line.
+        $blocks = $words === '' ? [$head] : [$head, $words];
 
-        // A short list (the welcome message: what you will hear about here), one line each.
         if (! empty($entry['points'])) {
-            $sections[] = ['widgets' => [['textParagraph' => ['text' => implode('<br>', array_map($esc, $entry['points']))]]]];
+            $blocks[] = (empty($entry['points_title']) ? '' : $bold($entry['points_title']) . "\n") . implode("\n", $entry['points']);
         }
 
         $order = $entry['order'] ?? null;
@@ -291,70 +291,39 @@ class GoogleChat
             $lines = [];
 
             foreach (array_slice($items, 0, self::MAX_DISHES) as $item) {
-                $lines[] = '<b>' . (int) $item['quantity'] . '×</b> ' . $esc($item['dish_name']) . ' — ' . $money($item['sub_total']);
+                $lines[] = '• ' . (int) $item['quantity'] . '× ' . $item['dish_name'] . ' — ' . $money($item['sub_total']);
             }
 
             if (count($items) > self::MAX_DISHES) {
-                $lines[] = '<i>+' . (count($items) - self::MAX_DISHES) . ' ' . $esc(__('more')) . '</i>';
+                $lines[] = '+' . (count($items) - self::MAX_DISHES) . ' ' . __('more');
             }
 
-            $widgets = $lines === [] ? [] : [['textParagraph' => ['text' => implode('<br>', $lines)]]];
-            $widgets[] = ['decoratedText' => ['topLabel' => __('Total'), 'text' => '<b>' . $money($order['total']) . '</b>']];
-
-            if (! empty($order['method'])) {
-                $widgets[] = ['decoratedText' => ['topLabel' => __('Payment'), 'text' => $esc($order['method'])]];
+            if ($lines !== []) {
+                $blocks[] = implode("\n", $lines);
             }
 
-            $sections[] = ['header' => __('Order') . ' ' . $order['number'], 'widgets' => $widgets];
+            // Only what the words do not already say (the "placed" text carries the total and method).
+            $facts = [];
+
+            if (! str_contains($words, $money($order['total']))) {
+                $facts[] = $bold(__('Total') . ':') . ' ' . $money($order['total']);
+            }
+
+            if (! empty($order['method']) && ! str_contains($words, $order['method'])) {
+                $facts[] = $bold(__('Payment') . ':') . ' ' . $order['method'];
+            }
+
+            if ($facts !== []) {
+                $blocks[] = implode(' · ', $facts);
+            }
         }
 
-        $url = ! empty($entry['url']) ? url($entry['url']) : null;
-
-        // Chat only opens https links from a button; a local http link stays out of the card.
-        if ($url !== null && str_starts_with($url, 'https://')) {
-            $sections[] = ['widgets' => [['buttonList' => ['buttons' => [[
-                'text' => $entry['button'] ?? ($order ? __('Open order') : __('Open')),
-                'onClick' => ['openLink' => ['url' => $url]],
-            ]]]]]];
+        if (! empty($entry['url'])) {
+            $label = $entry['button'] ?? ($order ? __('Open order') : __('Open'));
+            $blocks[] = '👉 ' . ($legacy ? '<' . url($entry['url']) . '|' . $label . '>' : '[' . $label . '](' . url($entry['url']) . ')');
         }
 
-        // A card needs at least one section.
-        if ($sections === []) {
-            $sections[] = ['widgets' => [['textParagraph' => ['text' => $esc($entry['title'])]]]];
-        }
-
-        return [
-            'cardId' => 'n' . substr(md5($entry['title'] . ($order['number'] ?? '')), 0, 12),
-            'card' => [
-                'header' => [
-                    'title' => (self::ICONS[$entry['type'] ?? ''] ?? '🔔') . ' ' . $entry['title'],
-                    'subtitle' => $entry['app'] ?? '',
-                ],
-                'sections' => $sections,
-            ],
-        ];
-    }
-    // What the person reads: the title in bold, the text, and a link. The syntax follows the
-    // "Markup syntax" of the app in the Google Chat API configuration (config
-    // services.google_chat.markup): 'markdown' (the default for new Chat apps: **bold**,
-    // [text](url)) or 'legacy' (Google Chat's own: *bold*, <url|text>).
-    public static function format(string $title, ?string $body, ?string $url): string
-    {
-        $legacy = config('services.google_chat.markup') === 'legacy';
-
-        $text = $legacy ? '*' . trim($title) . '*' : '**' . trim($title) . '**';
-
-        if ($body !== null && trim($body) !== '') {
-            $text .= "\n" . trim($body);
-        }
-
-        if ($url !== null && $url !== '') {
-            $text .= $legacy
-                ? "\n<" . url($url) . '|' . __('Open') . '>'
-                : "\n[" . __('Open') . '](' . url($url) . ')';
-        }
-
-        return $text;
+        return implode("\n\n", $blocks);
     }
 
     // Why Google said no, for the log and the test command: the HTTP status and Google's own
@@ -428,12 +397,11 @@ class GoogleChat
         }
 
         $post = Http::withToken($token)->timeout(8)->acceptJson()
-            ->post(self::API . '/' . $space . '/messages', ['cardsV2' => [self::card([
+            ->post(self::API . '/' . $space . '/messages', ['text' => self::format([
                 'title' => __('Google Chat is connected'),
                 'body' => __('This is a connection check from :app. Nothing else to do.', ['app' => self::appName()]),
                 'type' => 'connection_check',
-                'app' => self::appName(),
-            ])]]);
+            ])]);
 
         $stop('Test message', $post->successful(), $post->successful() ? 'sent (a connection check)' : self::reason($post));
         return $steps;

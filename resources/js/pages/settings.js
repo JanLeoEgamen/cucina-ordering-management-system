@@ -88,6 +88,16 @@ const start = () => {
             return { key: picked.map((option) => option.value).sort().join(','), text, values: picked.map((option) => option.value) };
         }
 
+        // A dropdown has no `defaultValue`: its saved choice is the option the server marked selected
+        // (else the first), and "Was" names that option in words, not its value ("both").
+        if (control.tagName === 'SELECT') {
+            const option = fromPage
+                ? ([...control.options].find((candidate) => candidate.defaultSelected) ?? control.options[0])
+                : control.selectedOptions[0];
+
+            return { key: option?.value ?? '', text: option ? option.textContent.trim() : '—', value: option?.value ?? '' };
+        }
+
         const value = (fromPage ? control.defaultValue : control.value).trim();
 
         return { key: value, text: value !== '' ? brief(value.replace(/\s+/g, ' ')) : (control.placeholder || '—'), value };
@@ -312,9 +322,6 @@ const start = () => {
     });
 };
 
-// Loaded as a module (deferred), so the DOM is normally already parsed.
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start);
-} else {
-    start();
-}
+// Started by resources/js/ui/soft-nav.js on every visit (see <x-page-module>); what start() adds to
+// document / window is removed when the page is left.
+export default start;

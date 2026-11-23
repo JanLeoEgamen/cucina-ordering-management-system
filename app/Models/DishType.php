@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\TableCache;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -46,6 +47,12 @@ class DishType extends Model
     // Get all live dish types, for the table feed.
     public static function getAll(): Collection
     {
+        return TableCache::remember(['dish_types'], 'dish_type.all', fn () => self::loadAll());
+    }
+
+    // The query behind the cached method above.
+    protected static function loadAll(): Collection
+    {
         return DB::table(self::TABLE)
             ->whereNull('deleted_at')
             ->select(['dish_type_id', 'type_name', 'description', 'is_active'])
@@ -73,6 +80,12 @@ class DishType extends Model
 
     // Get the live and available dish types, for the select inputs.
     public static function activeOptions(): Collection
+    {
+        return TableCache::remember(['dish_types'], 'dish_type.active', fn () => self::loadActiveOptions());
+    }
+
+    // The query behind the cached method above.
+    protected static function loadActiveOptions(): Collection
     {
         return DB::table(self::TABLE)
             ->whereNull('deleted_at')

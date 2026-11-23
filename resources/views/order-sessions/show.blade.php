@@ -202,7 +202,7 @@
     />
 
     @push('scripts')
-        {{-- Page behaviour lives in resources/js/pages/order-session-show.js; see vite.config.js. --}}
-        @vite('resources/js/pages/order-session-show.js')
+        {{-- Page behaviour lives in resources/js/pages/order-session-show.js; started by resources/js/ui/soft-nav.js. --}}
+        <x-page-module name="order-session-show" />
     @endpush
 </x-app-layout>

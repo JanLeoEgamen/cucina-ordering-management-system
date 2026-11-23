@@ -144,6 +144,31 @@
                 </div>
             </section>
 
+            {{-- Where customers are offered a discount. The discounts themselves are on the Discounts page. --}}
+            <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
+                <div class="border-b border-gray-100 px-6 py-4 dark:border-gray-700">
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ __('Discounts') }}</h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        {{ __('Where customers can pick a discount at checkout. The discounts they can pick (name, percent, proof) are managed on the Discounts page.') }}
+                    </p>
+                </div>
+
+                <div class="p-6">
+                    <label for="discount-mode" class="{{ $label }}">{{ __('Offer discounts on') }}</label>
+                    <div class="mt-1">
+                        <select name="discount_mode" id="discount-mode" @disabled(! $canEdit) class="{{ $input }}">
+                            <option value="off" @selected($discountMode === 'off')>{{ __('Nothing (discounts are off)') }}</option>
+                            <option value="orders" @selected($discountMode === 'orders')>{{ __('Regular orders only') }}</option>
+                            <option value="pre_orders" @selected($discountMode === 'pre_orders')>{{ __('Pre-orders only') }}</option>
+                            <option value="both" @selected($discountMode === 'both')>{{ __('Regular orders and pre-orders') }}</option>
+                        </select>
+                    </div>
+                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        {{ __('Switching this off stops new discounts at once. Orders that already have a discount keep it, and staff can still approve or reject it.') }}
+                    </p>
+                </div>
+            </section>
+
             {{-- The size of a pre-order, for every pre-order session. Saved with the rest of the form. --}}
             <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
                 <div class="border-b border-gray-100 px-6 py-4 dark:border-gray-700">
@@ -295,7 +320,7 @@
     @endif
 
     @push('scripts')
-        {{-- Page behaviour lives in resources/js/pages/settings.js; see vite.config.js. --}}
-        @vite('resources/js/pages/settings.js')
+        {{-- Page behaviour lives in resources/js/pages/settings.js; started by resources/js/ui/soft-nav.js. --}}
+        <x-page-module name="settings" />
     @endpush
 </x-app-layout>

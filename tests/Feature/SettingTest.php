@@ -205,6 +205,46 @@ class SettingTest extends TestCase
             ->assertSee('data-default-end="10:45"', false);
     }
 
+    public function test_discounts_are_off_until_a_mode_is_saved_from_the_page(): void
+    {
+        $admin = $this->superAdmin();
+
+        $this->assertSame('off', Setting::discountMode());
+        $this->assertFalse(Setting::discountsFor('orders'));
+        $this->assertFalse(Setting::discountsFor('pre_orders'));
+        $this->actingAs($admin)->get(route('settings.index'))->assertOk()->assertSee('name="discount_mode"', false);
+
+        foreach ([
+            'orders' => [true, false],
+            'pre_orders' => [false, true],
+            'both' => [true, true],
+            'off' => [false, false],
+        ] as $mode => [$orders, $preOrders]) {
+            $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['discount_mode' => $mode]))->assertOk();
+
+            $this->assertSame($mode, Setting::discountMode());
+            $this->assertSame($orders, Setting::discountsFor('orders'), $mode);
+            $this->assertSame($preOrders, Setting::discountsFor('pre_orders'), $mode);
+        }
+
+        // A caller that leaves it out changes nothing; a value that is not a mode is refused.
+        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['discount_mode' => 'both']))->assertOk();
+        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload())->assertOk();
+        $this->assertSame('both', Setting::discountMode());
+
+        $this->actingAs($admin)->putJson(route('settings.update'), $this->payload(['discount_mode' => 'everywhere']))
+            ->assertStatus(422)->assertJsonValidationErrors('discount_mode');
+        $this->assertSame('both', Setting::discountMode());
+    }
+
+    public function test_a_damaged_discount_mode_reads_as_off(): void
+    {
+        Setting::set(Setting::DISCOUNT_MODE, 'garbage');
+
+        $this->assertSame('off', Setting::discountMode());
+        $this->assertFalse(Setting::discountsFor('orders'));
+    }
+
     public function test_the_sidebar_and_dashboard_link_to_the_page_only_with_the_permission(): void
     {
         $this->actingAs($this->userWith('view settings'))->get(route('dashboard'))

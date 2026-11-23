@@ -77,6 +77,9 @@ export function initOrderPopup({ onChange = () => {} } = {}) {
     const completeButton = byId('order-details-complete');
     const cancelButton = byId('order-details-cancel');
     const readyButton = byId('order-details-ready');
+    // The discount's decision (review discounts), decided before the payment can be verified.
+    const discountApproveButton = byId('order-details-discount-approve');
+    const discountRejectButton = byId('order-details-discount-reject');
     const hint = byId('order-details-hint');
 
     // One request at a time across the inline confirmation.
@@ -103,9 +106,14 @@ export function initOrderPopup({ onChange = () => {} } = {}) {
         verify: 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-300 dark:focus:ring-emerald-800',
         cancel: 'bg-red-600 hover:bg-red-700 focus:ring-red-300 dark:focus:ring-red-900',
         reject: 'bg-red-600 hover:bg-red-700 focus:ring-red-300 dark:focus:ring-red-900',
+        'discount-approve': 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-300 dark:focus:ring-emerald-800',
+        'discount-reject': 'bg-red-600 hover:bg-red-700 focus:ring-red-300 dark:focus:ring-red-900',
     };
 
-    let inline = null; // { url, kind: 'verify' | 'complete' | 'cancel' | 'reject' | 'ready' }
+    // The two decisions that need a written reason (the customer reads it).
+    const needsReasonKinds = ['reject', 'discount-reject'];
+
+    let inline = null; // { url, kind: 'verify' | 'complete' | 'cancel' | 'reject' | 'ready' | 'discount-approve' | 'discount-reject' }
 
     // One line under the reason box (empty text hides it).
     const showRejectError = (message) => {
@@ -141,13 +149,17 @@ export function initOrderPopup({ onChange = () => {} } = {}) {
         confirmGo.textContent = button.dataset.label;
         confirmGo.className = 'rounded-full px-5 py-2.5 text-sm font-medium text-white transition focus:outline-none focus:ring-4 ' + goStyles[kind];
 
-        // Only Reject asks for a reason; it starts empty every time.
-        const needsReason = kind === 'reject' && !!rejectReason;
+        // Only the two rejections ask for a reason; it starts empty every time. The words that
+        // say what the reason is for come from the clicked button.
+        const needsReason = needsReasonKinds.includes(kind) && !!rejectReason;
 
         reasonBox?.classList.toggle('hidden', !needsReason);
 
         if (needsReason) {
             rejectReason.value = '';
+            rejectReason.dataset.requiredNow = button.dataset.required ?? '';
+            rejectReason.dataset.defaultPlaceholder ??= rejectReason.placeholder;
+            rejectReason.placeholder = button.dataset.placeholder ?? rejectReason.dataset.defaultPlaceholder;
             showRejectError('');
         }
 
@@ -166,6 +178,8 @@ export function initOrderPopup({ onChange = () => {} } = {}) {
     completeButton?.addEventListener('click', () => askInline(completeButton, 'complete'));
     cancelButton?.addEventListener('click', () => askInline(cancelButton, 'cancel'));
     readyButton?.addEventListener('click', () => askInline(readyButton, 'ready'));
+    discountApproveButton?.addEventListener('click', () => askInline(discountApproveButton, 'discount-approve'));
+    discountRejectButton?.addEventListener('click', () => askInline(discountRejectButton, 'discount-reject'));
     confirmBack?.addEventListener('click', leaveConfirm);
 
     confirmGo?.addEventListener('click', async () => {
@@ -177,11 +191,11 @@ export function initOrderPopup({ onChange = () => {} } = {}) {
         const { url, kind } = inline;
         const fields = {};
 
-        if (kind === 'reject') {
+        if (needsReasonKinds.includes(kind)) {
             const reason = (rejectReason?.value ?? '').trim();
 
             if (reason === '') {
-                showRejectError(rejectReason?.dataset.required ?? 'Give a reason for rejecting this payment.');
+                showRejectError(rejectReason?.dataset.requiredNow || rejectReason?.dataset.required || 'Give a reason for rejecting this.');
                 rejectReason?.focus();
 
                 return;
@@ -199,11 +213,11 @@ export function initOrderPopup({ onChange = () => {} } = {}) {
         try {
             const { ok, payload } = await post(url, fields);
 
-            if (!ok && kind === 'reject') {
+            if (!ok && needsReasonKinds.includes(kind)) {
                 // A refusal (a validation error, or "already decided") stays in the bar with what was typed.
                 const list = payload && payload.errors ? Object.values(payload.errors).flat() : [payload.message];
 
-                showRejectError(list.filter(Boolean).join(' ') || 'The payment could not be rejected.');
+                showRejectError(list.filter(Boolean).join(' ') || 'The rejection could not be saved.');
 
                 return;
             }
@@ -277,7 +291,35 @@ export function initOrderPopup({ onChange = () => {} } = {}) {
                 + '<td class="px-3 py-2 text-right text-sm tabular-nums text-gray-900 dark:text-white">' + money(item.sub_total) + '</td>'
                 + '</tr>').join('');
 
-        for (const [button, url] of [[verifyButton, order.verify_url], [rejectButton, order.reject_url], [completeButton, order.complete_url], [cancelButton, order.cancel_url], [readyButton, order.ready_url]]) {
+        // The discount, when the order has one. Staff rows carry the ID's guarded URL; a customer's own
+        // order never does (and shows the reason when it was rejected).
+        const discount = byId('order-details-discount');
+        const hasDiscount = Boolean(order.discount_status) && order.discount_status !== 'none';
+
+        discount?.classList.toggle('hidden', !hasDiscount);
+
+        if (hasDiscount) {
+            fillText('order-details-discount-name', order.discount_name
+                ? order.discount_name + (order.discount_percent !== null && order.discount_percent !== undefined ? ' (' + Number(order.discount_percent) + '%)' : '')
+                : null);
+            byId('order-details-discount-badge').innerHTML = order.discount_badge ?? '';
+            fillText('order-details-discount-subtotal', money(order.subtotal_amount ?? order.total_amount));
+            fillText('order-details-discount-amount', order.discount_status === 'rejected' ? '—' : '− ' + money(order.discount_amount));
+
+            byId('order-details-discount-proof').innerHTML = order.discount_proof_url
+                ? proofLink(order.discount_proof_url, copy.discountProofLabel, copy.discountProofCaption)
+                : '<span class="text-gray-500 dark:text-gray-400">—</span>';
+            byId('order-details-discount-proof')?.closest('[data-popup-field]')?.classList.toggle('hidden', order.discount_proof_url === undefined);
+
+            const reason = byId('order-details-discount-reason');
+
+            if (reason) {
+                reason.textContent = order.discount_reject_reason ?? '';
+                reason.closest('[data-popup-field]')?.classList.toggle('hidden', !order.discount_reject_reason);
+            }
+        }
+
+        for (const [button, url] of [[verifyButton, order.verify_url], [rejectButton, order.reject_url], [completeButton, order.complete_url], [cancelButton, order.cancel_url], [readyButton, order.ready_url], [discountApproveButton, order.discount_approve_url], [discountRejectButton, order.discount_reject_url]]) {
             if (button) {
                 button.classList.toggle('hidden', !url);
                 button.dataset.url = url ?? '';
@@ -291,7 +333,10 @@ export function initOrderPopup({ onChange = () => {} } = {}) {
             let text = '';
 
             if (order.order_status === 'pending') {
-                if (order.is_cash) {
+                if (order.discount_status === 'pending' && order.discount_approve_url !== undefined) {
+                    // Staff only (a customer's popup has no such key): the price is not final yet.
+                    text = copy.hintDiscount;
+                } else if (order.is_cash) {
                     text = copy.hintCash;
                 } else if (order.payment_state === 'pending') {
                     text = copy.hintBank;

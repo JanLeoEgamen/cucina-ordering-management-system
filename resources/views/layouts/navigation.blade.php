@@ -34,7 +34,7 @@
         </svg>
     </button>
 
-    <a href="{{ route('dashboard') }}" class="flex items-center gap-2">
+    <a href="{{ route('dashboard') }}" data-soft-nav class="flex items-center gap-2">
         <x-application-logo class="block h-8 w-auto fill-current text-gray-800 dark:text-white" />
         <span class="font-semibold tracking-tight text-gray-900 dark:text-white">{{ \App\Models\Setting::appName() }}</span>
     </a>
@@ -87,7 +87,7 @@
     <div class="flex h-full min-h-0 flex-col overflow-hidden">
         {{-- Brand --}}
         <div class="sidebar-brand flex h-14 flex-shrink-0 items-center gap-2 px-3">
-            <a href="{{ route('dashboard') }}" class="flex items-center gap-2">
+            <a href="{{ route('dashboard') }}" data-soft-nav @click="open = false" class="flex items-center gap-2">
                 <x-application-logo class="block h-8 w-auto flex-shrink-0 fill-current text-gray-800 dark:text-white" />
                 <span class="sidebar-label font-semibold tracking-tight text-gray-900 dark:text-white">{{ \App\Models\Setting::appName() }}</span>
             </a>
@@ -106,7 +106,7 @@
 
         {{-- Links, in one white rounded panel --}}
         <div class="mt-1 flex min-h-0 flex-1 flex-col rounded-2xl bg-white shadow-card dark:bg-gray-800">
-        <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="{{ __('Main navigation') }}">
+        <nav data-soft-nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="{{ __('Main navigation') }}">
             <a href="{{ route('dashboard') }}"
                @click="open = false"
                title="{{ __('Dashboard') }}"
@@ -245,8 +245,8 @@
             @endcanany
 
             {{-- Catalog --}}
-            @canany(['view dishes', 'view payment-methods'])
-                <div class="pt-3" data-nav-group="catalog" @if (request()->routeIs('dishes.*', 'payment-methods.*')) data-has-active @endif>
+            @canany(['view dishes', 'view payment-methods', 'view discounts'])
+                <div class="pt-3" data-nav-group="catalog" @if (request()->routeIs('dishes.*', 'payment-methods.*', 'discounts.*')) data-has-active @endif>
                     <div class="nav-group-panel space-y-1">
                     {{-- The title is a button: it folds the group (state: html[data-nav-closed], kept in
                          localStorage, see layouts/app.blade.php). The icon rail has no room for it, so a
@@ -278,6 +278,17 @@
                        class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('payment-methods.*') ? 'bg-gray-900 text-white shadow-sm dark:bg-mist dark:text-ink' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white' }}">
                         <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
                         <span class="sidebar-label">{{ __('Payment Methods') }}</span>
+                    </a>
+                @endcan
+
+                @can('view discounts')
+                    <a href="{{ route('discounts.index') }}"
+                       @click="open = false"
+                       title="{{ __('Discounts') }}"
+                       @if (request()->routeIs('discounts.*')) aria-current="page" @endif
+                       class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('discounts.*') ? 'bg-gray-900 text-white shadow-sm dark:bg-mist dark:text-ink' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white' }}">
+                        <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0c1.1.128 1.907 1.077 1.907 2.185zM9.75 9h.008v.008H9.75V9zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 4.5h.008v.008h-.008V13.5zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
+                        <span class="sidebar-label">{{ __('Discounts') }}</span>
                     </a>
                 @endcan
                     </div>

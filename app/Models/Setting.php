@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -13,6 +14,9 @@ use Throwable;
 class Setting
 {
     protected const TABLE = 'settings';
+
+    // Every row lives in the cache under this key (see all()).
+    protected const CACHE_KEY = 'settings.all';
 
     // The keys the app knows, with the value used until one is saved.
     public const SESSION_START_TIME = 'order_session.default_start_time';
@@ -36,6 +40,11 @@ class Setting
     public const PRE_ORDER_MIN_QUANTITY = 'pre_orders.min_quantity';
 
     public const PRE_ORDER_MAX_QUANTITY = 'pre_orders.max_quantity';
+
+    // Where customers are offered a discount: off | orders (the live menu) | pre_orders | both.
+    public const DISCOUNT_MODE = 'discounts.mode';
+
+    public const DISCOUNT_MODES = ['off', 'orders', 'pre_orders', 'both'];
 
     // The name shown on every page, the title bar and the emails, and the path (on the public
     // disk) of the uploaded logo. An empty logo = the built-in Cucina mark.
@@ -100,6 +109,8 @@ class Setting
         self::CUSTOMER_CANCEL => '0',
         self::PRE_ORDER_MIN_QUANTITY => '10',
         self::PRE_ORDER_MAX_QUANTITY => '',
+        // Off until an admin turns it on: nobody is offered a discount by surprise.
+        self::DISCOUNT_MODE => 'off',
     ];
 
     /* -------- Reads -------- */
@@ -107,9 +118,20 @@ class Setting
     // One setting: the saved value, else the key's default (null for an unknown key).
     public static function get(string $key): ?string
     {
-        $value = DB::table(self::TABLE)->where('key', $key)->value('value');
+        $value = self::all()[$key]['value'] ?? null;
 
         return $value ?? (self::DEFAULTS[$key] ?? null);
+    }
+
+    // Every saved row as [key => ['value', 'updated_at']] from ONE query, then kept in the cache.
+    // The table is small and read on every request (name, logo, switches); with a database on
+    // another machine each query is a network trip. set() forgets it (after commit) on every change.
+    protected static function all(): array
+    {
+        return Cache::rememberForever(self::CACHE_KEY, fn () => DB::table(self::TABLE)
+            ->get(['key', 'value', 'updated_at'])
+            ->mapWithKeys(fn (object $row) => [$row->key => ['value' => $row->value, 'updated_at' => $row->updated_at]])
+            ->all());
     }
 
     // The app's name and logo: ['name' => string, 'logo' => ?path, 'logo_url' => ?url].
@@ -133,10 +155,8 @@ class Setting
         $brand = ['name' => self::DEFAULT_APP_NAME, 'logo' => null, 'logo_url' => null];
 
         try {
-            $saved = DB::table(self::TABLE)->whereIn('key', [self::APP_NAME, self::APP_LOGO])->pluck('value', 'key');
-
-            $name = trim((string) ($saved[self::APP_NAME] ?? ''));
-            $logo = trim((string) ($saved[self::APP_LOGO] ?? ''));
+            $name = trim((string) (self::all()[self::APP_NAME]['value'] ?? ''));
+            $logo = trim((string) (self::all()[self::APP_LOGO]['value'] ?? ''));
 
             if ($name !== '') {
                 $brand['name'] = $name;
@@ -194,6 +214,23 @@ class Setting
         return self::get(self::CUSTOMER_CANCEL) === '1';
     }
 
+    // The discount switch: one of DISCOUNT_MODES. A damaged value reads as "off".
+    public static function discountMode(): string
+    {
+        $mode = (string) self::get(self::DISCOUNT_MODE);
+
+        return in_array($mode, self::DISCOUNT_MODES, true) ? $mode : 'off';
+    }
+
+    // Are discounts offered for this kind of order? $kind: 'orders' (the live menu) or
+    // 'pre_orders'. Read fresh on every checkout, so switching it off stops the very next order.
+    public static function discountsFor(string $kind): bool
+    {
+        $mode = self::discountMode();
+
+        return $mode === 'both' || $mode === $kind;
+    }
+
     // The plates one pre-order may hold: ['min' => int >= 1, 'max' => ?int]. A max of
     // null means "no limit". A damaged value reads as the default, and a maximum below
     // the minimum is ignored, so an order is never impossible to place.
@@ -228,7 +265,7 @@ class Setting
         $saved = trim((string) self::get($keys['content']));
         $email = trim((string) self::get($keys['email']));
 
-        $rows = DB::table(self::TABLE)->whereIn('key', array_values($keys))->pluck('updated_at');
+        $rows = collect(array_values($keys))->map(fn (string $key) => self::all()[$key]['updated_at'] ?? null)->filter();
 
         return [
             'content' => $saved !== '' ? $saved : self::defaultLegalContent($page),
@@ -303,6 +340,12 @@ class Setting
     public static function setCustomerCancel(bool $allowed): void
     {
         self::set(self::CUSTOMER_CANCEL, $allowed ? '1' : '0');
+    }
+
+    // Save where discounts are offered (the caller has validated it against DISCOUNT_MODES).
+    public static function setDiscountMode(string $mode): void
+    {
+        self::set(self::DISCOUNT_MODE, $mode);
     }
 
     // Save the pre-order limits (a null maximum = no limit).
@@ -387,6 +430,10 @@ class Setting
         if ($changed === 0 && ! DB::table(self::TABLE)->where('key', $key)->exists()) {
             DB::table(self::TABLE)->insert(['key' => $key, 'value' => $value, 'created_at' => $now, 'updated_at' => $now]);
         }
+
+        // Forget the cached rows once the write is visible to others (inside a transaction: at its
+        // commit), or a request in between could cache the old value for good.
+        DB::afterCommit(fn () => Cache::forget(self::CACHE_KEY));
     }
 
     // Save the default order session window.

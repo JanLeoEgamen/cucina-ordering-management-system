@@ -59,6 +59,9 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                // Reuse the TCP + login handshake between requests of the same PHP worker. With a database on
+                // another machine opening a connection costs about 1 s; array_filter drops it while false.
+                PDO::ATTR_PERSISTENT => env('DB_PERSISTENT', false),
             ]) : [],
         ],
 

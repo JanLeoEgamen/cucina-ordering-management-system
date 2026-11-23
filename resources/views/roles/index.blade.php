@@ -208,7 +208,7 @@
     />
 
     @push('scripts')
-        {{-- Page behaviour lives in resources/js/pages/roles.js; see vite.config.js. --}}
-        @vite('resources/js/pages/roles.js')
+        {{-- Page behaviour lives in resources/js/pages/roles.js; started by resources/js/ui/soft-nav.js. --}}
+        <x-page-module name="roles" />
     @endpush
 </x-app-layout>

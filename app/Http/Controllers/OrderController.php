@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\DiscountRefusedException;
 use App\Exceptions\StockRanOutException;
+use App\Models\Discount;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderSession;
@@ -10,6 +12,7 @@ use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\SessionDish;
 use App\Models\Setting;
+use App\Support\OrderDiscount;
 use App\Support\OrderNotifier;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -27,6 +30,9 @@ use Yajra\DataTables\Facades\DataTables;
 // placed from it. The order session module owns the sessions themselves.
 class OrderController extends Controller implements HasMiddleware
 {
+    // Why completing / announcing an order is refused while staff have not decided its discount.
+    protected const DISCOUNT_PENDING_REFUSAL = 'Approve or reject the discount of this order first.';
+
     // Each method only runs with the matching permission.
     public static function middleware(): array
     {
@@ -34,7 +40,7 @@ class OrderController extends Controller implements HasMiddleware
             new Middleware('permission:view menu', only: ['index', 'stock']),
             // Fixing the payment of your own order is part of ordering, so it
             // needs no permission of its own (and the Customer role already has it).
-            new Middleware('permission:create orders', only: ['store', 'resubmitProof', 'switchToCash', 'cancelMine']),
+            new Middleware('permission:create orders', only: ['store', 'resubmitProof', 'switchToCash', 'cancelMine', 'resubmitDiscountProof']),
             new Middleware('permission:view my orders', only: ['mine']),
             new Middleware('permission:view orders', only: ['all']),
             // Announcing "ready for pick up" is part of handing an order over: same permission.
@@ -98,6 +104,8 @@ class OrderController extends Controller implements HasMiddleware
         $cash = PaymentMethod::cashOption();
         // One read for the whole page; the cancel itself reads it again.
         $canCancel = $canPay && Setting::customerCancel();
+        // Same: one read for the page (a re-sent ID reads it again).
+        $discountsOn = Setting::discountsFor('orders');
 
         foreach ($orders as $order) {
             $order->status_badge = $this->orderStatusBadge($order->order_status, $order->ready_at !== null);
@@ -116,6 +124,13 @@ class OrderController extends Controller implements HasMiddleware
 
             $order->reupload_url = $fixable && ! $isCash ? route('my-orders.payment.proof', $order->order_id) : null;
             $order->cash_url = $fixable && $cash && ! $isCash ? route('my-orders.payment.cash', $order->order_id) : null;
+
+            // A rejected discount can be tried again with a new ID: only on an order still waiting, while
+            // discounts are offered on orders, and not once the (full price) payment was verified.
+            $order->discount_reupload_url = $canPay && $discountsOn
+                && $order->order_status === 'pending' && ($order->discount_status ?? 'none') === 'rejected'
+                && $order->payment_state !== 'verified'
+                ? route('my-orders.discount.proof', $order->order_id) : null;
 
             // Cancel: only while the order waits and its payment is not verified (then staff decide).
             $order->cancel_url = $canCancel && $order->order_status === 'pending' && $order->payment_state !== 'verified'
@@ -155,6 +170,11 @@ class OrderController extends Controller implements HasMiddleware
             return $this->errorResponse('This order has no payment to settle.', 422);
         }
 
+        // The price is not final while its discount waits for staff.
+        if (Order::discountStatusOf($orderId) === 'pending') {
+            return $this->errorResponse(self::DISCOUNT_PENDING_REFUSAL, 422);
+        }
+
         $cash = PaymentMethod::isCashOnPickup($payment);
 
         if ($payment->payment_status === 'rejected') {
@@ -171,6 +191,10 @@ class OrderController extends Controller implements HasMiddleware
             // is seen instead of overwritten.
             if (Order::lockedStatus($orderId) !== 'pending') {
                 return 'Only a pending order can be completed.';
+            }
+
+            if (Order::discountStatusOf($orderId) === 'pending') {
+                return self::DISCOUNT_PENDING_REFUSAL;
             }
 
             $payment = Payment::ofOrder($orderId);
@@ -234,6 +258,10 @@ class OrderController extends Controller implements HasMiddleware
             // Someone pressed it at the same moment and got in first.
             if (Order::readyAtOf($orderId) !== null) {
                 return $this->errorResponse('This order was already announced as ready.', 422);
+            }
+
+            if (Order::discountStatusOf($orderId) === 'pending') {
+                return $this->errorResponse(self::DISCOUNT_PENDING_REFUSAL, 422);
             }
 
             $payment = Payment::ofOrder($orderId);
@@ -393,6 +421,88 @@ class OrderController extends Controller implements HasMiddleware
         return $this->successResponse('Your new proof was sent. Staff will check your payment again.');
     }
 
+    // A customer whose discount staff REJECTED sends a new ID for the same order. The discount (the
+    // percent the order was placed with, kept on the order) is applied again and waits for staff like a
+    // new one; the old ID is deleted. Rules:
+    //  - only the order's own customer (anyone else's order answers 404), on a still pending order whose
+    //    discount is `rejected`, and while System Configuration still offers discounts on orders;
+    //  - refused once the payment was verified (it was verified at the full price: ask staff);
+    //  - the total goes back to the discounted amount and the payment's amount follows. A bank / e-wallet
+    //    payment still waiting was for the full price, so it is sent back like a rejected one (a new
+    //    proof for the new amount, or cash); cash just owes the smaller amount.
+    // The order row is locked and everything judged again inside, so a double tap, a Cancel or a staff
+    // Verify that lands at the same moment is seen.
+    public function resubmitDiscountProof(Request $request, $id)
+    {
+        $orderId = (int) $id;
+
+        if (! $this->isMyOrder($orderId)) {
+            return $this->errorResponse('Order not found.', 404);
+        }
+
+        // Read on every request: switching discounts off stops the very next try.
+        if (! Setting::discountsFor('orders')) {
+            return $this->errorResponse('Discounts are not offered right now.', 422);
+        }
+
+        $request->validate([
+            'discount_proof' => ['required', 'file', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
+        ], [
+            'discount_proof.required' => 'Upload the new ID for the discount.',
+        ] + OrderDiscount::messages());
+
+        $newProof = $request->file('discount_proof')->store('discount-proofs', 'local');
+
+        $outcome = DB::transaction(function () use ($orderId, $newProof) {
+            if (Order::lockedStatus($orderId) !== 'pending') {
+                return 'Only an order that is still pending can have its discount sent again.';
+            }
+
+            $locked = Order::lockedDiscount($orderId);
+
+            if (! $locked || $locked->discount_status !== 'rejected') {
+                return 'Only a rejected discount can be sent again.';
+            }
+
+            $payment = Payment::ofOrder($orderId);
+
+            if ($payment && $payment->payment_status === 'verified') {
+                return 'Your payment was already verified at the full price, so the discount cannot be applied any more. Please ask the staff.';
+            }
+
+            [$amount, $total] = Discount::amounts((float) ($locked->subtotal_amount ?? $locked->total_amount), (float) $locked->discount_percent);
+
+            Order::reopenDiscount($orderId, $newProof, $amount, $total);
+            Payment::setAmount($orderId, $total);
+
+            $sentBack = false;
+
+            if ($payment && ! PaymentMethod::isCashOnPickup($payment) && $payment->payment_status === 'pending') {
+                Payment::setStatus($orderId, 'rejected', null,
+                    'You sent your ID again, so the total is now ' . '₱' . number_format($total, 2) . '. Send a new proof for that amount, or pay with cash on pick up.');
+                Order::updatePaymentStatus($orderId, 'rejected');
+                $sentBack = true;
+            }
+
+            return ['old_proof' => $locked->discount_proof, 'payment_sent_back' => $sentBack];
+        });
+
+        if (is_string($outcome)) {
+            OrderDiscount::discardProof($newProof);
+
+            return $this->errorResponse($outcome, 422);
+        }
+
+        // The replaced picture belongs to no discount any more.
+        OrderDiscount::discardProof($outcome['old_proof']);
+
+        OrderNotifier::discountResent($orderId);
+
+        return $this->successResponse($outcome['payment_sent_back']
+            ? 'Your new ID was sent. Staff will check it. Your payment was for the full price, so send a new proof for the new total.'
+            : 'Your new ID was sent. Staff will check it.');
+    }
+
     // The other way out of a rejected payment: pay with cash when picking the
     // order up. Cash on Pick up has no proof; it is verified when the order is
     // completed.
@@ -481,6 +591,8 @@ class OrderController extends Controller implements HasMiddleware
             // when the order is collected) and bank / e-wallet (the list below).
             'cash' => PaymentMethod::cashOption(),
             'methods' => PaymentMethod::bankOptions(),
+            // Empty while discounts are off for regular orders: the checkout then draws no picker.
+            'discounts' => $this->offeredDiscounts(),
         ]);
     }
 
@@ -620,6 +732,21 @@ class OrderController extends Controller implements HasMiddleware
             $total = round($total + $subTotal, 2);
         }
 
+        // The discount the customer picked (System Configuration decides whether any is offered).
+        // The server does the math from the percent it finds NOW: the client's numbers are never
+        // trusted, and a percent that moved since the cart was drawn is refused like a price is.
+        $subtotal = $total;
+
+        try {
+            $resolved = OrderDiscount::resolve('orders', $validated, $request, $subtotal);
+        } catch (DiscountRefusedException $refused) {
+            return $this->stockShortResponse($session, $refused->getMessage());
+        }
+
+        $discount = $resolved['discount'];
+        $discountFields = $resolved['fields'];
+        $total = $resolved['total'];
+
         // Always reserve in the same order (lowest id first). Two customers who
         // order the same dishes in a different order would otherwise lock the
         // rows crosswise and MySQL kills one of them with a deadlock.
@@ -629,16 +756,26 @@ class OrderController extends Controller implements HasMiddleware
         // pickup sends none, and nothing is stored for it.
         $proof = $request->file('proof_of_payment')?->store('payments', 'public');
 
+        // The ID for the discount goes to the PRIVATE disk (never the public one): it is only
+        // served back through the guarded route of OrderDiscountController.
+        $discountProof = OrderDiscount::storeProof($request, $discount);
+
+        if ($discountProof) {
+            $discountFields['discount_proof'] = $discountProof;
+        }
+
         try {
             $orderNumber = '';
-            $orderId = $this->writeOrder($validated, $lines, $total, $session, $proof, $orderNumber);
+            $orderId = $this->writeOrder($validated, $lines, $total, $session, $proof, $orderNumber, $discountFields);
         } catch (StockRanOutException $exception) {
             $this->discardProof($proof);
+            OrderDiscount::discardProof($discountProof);
 
             return $this->stockShortResponse($session, $exception->getMessage());
         } catch (Throwable $exception) {
-            // Nothing was written, so the uploaded picture would stay forever.
+            // Nothing was written, so the uploaded pictures would stay forever.
             $this->discardProof($proof);
+            OrderDiscount::discardProof($discountProof);
 
             throw $exception;
         }
@@ -653,6 +790,11 @@ class OrderController extends Controller implements HasMiddleware
             'message' => 'Order ' . $orderNumber . ' placed successfully.',
             'order_number' => $orderNumber,
             'total_amount' => $total,
+            // What the receipt shows when a discount was used.
+            'subtotal_amount' => $subtotal,
+            'discount_name' => $discountFields['discount_name'] ?? null,
+            'discount_amount' => $discountFields['discount_amount'] ?? 0,
+            'discount_status' => $discountFields['discount_status'] ?? 'none',
             // The menu moves its stock numbers on with this, so the cards show
             // what is left after the order.
             'stock' => SessionDish::stockOfSession((int) $session->session_id),
@@ -662,7 +804,7 @@ class OrderController extends Controller implements HasMiddleware
     // Reserve the stock and write the order, its lines and its payment in one
     // transaction, and return the new order's id ($orderNumber receives its
     // number). It is all or nothing.
-    protected function writeOrder(array $validated, array $lines, float $total, object $session, ?string $proof, string &$orderNumber): int
+    protected function writeOrder(array $validated, array $lines, float $total, object $session, ?string $proof, string &$orderNumber, array $discountFields = []): int
     {
         $orderId = 0;
 
@@ -674,7 +816,7 @@ class OrderController extends Controller implements HasMiddleware
             try {
                 // The second argument retries the transaction when MySQL picks it
                 // as the victim of a deadlock.
-                DB::transaction(function () use ($validated, $lines, $total, $session, $proof, &$orderNumber, &$orderId) {
+                DB::transaction(function () use ($validated, $lines, $total, $session, $proof, &$orderNumber, &$orderId, $discountFields) {
                     foreach ($lines as $line) {
                         // The stock is re-checked inside the statement, so two orders
                         // cannot take the last plate at the same time.
@@ -686,7 +828,7 @@ class OrderController extends Controller implements HasMiddleware
                     // Read inside the transaction, as close to the insert as possible.
                     $orderNumber = Order::nextOrderNumber();
 
-                    $orderId = Order::createOrder([
+                    $orderId = Order::createOrder($discountFields + [
                         'session_id' => (int) $session->session_id,
                         'user_id' => auth()->id(),
                         'order_number' => $orderNumber,
@@ -732,7 +874,15 @@ class OrderController extends Controller implements HasMiddleware
             'message' => $message . ' Please review your cart.',
             'stock' => SessionDish::stockOfSession((int) $session->session_id),
             'prices' => SessionDish::pricesOfSession((int) $session->session_id),
+            // The discounts on offer now: the menu drops the one that went away and takes the new percent.
+            'discounts' => $this->offeredDiscounts(),
         ], 422);
+    }
+
+    // The discounts a customer can pick on the menu right now (none while System Configuration has them off).
+    protected function offeredDiscounts(): array
+    {
+        return OrderDiscount::offered('orders');
     }
 
     // Remove an uploaded proof when its order was not written.
@@ -776,6 +926,9 @@ class OrderController extends Controller implements HasMiddleware
             // expected_prices[session_dish_id]: the unit price the cart showed.
             'expected_prices' => ['nullable', 'array'],
             'expected_prices.*' => ['numeric', 'min:0'],
+            // The discount the customer picked, the percent the cart showed, and the ID. Whether the
+            // discount may be used (on, in its dates, needs proof) is judged in placeOrder().
+            ...OrderDiscount::rules(),
             'reference_number' => ['nullable', 'string', 'max:255'],
             // The screenshot a bank or e-wallet customer sends as proof. It is
             // required for every method but cash on pickup; the payment stays
@@ -791,6 +944,6 @@ class OrderController extends Controller implements HasMiddleware
             'proof_of_payment.required' => 'Upload the proof of payment for this payment method.',
             'proof_of_payment.image' => 'The proof of payment has to be an image.',
             'proof_of_payment.max' => 'The proof of payment may not be larger than 2 MB.',
-        ]);
+        ] + OrderDiscount::messages());
     }
 }

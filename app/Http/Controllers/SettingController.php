@@ -45,6 +45,7 @@ class SettingController extends Controller implements HasMiddleware
             // Is the Chat app's key file set up in .env and readable? (Never the key itself.)
             'googleChatReady' => GoogleChat::configured(),
             'customerCancel' => Setting::customerCancel(),
+            'discountMode' => Setting::discountMode(),
             // Mail is sent through the mailer of .env; `log` / `array` only record it.
             'mailer' => (string) config('mail.default'),
             // Who can be picked to receive every notification, and who is picked now.
@@ -84,6 +85,8 @@ class SettingController extends Controller implements HasMiddleware
             // Let customers cancel their own pending order. The form always sends 0 or 1; a
             // caller that leaves it out changes nothing.
             'customer_cancel' => ['sometimes', 'boolean'],
+            // Where customers are offered a discount. A caller that leaves it out changes nothing.
+            'discount_mode' => ['sometimes', 'required', Rule::in(Setting::DISCOUNT_MODES)],
             // The plates one pre-order may hold. Sent together by the form; an older
             // caller that sends neither changes nothing. An empty maximum = no limit.
             'pre_order_min_quantity' => ['sometimes', 'required', 'integer', 'min:1', 'max:100000'],
@@ -172,6 +175,10 @@ class SettingController extends Controller implements HasMiddleware
 
             if ($request->has('customer_cancel')) {
                 Setting::setCustomerCancel($request->boolean('customer_cancel'));
+            }
+
+            if (array_key_exists('discount_mode', $validated)) {
+                Setting::setDiscountMode($validated['discount_mode']);
             }
 
             if ($request->has('pre_order_min_quantity')) {

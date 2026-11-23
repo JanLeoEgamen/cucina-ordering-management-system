@@ -8,6 +8,9 @@
         @auth
             <meta name="login-url" content="{{ route('login') }}">
         @endauth
+        {{-- The build of the assets this page came with: a soft navigation (ui/soft-nav.js) that finds
+             another one after a deploy does a normal page load instead. Empty under `npm run dev`. --}}
+        <meta name="asset-hash" content="{{ \Illuminate\Support\Facades\Vite::manifestHash() }}">
 
         <title>{{ \App\Models\Setting::appName() }}</title>
 
@@ -132,20 +135,26 @@
                     </div>
                 </div>
 
-                <!-- Page Heading -->
-                @isset($header)
-                    {{-- No bar: the title sits straight on the paper, like the pages it introduces. --}}
-                    <header>
-                        <div class="max-w-7xl mx-auto px-4 pb-1 pt-8 sm:px-6 lg:px-8 lg:pt-2">
-                            {{ $header }}
-                        </div>
-                    </header>
-                @endisset
+                {{--
+                    The part a soft navigation swaps (resources/js/ui/soft-nav.js): everything that
+                    belongs to the page, nothing of the shell. Keep it free of <script> tags.
+                --}}
+                <div id="page-root">
+                    <!-- Page Heading -->
+                    @isset($header)
+                        {{-- No bar: the title sits straight on the paper, like the pages it introduces. --}}
+                        <header>
+                            <div class="max-w-7xl mx-auto px-4 pb-1 pt-8 sm:px-6 lg:px-8 lg:pt-2">
+                                {{ $header }}
+                            </div>
+                        </header>
+                    @endisset
 
-                <!-- Page Content -->
-                <main>
-                    {{ $slot }}
-                </main>
+                    <!-- Page Content -->
+                    <main>
+                        {{ $slot }}
+                    </main>
+                </div>
             </div>
 
             @include('components.ui.notification')

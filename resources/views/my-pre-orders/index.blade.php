@@ -61,7 +61,28 @@
                             <span class="tabular-nums text-gray-900 dark:text-white">₱{{ number_format((float) $item['sub_total'], 2) }}</span>
                         </li>
                     @endforeach
+
+                    {{-- The discount: what it took off (while it waits for staff it is "expected"), or why it was not given. --}}
+                    @if (($order->discount_status ?? 'none') !== 'none')
+                        <li class="flex items-center justify-between gap-4 py-2 text-sm">
+                            <span class="min-w-0 flex-1 text-gray-800 dark:text-gray-200">
+                                {{ $order->discount_name }} ({{ (float) $order->discount_percent }}%)
+                                {!! $order->popup['discount_badge'] !!}
+                            </span>
+                            <span class="tabular-nums text-gray-900 dark:text-white">
+                                @if ($order->discount_status === 'rejected')
+                                    —
+                                @else
+                                    −₱{{ number_format((float) $order->discount_amount, 2) }}
+                                @endif
+                            </span>
+                        </li>
+                    @endif
                 </ul>
+
+                @if (($order->discount_status ?? 'none') === 'pending')
+                    <p class="mx-5 mb-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">{{ __('Staff will check your ID before the discount is final. Until then the payment cannot be verified.') }}</p>
+                @endif
 
                 {{-- How it is being paid, and the total --}}
                 <div class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-5 py-3 dark:border-gray-700">
@@ -114,7 +135,7 @@
     <x-ui.order-popup />
 
     @push('scripts')
-        {{-- Page behaviour lives in resources/js/pages/my-pre-orders.js; see vite.config.js. --}}
-        @vite('resources/js/pages/my-pre-orders.js')
+        {{-- Page behaviour lives in resources/js/pages/my-pre-orders.js; started by resources/js/ui/soft-nav.js. --}}
+        <x-page-module name="my-pre-orders" />
     @endpush
 </x-app-layout>

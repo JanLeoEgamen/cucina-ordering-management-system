@@ -61,7 +61,7 @@ return [
 
     'providers' => [
         'users' => [
-            'driver' => 'eloquent',
+            'driver' => 'cached-eloquent',
             'model' => env('AUTH_MODEL', App\Models\User::class),
         ],
 
@@ -111,5 +111,13 @@ return [
     */
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
+
+    /*
+    | Seconds the signed-in user (with roles and permissions) may be served from the cache instead of the
+    | database (see AuthCache in app/Support). Every write to users / roles / permissions drops it at once;
+    | 0 = always read the database (set it when several app servers do not share a cache).
+    */
+
+    'cache_ttl' => (int) env('AUTH_CACHE_TTL', 300),
 
 ];

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\TableCache;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -60,6 +61,18 @@ class PreOrderSession extends Model
     // table feed.
     public static function getAll(): Collection
     {
+        // Only the rows are cached with their tables: the status depends on the clock.
+        return TableCache::remember(['pre_order_sessions', 'pre_order_session_dishes', 'pre_orders', 'users'], 'pre_order_session.all', fn () => self::loadRows())
+            ->map(function (object $session) {
+                $session->status = self::statusOf($session);
+
+                return $session;
+            });
+    }
+
+    // The query behind getAll().
+    protected static function loadRows(): Collection
+    {
         $dishes = DB::table(self::TABLE_DISH)
             ->selectRaw('count(*)')
             ->whereColumn('pre_order_session_id', self::TABLE . '.pre_order_session_id')
@@ -78,12 +91,7 @@ class PreOrderSession extends Model
             ->selectSub($orders, 'orders_count')
             ->orderByDesc(self::TABLE . '.order_date')
             ->orderByDesc(self::TABLE . '.start_time')
-            ->get()
-            ->map(function (object $session) {
-                $session->status = self::statusOf($session);
-
-                return $session;
-            });
+            ->get();
     }
 
     // One pre-order session with its dishes, for the edit and view drawers.

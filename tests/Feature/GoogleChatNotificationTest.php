@@ -126,16 +126,19 @@ class GoogleChatNotificationTest extends TestCase
 
         $this->assertCount(1, $posted);
 
-        // A card: the bell's title in the header, the dishes, the total and the payment method.
-        $card = $posted[0]['cardsV2'][0]['card'];
-        $everything = json_encode($card, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        // Plain text (never a card): the bell's title first, then the dishes, the total and the payment method.
+        $text = $posted[0]['text'];
+        $firstLine = strtok($text, "\n");
 
-        $this->assertStringContainsString('placed', $card['header']['title']);
-        $this->assertStringContainsString('🧾', $card['header']['title']);
-        $this->assertStringContainsString('1×', $everything);
-        $this->assertStringContainsString('Adobo', $everything);
-        $this->assertStringContainsString('₱50.00', $everything);
-        $this->assertStringContainsString('Cash on Pick up', $everything);
+        $this->assertArrayNotHasKey('cardsV2', $posted[0]);
+        $this->assertStringContainsString('placed', $firstLine);
+        $this->assertStringContainsString('🧾', $firstLine);
+        $this->assertStringContainsString('• 1× Adobo — ₱50.00', $text);
+        $this->assertStringContainsString('Cash on Pick up', $text);
+        // The "placed" words already say the total and the method: no second line repeating them.
+        $this->assertStringNotContainsString('**Total:**', $text);
+        $this->assertStringNotContainsString('**Payment:**', $text);
+        $this->assertSame(1, substr_count($text, 'Cash on Pick up'));
 
         // The person was found by their Google id, with the app's own token.
         Http::assertSent(fn (Request $request) => str_contains($request->url(), 'findDirectMessage') && str_contains(urldecode($request->url()), 'users/777') && $request->hasHeader('Authorization', 'Bearer tok'));
@@ -144,7 +147,7 @@ class GoogleChatNotificationTest extends TestCase
         $this->assertSame(1, DB::table('user_notifications')->where('user_id', $customer->id)->count());
     }
 
-    public function test_the_card_lists_the_dishes_escapes_text_and_only_links_https(): void
+    public function test_the_message_lists_the_dishes_and_links_to_the_order(): void
     {
         $entry = [
             'title' => 'Order X is ready for pick up',
@@ -158,52 +161,21 @@ class GoogleChatNotificationTest extends TestCase
             ]],
         ];
 
-        $card = GoogleChat::card($entry)['card'];
-        $json = json_encode($card, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-        $this->assertSame('🍽️ Order X is ready for pick up', $card['header']['title']);
-        $this->assertSame('Cucina', $card['header']['subtitle']);
-        $this->assertStringContainsString('<b>2×</b> Adobo &lt;b&gt;&amp;&lt;/b&gt; — ₱130.00<br><b>1×</b> Rice — ₱55.50', $json);
-        $this->assertStringContainsString('<b>₱185.50</b>', $json);
-        $this->assertStringContainsString('Order ORD-1', $json);
-        $this->assertStringNotContainsString('buttonList', $json, 'a local http link has no button');
-
-        // https gets the button.
-        config(['app.url' => 'https://cucina.example']);
         url()->forceRootUrl('https://cucina.example');
         url()->forceScheme('https');
-        $this->assertStringContainsString('"openLink":{"url":"https://cucina.example/my-orders?order=5"}', json_encode(GoogleChat::card($entry)['card'], JSON_UNESCAPED_SLASHES));
 
-        // A long order is cut and counted; a message with nothing but a title still has a section.
+        $this->assertSame(
+            "🍽️ **Order X is ready for pick up**\n\nShow your number.\n\n"
+            . "• 2× Adobo <b>&</b> — ₱130.00\n• 1× Rice — ₱55.50\n\n"
+            . "**Total:** ₱185.50 · **Payment:** GCash\n\n"
+            . '👉 [' . __('Open order') . '](https://cucina.example/my-orders?order=5)',
+            GoogleChat::format($entry)
+        );
+
+        // A long order is cut and counted; a message with nothing but a title is just the title.
         $many = ['title' => 'T', 'order' => ['number' => 'O', 'total' => 1, 'method' => null, 'items' => array_fill(0, 15, ['dish_name' => 'D', 'quantity' => 1, 'sub_total' => 1])]];
-        $this->assertStringContainsString('+3 more', json_encode(GoogleChat::card($many)['card']));
-        $this->assertNotEmpty(GoogleChat::card(['title' => 'Only a title'])['card']['sections']);
-    }
-
-    public function test_a_card_google_refuses_is_sent_again_as_plain_text(): void
-    {
-        $this->configureKey();
-        Setting::setGoogleChatNotifications(true);
-        $customer = $this->googleCustomer();
-
-        $attempts = [];
-        Http::fake([
-            'oauth2.googleapis.com/*' => Http::response(['access_token' => 'tok', 'expires_in' => 3600]),
-            'chat.googleapis.com/v1/spaces:findDirectMessage*' => Http::response(['name' => 'spaces/AAA']),
-            'chat.googleapis.com/v1/spaces/AAA/messages' => function (Request $request) use (&$attempts) {
-                $attempts[] = $request->data();
-
-                return isset($request->data()['cardsV2'])
-                    ? Http::response(['error' => ['status' => 'INVALID_ARGUMENT', 'message' => 'bad card']], 400)
-                    : Http::response(['name' => 'spaces/AAA/messages/1']);
-            },
-        ]);
-
-        $this->place($customer);
-
-        $this->assertCount(2, $attempts);
-        $this->assertArrayHasKey('cardsV2', $attempts[0]);
-        $this->assertStringContainsString('placed', $attempts[1]['text']);
+        $this->assertStringContainsString('+3 more', GoogleChat::format($many));
+        $this->assertSame('🔔 **Only a title**', GoogleChat::format(['title' => 'Only a title']));
     }
 
     /* -------- the Welcome comes first -------- */
@@ -217,7 +189,7 @@ class GoogleChatNotificationTest extends TestCase
 
         $this->place($customer);
 
-        $titles = array_map(fn (array $m) => $m['cardsV2'][0]['card']['header']['title'], $this->messagesPosted() ? array_map(fn ($r) => $r->data(), $this->messagesPosted()) : []);
+        $titles = array_map(fn ($r) => strtok($r->data()['text'], "\n"), $this->messagesPosted());
 
         $this->assertCount(2, $titles);
         $this->assertStringContainsString('Welcome', $titles[0]);
@@ -252,7 +224,7 @@ class GoogleChatNotificationTest extends TestCase
         $this->artisan('google-chat:test', ['email' => $user->email])->expectsOutputToContain('the Welcome message')->assertSuccessful();
         $this->artisan('google-chat:test', ['email' => $user->email])->expectsOutputToContain('a connection check')->assertSuccessful();
 
-        $titles = array_map(fn ($r) => $r->data()['cardsV2'][0]['card']['header']['title'], $this->messagesPosted());
+        $titles = array_map(fn ($r) => strtok($r->data()['text'], "\n"), $this->messagesPosted());
 
         $this->assertCount(2, $titles);
         $this->assertStringContainsString('Welcome', $titles[0]);
@@ -261,19 +233,46 @@ class GoogleChatNotificationTest extends TestCase
         $this->assertStringNotContainsString('ORD-TEST', json_encode($this->messagesPosted() ? array_map(fn ($r) => $r->data(), $this->messagesPosted()) : []));
     }
 
-    public function test_the_card_can_list_points_and_name_its_own_button(): void
+    public function test_a_new_session_reaches_the_customer_as_a_text_with_the_dishes_listed(): void
     {
-        $this->assertSame('👋 Welcome', GoogleChat::card(['title' => 'Welcome', 'type' => 'welcome'])['card']['header']['title']);
+        $this->configureKey();
+        $this->fakeGoogle();
+        Setting::setGoogleChatNotifications(true);
+        $customer = $this->googleCustomer();
+        $dish = Dish::factory()->create(['dish_name' => 'Adobo', 'price' => 50]);
+
+        $this->actingAs($this->superAdmin())->postJson(route('order-sessions.store'), [
+            'order_date' => now()->addDay()->toDateString(),
+            'start_time' => '10:00',
+            'end_time' => '12:00',
+            'dish_ids' => [$dish->dish_id],
+            'stocks' => [$dish->dish_id => 5],
+        ])->assertOk();
+
+        $posted = $this->messagesPosted();
+
+        $this->assertCount(1, $posted);
+        $this->assertArrayNotHasKey('cardsV2', $posted[0]);
+        $this->assertStringStartsWith('🍽️ **A new order session is open**', $posted[0]['text']);
+        $this->assertStringContainsString("**Available now**\n• Adobo — ₱50.00", $posted[0]['text']);
+        $this->assertStringContainsString('[Open menu](', $posted[0]['text']);
+        // The bell keeps the one-line version.
+        $this->assertStringContainsString('Available: Adobo ₱50.00', DB::table('user_notifications')->where('user_id', $customer->id)->value('body'));
+    }
+
+    public function test_the_message_can_list_points_and_name_its_own_link(): void
+    {
+        $this->assertSame('👋 **Welcome**', GoogleChat::format(['title' => 'Welcome', 'type' => 'welcome']));
 
         url()->forceRootUrl('https://cucina.example');
         url()->forceScheme('https');
 
-        $card = GoogleChat::card(['title' => 'T', 'points' => ['🧾 One', '✅ Two <b>'], 'url' => '/my-orders', 'button' => 'Open my orders']);
-        $json = json_encode($card['card'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-        $this->assertStringContainsString('🧾 One<br>✅ Two &lt;b&gt;', $json);
-        $this->assertStringContainsString('"text":"Open my orders"', $json);
+        $this->assertSame(
+            "🔔 **T**\n\nShort\n\n**Available now**\n• One\n• Two\n\n👉 [Open menu](https://cucina.example/menu)",
+            GoogleChat::format(['title' => 'T', 'body' => 'Full text', 'chat_body' => 'Short', 'points_title' => 'Available now', 'points' => ['• One', '• Two'], 'url' => '/menu', 'button' => 'Open menu'])
+        );
     }
+
     public function test_the_token_request_is_a_signed_jwt_for_the_chat_scope(): void
     {
         $this->configureKey();
@@ -380,12 +379,13 @@ class GoogleChatNotificationTest extends TestCase
         $link = url('/my-orders?order=5#order-5');
 
         // Markdown (the default, like a new Chat app).
-        $this->assertSame("**Order X is ready**\nShow your order number.\n[" . __('Open') . "]($link)", GoogleChat::format('Order X is ready', 'Show your order number.', '/my-orders?order=5#order-5'));
-        $this->assertSame('**Plain**', GoogleChat::format('Plain', null, null));
+        $entry = ['title' => 'Order X is ready', 'body' => 'Show your order number.', 'url' => '/my-orders?order=5#order-5'];
+
+        $this->assertSame("🔔 **Order X is ready**\n\nShow your order number.\n\n👉 [" . __('Open') . "]($link)", GoogleChat::format($entry));
 
         // Google Chat's own syntax, for an app set to the legacy markup.
         config(['services.google_chat.markup' => 'legacy']);
-        $this->assertSame("*Order X is ready*\nShow your order number.\n<$link|" . __('Open') . '>', GoogleChat::format('Order X is ready', 'Show your order number.', '/my-orders?order=5#order-5'));
+        $this->assertSame("🔔 *Order X is ready*\n\nShow your order number.\n\n👉 <$link|" . __('Open') . '>', GoogleChat::format($entry));
     }
 
     /* -------- php artisan google-chat:test -------- */

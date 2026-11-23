@@ -411,6 +411,33 @@ class NotificationTest extends TestCase
         $this->assertCount(1, $this->rowsFor($watcher, OrderNotifier::SOLD_OUT));
     }
 
+    /* ---- a session is published ---------------------------------------- */
+
+    public function test_publishing_a_session_tells_everyone_who_can_see_the_menu_except_the_publisher(): void
+    {
+        $customer = $this->customer();
+        $kitchen = $this->userWith('view orders');
+        $admin = $this->userWith('view menu', 'create order-sessions');
+        $dish = Dish::factory()->create(['dish_name' => 'Adobo', 'price' => 50]);
+
+        $this->actingAs($admin)->postJson(route('order-sessions.store'), [
+            'order_date' => now()->addDay()->toDateString(),
+            'start_time' => '10:00',
+            'end_time' => '12:00',
+            'dish_ids' => [$dish->dish_id],
+            'stocks' => [$dish->dish_id => 5],
+        ])->assertOk();
+
+        $row = $this->rowsFor($customer, OrderNotifier::SESSION_OPENED)->first();
+
+        $this->assertSame('A new order session is open', $row->title);
+        $this->assertStringContainsString('10:00 AM - 12:00 PM', $row->body);
+        $this->assertStringContainsString('Available: Adobo ₱50.00', $row->body);
+        $this->assertSame('/menu', $row->url);
+        $this->assertCount(0, $this->rowsFor($kitchen, OrderNotifier::SESSION_OPENED));
+        $this->assertCount(0, $this->rowsFor($admin, OrderNotifier::SESSION_OPENED));
+    }
+
     /* ---- the feed and the page ----------------------------------------- */
 
     private function note(User $user, array $overrides = []): int

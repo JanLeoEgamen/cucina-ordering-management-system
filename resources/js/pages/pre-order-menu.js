@@ -220,6 +220,111 @@ const start = () => {
     let placing = false;
     let orderKey = { value: '', fingerprint: '' };
 
+    /* ---- the discount ---------------------------------------------------- */
+
+    // The discounts on offer ([{ id, name, percent, requires_proof }], empty while System Configuration
+    // has them off for pre-orders). The server refreshes the list with every refused order.
+    let discounts = parse(root.dataset.discounts, []);
+    let discountId = null;    // the discount the customer picked
+    let discountFile = null;  // the ID picture for it, when it needs one
+
+    const discountSelect = element('#pre-order-discount-select');
+    const discountProofWrap = element('#pre-order-discount-proof-wrap');
+    const discountProofInput = element('#pre-order-discount-proof');
+    const discountNote = element('#pre-order-discount-note');
+    const discountLine = element('#pre-order-discount-line');
+    // The first option's words come from the view (translated); the list is rebuilt around it.
+    const noDiscountLabel = discountSelect?.options[0]?.textContent ?? '';
+
+    const pickedDiscount = () => discounts.find((discount) => Number(discount.id) === Number(discountId)) ?? null;
+
+    // What the picked discount takes off, in whole cents like the server (it does the real math; this
+    // only shows the customer what to expect).
+    const discountAmount = () => {
+        const discount = pickedDiscount();
+
+        return discount ? Math.round(total() * Number(discount.percent)) / 100 : 0;
+    };
+
+    // What the customer pays: the dishes minus the discount.
+    const payable = () => Math.round((total() - discountAmount()) * 100) / 100;
+
+    const percentText = (value) => String(Number(value));
+
+    // The picker, the ID box, the note and the line under the total. A function declaration, so
+    // renderLines (below) can call it.
+    function renderDiscount() {
+        if (discountSelect) {
+            discountSelect.innerHTML = '<option value="">' + escapeHtml(noDiscountLabel) + '</option>'
+                + discounts.map((discount) => '<option value="' + Number(discount.id) + '">'
+                    + escapeHtml(discount.name) + ' — ' + escapeHtml(percentText(discount.percent)) + '%</option>').join('');
+            discountSelect.value = discountId === null ? '' : String(discountId);
+        }
+
+        const discount = pickedDiscount();
+
+        discountProofWrap?.classList.toggle('hidden', !(discount && discount.requires_proof));
+
+        if (discountNote) {
+            const text = discount
+                ? (discount.requires_proof ? copy('discountCheckNote') : copy('discountNowNote'))
+                : '';
+
+            discountNote.textContent = text;
+            discountNote.classList.toggle('hidden', text === '');
+        }
+
+        if (discountLine) {
+            discountLine.textContent = discount ? discount.name + ' −' + money(discountAmount()) : '';
+            discountLine.classList.toggle('hidden', !discount);
+        }
+    }
+
+    discountSelect?.addEventListener('change', () => {
+        discountId = discountSelect.value === '' ? null : Number(discountSelect.value);
+        showErrors([]);
+        renderLines();
+    });
+
+    discountProofInput?.addEventListener('change', () => {
+        const file = discountProofInput.files?.[0] ?? null;
+
+        // The server judges the file too; this only keeps an obvious mistake from being sent.
+        discountFile = file && file.type.startsWith('image/') ? file : null;
+
+        if (file && !discountFile) {
+            discountProofInput.value = '';
+        }
+    });
+
+    // The list the server sent (with a refused order): a discount that went away is dropped from the
+    // order, and a changed percent is shown. Returns what to tell the customer.
+    const applyDiscounts = (list) => {
+        if (!Array.isArray(list)) {
+            return [];
+        }
+
+        const before = pickedDiscount();
+        const changes = [];
+
+        discounts = list;
+
+        if (before) {
+            const now = pickedDiscount();
+
+            if (!now) {
+                discountId = null;
+                discountFile = null;
+                discountProofInput && (discountProofInput.value = '');
+                changes.push(copy('discountGone'));
+            } else if (Number(now.percent) !== Number(before.percent)) {
+                changes.push(copy('discountChanged').replace(':discount', now.name).replace(':percent', percentText(now.percent)));
+            }
+        }
+
+        return changes;
+    };
+
     const showErrors = (list) => {
         const items = (list ?? []).filter((message) => typeof message === 'string' && message !== '');
 
@@ -259,7 +364,8 @@ const start = () => {
                 ${plates()} ${escapeHtml(platesWord(plates()))}
             </li>`;
 
-        checkoutTotal.textContent = money(total());
+        checkoutTotal.textContent = money(payable());
+        renderDiscount();
     };
 
     /* ---- payment: the methods ------------------------------------------- */
@@ -514,7 +620,9 @@ const start = () => {
     // One key per distinct cart + payment method, so a retry of the same order after a
     // lost answer returns the same receipt, while a changed cart is a new order.
     const orderKeyFor = (identifier) => {
-        const fingerprint = [...quantities.keys()].map((id) => id + 'x' + quantities.get(id) + '@' + (dishes.get(id)?.price ?? 0)).sort().join(',') + '|' + identifier;
+        const fingerprint = [...quantities.keys()].map((id) => id + 'x' + quantities.get(id) + '@' + (dishes.get(id)?.price ?? 0)).sort().join(',') + '|' + identifier
+            // Another discount is another order (and another total).
+            + '|' + (pickedDiscount() ? pickedDiscount().id + '@' + pickedDiscount().percent : '');
 
         if (orderKey.fingerprint !== fingerprint) {
             orderKey = { value: newKey(), fingerprint };
@@ -523,8 +631,11 @@ const start = () => {
         return orderKey.value;
     };
 
-    // The server's answer to "review your cart": new prices, dishes that left, a new minimum.
+    // The server's answer to "review your cart": new prices, dishes that left, a new minimum, the
+    // discounts now on offer.
     const applyReview = (payload) => {
+        applyDiscounts(payload.discounts);
+
         if (payload.min_quantity !== undefined) {
             minQuantity = Number(payload.min_quantity);
         }
@@ -589,7 +700,13 @@ const start = () => {
                         <dt class="text-gray-500 dark:text-gray-400">${escapeHtml(receipt.method)}</dt>
                         <dd class="font-semibold tabular-nums text-gray-900 dark:text-white">${money(receipt.total)}</dd>
                     </div>
+                    ${receipt.discountName && receipt.discountAmount > 0 ? `
+                    <div class="flex items-center justify-between gap-4">
+                        <dt class="text-gray-500 dark:text-gray-400">${escapeHtml(copy('discountLabel'))}: ${escapeHtml(receipt.discountName)}</dt>
+                        <dd class="tabular-nums text-gray-900 dark:text-white">−${money(receipt.discountAmount)}</dd>
+                    </div>` : ''}
                 </dl>
+                ${receipt.discountStatus === 'pending' ? `<p class="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">${escapeHtml(copy('discountWaitingLabel'))}</p>` : ''}
                 ${receipt.cash ? '' : `<p class="mt-4 text-xs text-gray-500 dark:text-gray-400">${escapeHtml(copy('verifyingLabel'))}</p>`}
                 ${ordersUrl ? `<a href="${escapeHtml(ordersUrl)}" class="mt-4 inline-flex items-center justify-center rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-800">${escapeHtml(copy('myOrdersLabel'))}</a>` : ''}
             </div>`;
@@ -624,6 +741,14 @@ const start = () => {
             return;
         }
 
+        // A discount that needs an ID cannot go on without it.
+        if (pickedDiscount()?.requires_proof && !discountFile) {
+            showErrors([copy('discountProofRequired')]);
+            flag(discountProofWrap);
+
+            return;
+        }
+
         // Anything but cash is paid first, so the proof is required.
         if (!isCash(method) && !proofFile) {
             showErrors([copy('proofRequired')]);
@@ -654,6 +779,17 @@ const start = () => {
                 data.append('proof_of_payment', proofFile);
             }
 
+            // The discount: only its id, the percent the customer saw and the ID picture travel. The
+            // server finds the percent itself and does the math.
+            if (pickedDiscount()) {
+                data.append('discount_id', String(pickedDiscount().id));
+                data.append('expected_discount_percent', String(pickedDiscount().percent));
+
+                if (pickedDiscount().requires_proof && discountFile) {
+                    data.append('discount_proof', discountFile);
+                }
+            }
+
             for (const [id, quantity] of quantities) {
                 data.append('items[' + id + ']', String(quantity));
                 // The price the customer saw (and paid, for a bank order): the server
@@ -679,7 +815,11 @@ const start = () => {
                 showErrors(messages(payload));
 
                 if (payload.errors) {
-                    flag(payload.errors.proof_of_payment ? element('#pre-order-proof-zone') : []);
+                    flag([
+                        payload.errors.proof_of_payment ? element('#pre-order-proof-zone') : null,
+                        payload.errors.discount_proof ? discountProofWrap : null,
+                        payload.errors.discount_id ? discountSelect : null,
+                    ]);
                 }
 
                 return;
@@ -695,6 +835,9 @@ const start = () => {
                 plates: Number(payload.plates ?? plates()),
                 method: method.method_name,
                 cash: isCash(method),
+                discountName: payload.discount_name ?? null,
+                discountAmount: Number(payload.discount_amount ?? 0),
+                discountStatus: payload.discount_status ?? 'none',
             };
 
             // Empty the order, then show the receipt.
@@ -704,6 +847,9 @@ const start = () => {
             }
 
             methodId = null;
+            discountId = null;
+            discountFile = null;
+            discountProofInput && (discountProofInput.value = '');
             referenceInput && (referenceInput.value = '');
             clearProof();
             renderSummary();
@@ -725,9 +871,6 @@ const start = () => {
     renderSummary();
 };
 
-// Loaded as a module (deferred), so the DOM is normally already parsed.
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start);
-} else {
-    start();
-}
+// Started by resources/js/ui/soft-nav.js on every visit (see <x-page-module>); what start() adds to
+// document / window is removed when the page is left.
+export default start;

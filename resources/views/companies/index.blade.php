@@ -211,7 +211,7 @@
     />
 
     @push('scripts')
-        {{-- Page behaviour lives in resources/js/pages/companies.js; see vite.config.js. --}}
-        @vite('resources/js/pages/companies.js')
+        {{-- Page behaviour lives in resources/js/pages/companies.js; started by resources/js/ui/soft-nav.js. --}}
+        <x-page-module name="companies" />
     @endpush
 </x-app-layout>

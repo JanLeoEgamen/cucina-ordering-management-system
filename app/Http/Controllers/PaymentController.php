@@ -89,6 +89,11 @@ class PaymentController extends Controller implements HasMiddleware
             default => $payment->method_name !== PaymentMethod::CASH_ON_PICKUP && $payment->order_status !== 'cancelled',
         };
 
+        // A discount still waiting for staff means the amount is not final: only that decision is open.
+        if ($action === 'verify' && ($payment->discount_status ?? 'none') === 'pending') {
+            $allowed = false;
+        }
+
         return $fits && $allowed && auth()->user()->can($action . ' payments')
             ? route('payments.' . $action, $payment->order_id)
             : null;
@@ -199,6 +204,12 @@ class PaymentController extends Controller implements HasMiddleware
             // payment (money received, nothing to hand over).
             if (Order::lockedStatus($orderId) === 'cancelled') {
                 return 'The order is cancelled.';
+            }
+
+            // The amount is not final while its discount waits for staff (and a rejected
+            // discount changes it): the discount is decided first.
+            if ($status === 'verified' && Order::discountStatusOf($orderId) === 'pending') {
+                return 'Approve or reject the discount of this order before verifying its payment.';
             }
 
             // And two reviewers pressing Verify / Reject together: the second one

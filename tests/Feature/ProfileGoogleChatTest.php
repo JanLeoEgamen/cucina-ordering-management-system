@@ -166,7 +166,7 @@ class ProfileGoogleChatTest extends TestCase
         $sent = Http::recorded(fn (Request $request) => str_ends_with($request->url(), '/messages'));
 
         $this->assertCount(1, $sent);
-        $this->assertStringContainsString('Welcome', $sent->first()[0]->data()['cardsV2'][0]['card']['header']['title']);
+        $this->assertStringContainsString('Welcome', strtok($sent->first()[0]->data()['text'], "\n"));
     }
 
     public function test_the_status_says_not_added_when_google_has_no_chat_for_them(): void
@@ -241,11 +241,10 @@ class ProfileGoogleChatTest extends TestCase
         $messages = $this->messages();
         $this->assertCount(1, $messages);
 
-        $card = $messages[0]['cardsV2'][0]['card'];
-        $everything = json_encode($card, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $everything = $messages[0]['text'];
 
         // A welcome, not an order: no dishes, no total, nothing made up.
-        $this->assertSame('👋 Welcome to Cucina-Feliza', $card['header']['title']);
+        $this->assertSame('👋 **Welcome to Cucina-Feliza**', strtok($everything, "\n"));
         $this->assertStringContainsString('When your order is ready for pick up', $everything);
         $this->assertStringNotContainsString('ORD-', $everything);
         $this->assertStringNotContainsString('Total', $everything);

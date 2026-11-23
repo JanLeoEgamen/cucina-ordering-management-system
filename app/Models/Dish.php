@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\TableCache;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -140,6 +141,12 @@ class Dish extends Model
 
     // Get all live dishes with their dish types, for the table feed.
     public static function getAll(): Collection
+    {
+        return TableCache::remember(['dishes', 'dish_dish_types', 'dish_types'], 'dish.all', fn () => self::loadAll());
+    }
+
+    // The query behind the cached method above.
+    protected static function loadAll(): Collection
     {
         $types = self::typesByDish();
 

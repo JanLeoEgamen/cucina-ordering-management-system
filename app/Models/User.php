@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\TableCache;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -76,6 +77,12 @@ class User extends Authenticatable
 
     // Get all live users with their role names, for the table feed.
     public static function getAll(): Collection
+    {
+        return TableCache::remember(['users', 'companies', 'model_has_roles', 'roles'], 'user.all', fn () => self::loadAll());
+    }
+
+    // The query behind the cached method above.
+    protected static function loadAll(): Collection
     {
         $roles = self::rolesByUser();
 

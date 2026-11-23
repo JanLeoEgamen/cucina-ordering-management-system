@@ -7,24 +7,9 @@ export default defineConfig({
             input: [
                 'resources/css/app.css',
                 'resources/js/app.js',
-                // Page modules, referenced per view with @vite('resources/js/pages/...').
-                'resources/js/pages/dishes.js',
-                'resources/js/pages/dish-types-manager.js',
-                'resources/js/pages/order-sessions.js',
-                'resources/js/pages/order-session-show.js',
-                'resources/js/pages/pre-order-sessions.js',
-                'resources/js/pages/pre-order-session-show.js',
-                'resources/js/pages/pre-order-menu.js',
-                'resources/js/pages/orders.js',
-                'resources/js/pages/my-orders.js',
-                'resources/js/pages/my-pre-orders.js',
-                'resources/js/pages/menu.js',
-                'resources/js/pages/companies.js',
-                'resources/js/pages/payment-methods.js',
-                'resources/js/pages/payments.js',
-                'resources/js/pages/roles.js',
-                'resources/js/pages/users.js',
-                'resources/js/pages/settings.js',
+                // The page modules (resources/js/pages/*.js) are not listed here: soft-nav.js
+                // imports them lazily with import.meta.glob, one chunk each, and a view names
+                // the ones it needs with <x-page-module name="..." />.
             ],
             refresh: true,
         }),

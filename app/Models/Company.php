@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\TableCache;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -55,6 +56,12 @@ class Company extends Model
 
     // Get all live companies with how many live users belong to each, for the table feed.
     public static function getAll(): Collection
+    {
+        return TableCache::remember(['companies', 'users'], 'company.all', fn () => self::loadAll());
+    }
+
+    // The query behind the cached method above.
+    protected static function loadAll(): Collection
     {
         $users = DB::table('users')
             ->selectRaw('count(*)')
@@ -128,6 +135,12 @@ class Company extends Model
     // able to show it, or saving the person would silently move them.
     public static function options(?int $alsoId = null): array
     {
+        return TableCache::remember(['companies'], 'company.options.' . (int) $alsoId, fn () => self::loadOptions($alsoId));
+    }
+
+    // The query behind the cached method above.
+    protected static function loadOptions(?int $alsoId = null): array
+    {
         return DB::table(self::TABLE)
             ->whereNull('deleted_at')
             ->where(function ($query) use ($alsoId) {
@@ -150,6 +163,12 @@ class Company extends Model
     // Every live company, active or not, for the Users page's edit drawer (any user may belong
     // to an inactive one). The create drawer only offers options().
     public static function allOptions(): array
+    {
+        return TableCache::remember(['companies'], 'company.all_options', fn () => self::loadAllOptions());
+    }
+
+    // The query behind allOptions().
+    protected static function loadAllOptions(): array
     {
         return DB::table(self::TABLE)
             ->whereNull('deleted_at')

@@ -240,11 +240,20 @@ export function enhanceSelect(select) {
         }
     });
 
-    document.addEventListener('click', (event) => {
+    const closeOnOutsideClick = (event) => {
+        // The select left the page (a soft navigation replaced it): stop listening.
+        if (!wrap.isConnected) {
+            document.removeEventListener('click', closeOnOutsideClick);
+
+            return;
+        }
+
         if (!wrap.contains(event.target)) {
             close();
         }
-    });
+    };
+
+    document.addEventListener('click', closeOnOutsideClick);
 
     // The page or "Clear filters" changed the value, or filled the options.
     select.addEventListener('change', paint);

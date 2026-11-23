@@ -9,7 +9,7 @@
  *
  *   - the page itself runs no notification query: the badge is filled by the first
  *     call, which answers only the unread count and the newest id (no list);
- *   - after that one small GET about every 8 s (+ jitter, so a room full of people
+ *   - after that one small GET about every second (+ a little jitter, so a room full of people
  *     does not ask at the same second) with `after=<newest id seen>`; the answer
  *     carries the new ones, and almost always none (an indexed range read);
  *   - nothing is asked while the tab is hidden; coming back to it (or coming back
@@ -21,8 +21,8 @@
 import { showToast } from './toast';
 import { leaveToLogin } from './session-guard';
 
-const POLL_MS = 8000;
-const MAX_TOASTS = 2;
+const POLL_MS = 1000;
+const MAX_TOASTS = 3;
 
 // A notification row of the panel. Built with textContent, never innerHTML: the title and
 // body are text, whatever they contain.
@@ -85,11 +85,21 @@ const start = () => {
     let panelOpened = false;
 
     const paint = (unread) => {
+        // Not on the first answer: a page load must not bump what was already there.
+        const grew = newest !== null && unread > unreadNow;
+
         unreadNow = unread;
 
         for (const badge of badges) {
             badge.textContent = unread > 99 ? '99+' : String(unread);
             badge.classList.toggle('hidden', unread < 1);
+
+            // The count bumps when it goes up, so the change is seen (same bump as the cart).
+            if (grew) {
+                badge.classList.remove('animate-cart-bump');
+                void badge.offsetWidth;
+                badge.classList.add('animate-cart-bump');
+            }
         }
 
         for (const button of document.querySelectorAll('[data-notif-read-all]')) {
@@ -171,14 +181,13 @@ const start = () => {
             paint(Number(payload.unread ?? 0));
 
             // A toast for what arrived while this page was open (the newest ones
-            // only: a long absence must not fill the screen), and the bell swings.
+            // only: a long absence must not fill the screen). They come one after
+            // another, and the bell swings with each, so none is missed.
             for (const item of items.slice(-MAX_TOASTS)) {
-                showToast(item.title, 'success');
+                showToast(item.title, 'success', ring);
             }
 
             if (items.length > 0) {
-                ring();
-
                 // The panel is open right now: show the new one in it at once.
                 if (panelOpened && panelIsOpen()) {
                     loadRecent();
@@ -199,7 +208,7 @@ const start = () => {
         timer = setTimeout(async () => {
             await refresh();
             schedule();
-        }, POLL_MS + Math.random() * 3000);
+        }, POLL_MS + Math.random() * 300);
     };
 
     // "Mark all as read" in the panel: one POST, then the badge and the list are repainted.

@@ -12,6 +12,9 @@
 <div id="order-popup-copy" hidden
      data-proof-label="{{ __('View proof') }}"
      data-proof-caption="{{ __('Proof of payment') }}"
+     data-discount-proof-label="{{ __('View ID') }}"
+     data-discount-proof-caption="{{ __('ID for the discount') }}"
+     data-hint-discount="{{ __('Approve or reject the discount first: the price is not final until then, so the payment cannot be verified and the order cannot be completed.') }}"
      data-hint-cash="{{ __('Cash on Pick up: the payment is verified when you complete this order.') }}"
      data-hint-bank="{{ __('Verify the payment first, then you can complete this order.') }}"
      data-hint-cancel="{{ __('To cancel this order, first undo the payment verification on the Payments page.') }}"></div>
@@ -74,6 +77,37 @@
             </div>
         </dl>
 
+        {{-- The discount the order was placed with (hidden when it has none). Staff also get the ID the
+             customer sent, through a guarded URL; the customer's own popup never has that key. --}}
+        <div id="order-details-discount" class="mt-5 hidden rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-700/20">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Discount') }}</h4>
+                <span id="order-details-discount-badge"></span>
+            </div>
+            <dl class="mt-3 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+                <div>
+                    <dt class="{{ $label }}">{{ __('Discount') }}</dt>
+                    <dd id="order-details-discount-name" class="mt-1 text-sm text-gray-900 dark:text-white"></dd>
+                </div>
+                <div data-popup-field>
+                    <dt class="{{ $label }}">{{ __('ID') }}</dt>
+                    <dd id="order-details-discount-proof" class="mt-1 text-sm"></dd>
+                </div>
+                <div>
+                    <dt class="{{ $label }}">{{ __('Before the discount') }}</dt>
+                    <dd id="order-details-discount-subtotal" class="mt-1 text-sm tabular-nums text-gray-900 dark:text-white"></dd>
+                </div>
+                <div>
+                    <dt class="{{ $label }}">{{ __('Taken off') }}</dt>
+                    <dd id="order-details-discount-amount" class="mt-1 text-sm tabular-nums text-gray-900 dark:text-white"></dd>
+                </div>
+                <div class="sm:col-span-2" data-popup-field>
+                    <dt class="{{ $label }}">{{ __('Why it was rejected') }}</dt>
+                    <dd id="order-details-discount-reason" class="mt-1 text-sm text-gray-900 dark:text-white"></dd>
+                </div>
+            </dl>
+        </div>
+
         <h4 class="mt-6 text-sm font-semibold text-gray-900 dark:text-white">{{ __('Items') }}</h4>
         <div class="mt-2 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -134,6 +168,24 @@
                 </button>
             @endcan
 
+            {{-- The discount decision (review discounts): decided before the payment can be verified. --}}
+            @can('review discounts')
+                <button type="button" id="order-details-discount-reject"
+                        data-message="{{ __('Tell the customer why the discount is rejected. The order will cost its full price again.') }}"
+                        data-label="{{ __('Reject Discount') }}"
+                        data-required="{{ __('Give a reason for rejecting this discount.') }}"
+                        data-placeholder="{{ __('e.g. The ID is unreadable, or it does not match the discount.') }}"
+                        class="hidden rounded-full border border-red-300 bg-white px-5 py-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-4 focus:ring-red-200 dark:border-red-800 dark:bg-gray-800 dark:text-red-400 dark:hover:bg-red-900/20 dark:focus:ring-red-900">
+                    {{ __('Reject Discount') }}
+                </button>
+                <button type="button" id="order-details-discount-approve"
+                        data-message="{{ __('Approve this discount? Check the ID first.') }}"
+                        data-label="{{ __('Approve Discount') }}"
+                        class="hidden rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-300 dark:focus:ring-emerald-800">
+                    {{ __('Approve Discount') }}
+                </button>
+            @endcan
+
             {{-- The payment decision, inside the order: shown by resources/js/ui/order-popup.js
                  while the order's payment is pending (the row carries each URL only for
                  someone who may take that decision). --}}
@@ -168,7 +220,7 @@
          class="hidden animate-fade-in flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-900/40">
         <p id="order-details-confirm-text" class="min-w-0 flex-1 basis-64 text-sm font-medium text-gray-900 dark:text-white"></p>
 
-        @can('reject payments')
+        @canany(['reject payments', 'review discounts'])
             <div id="order-details-confirm-reason" class="hidden basis-full">
                 <label for="order-reject-reason" class="sr-only">{{ __('Reason') }}</label>
                 <textarea id="order-reject-reason" rows="3" maxlength="500" required
@@ -177,7 +229,7 @@
                           class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm leading-5 text-gray-900 placeholder-gray-400 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"></textarea>
                 <p id="order-reject-errors" role="alert" class="mt-1.5 hidden text-sm text-red-600 dark:text-red-400"></p>
             </div>
-        @endcan
+        @endcanany
 
         <div class="ml-auto flex flex-shrink-0 gap-3">
             <button type="button" id="order-details-confirm-back"

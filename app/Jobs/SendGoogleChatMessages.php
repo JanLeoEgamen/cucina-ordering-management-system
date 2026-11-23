@@ -20,7 +20,7 @@ use Throwable;
 // person is tried on its own; people without a Google account on file, or who have not added
 // the Chat app, are skipped (GoogleChat::message() answers false), never an error.
 //
-// What the card shows beyond the bell's words (the dishes, the total, the payment method) is
+// What the message shows beyond the bell's words (the dishes, the total, the payment method) is
 // read here, in two queries for the whole event, from the order ids the notifier passed.
 class SendGoogleChatMessages implements ShouldQueue
 {
@@ -75,13 +75,17 @@ class SendGoogleChatMessages implements ShouldQueue
                 'body' => $message['body'] ?? null,
                 'url' => $message['url'] ?? null,
                 'type' => $message['type'] ?? null,
+                'chat_body' => $message['chat_body'] ?? null,
+                'points' => $message['points'] ?? [],
+                'points_title' => $message['points_title'] ?? null,
+                'button' => $message['button'] ?? null,
                 'app' => $app,
                 'order' => $orders[$message['order_id'] ?? 0] ?? null,
             ]);
         }
     }
 
-    // The orders the messages are about, ready for the card: number, total, payment method and
+    // The orders the messages are about, ready for the message: number, total, payment method and
     // the dishes. Two queries for all of them. If they cannot be read the messages still go out,
     // without the details.
     protected function orders(): array
