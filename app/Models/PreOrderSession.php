@@ -221,30 +221,35 @@ class PreOrderSession extends Model
     {
         $now = now();
 
-        $preOrderSessionId = (int) DB::table(self::TABLE)->insertGetId(self::values($attributes) + [
-            'created_by' => (int) $attributes['created_by'],
-            'is_active' => 1,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
+        // One transaction: a session never exists without its dishes, and one commit, not one per dish.
+        return DB::transaction(function () use ($attributes, $dishIds, $now) {
+            $preOrderSessionId = (int) DB::table(self::TABLE)->insertGetId(self::values($attributes) + [
+                'created_by' => (int) $attributes['created_by'],
+                'is_active' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
 
-        self::syncDishes($preOrderSessionId, $dishIds);
+            self::syncDishes($preOrderSessionId, $dishIds);
 
-        return $preOrderSessionId;
+            return $preOrderSessionId;
+        });
     }
 
     // Update a pre-order session and replace its dish list; returns the number of
     // changed rows.
     public static function updateSession(int $preOrderSessionId, array $attributes, array $dishIds): int
     {
-        $changed = DB::table(self::TABLE)
-            ->where('pre_order_session_id', $preOrderSessionId)
-            ->whereNull('deleted_at')
-            ->update(self::values($attributes) + ['updated_at' => now()]);
+        return DB::transaction(function () use ($preOrderSessionId, $attributes, $dishIds) {
+            $changed = DB::table(self::TABLE)
+                ->where('pre_order_session_id', $preOrderSessionId)
+                ->whereNull('deleted_at')
+                ->update(self::values($attributes) + ['updated_at' => now()]);
 
-        self::syncDishes($preOrderSessionId, $dishIds);
+            self::syncDishes($preOrderSessionId, $dishIds);
 
-        return $changed;
+            return $changed;
+        });
     }
 
     // Soft delete a pre-order session and its dish list; false when it was already deleted.
@@ -286,21 +291,18 @@ class PreOrderSession extends Model
     public static function syncDishes(int $preOrderSessionId, array $dishIds): void
     {
         $now = now();
-        $posted = [];
+        $posted = array_values(array_unique(array_map('intval', $dishIds)));
+        $new = [];
 
-        foreach ($dishIds as $dishId) {
-            $dishId = (int) $dishId;
+        // One read for every posted dish and one INSERT for the new ones, not a read and a write per dish.
+        $rows = DB::table(self::TABLE_DISH)
+            ->where('pre_order_session_id', $preOrderSessionId)
+            ->whereIn('dish_id', $posted)
+            ->get()
+            ->keyBy('dish_id');
 
-            if (in_array($dishId, $posted, true)) {
-                continue;
-            }
-
-            $posted[] = $dishId;
-
-            $existing = DB::table(self::TABLE_DISH)
-                ->where('pre_order_session_id', $preOrderSessionId)
-                ->where('dish_id', $dishId)
-                ->first();
+        foreach ($posted as $dishId) {
+            $existing = $rows->get($dishId);
 
             if ($existing) {
                 DB::table(self::TABLE_DISH)
@@ -315,14 +317,18 @@ class PreOrderSession extends Model
                 continue;
             }
 
-            DB::table(self::TABLE_DISH)->insert([
+            $new[] = [
                 'pre_order_session_id' => $preOrderSessionId,
                 'dish_id' => $dishId,
                 'is_available' => 1,
                 'is_active' => 1,
                 'created_at' => $now,
                 'updated_at' => $now,
-            ]);
+            ];
+        }
+
+        if ($new) {
+            DB::table(self::TABLE_DISH)->insert($new);
         }
 
         $removed = DB::table(self::TABLE_DISH)

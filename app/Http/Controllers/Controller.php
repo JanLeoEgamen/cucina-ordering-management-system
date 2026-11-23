@@ -42,6 +42,26 @@ abstract class Controller
         return $this->badge($status);
     }
 
+    // Validation rule for each element of a posted `dish_ids` list: the dish exists. ONE query for the
+    // whole list ('exists:dishes,dish_id' asks once per dish, ~30 queries for a big session). The error
+    // is the same one, on the same key (dish_ids.N).
+    protected function dishExistsRule(\Illuminate\Http\Request $request): \Closure
+    {
+        $known = null;
+
+        return function (string $attribute, mixed $value, \Closure $fail) use ($request, &$known) {
+            $known ??= \Illuminate\Support\Facades\DB::table('dishes')
+                ->whereIn('dish_id', array_map('intval', (array) $request->input('dish_ids')))
+                ->pluck('dish_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            if (! in_array((int) $value, $known, true)) {
+                $fail('validation.exists')->translate();
+            }
+        };
+    }
+
     // Badge for an order's discount (pending / approved / rejected): "Discount pending" and so on.
     protected function discountStatusBadge(string $status): string
     {
