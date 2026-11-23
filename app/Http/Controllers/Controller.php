@@ -42,6 +42,12 @@ abstract class Controller
         return $this->badge($status);
     }
 
+    // Badge for an order's discount (pending / approved / rejected): "Discount pending" and so on.
+    protected function discountStatusBadge(string $status): string
+    {
+        return $this->badge($status, __('Discount :status', ['status' => __(ucfirst($status))]));
+    }
+
     // One badge renderer for every status column above.
     // An order feed row as the order popup needs it (resources/js/ui/order-popup.js): the
     // badges are rendered here so the table and cards print markup, the proof travels as a
@@ -63,6 +69,23 @@ abstract class Controller
             $order->session_url = $user->can('view order-sessions') ? route('order-sessions.show', $order->session_id) : null;
         }
 
+        // The discount. Its ID picture is private: the row carries a guarded URL, never the path.
+        $order->discount_status ??= 'none';
+        $order->discount_proof_url = ($order->discount_proof ?? null) ? route('orders.discount.proof', $order->order_id) : null;
+        unset($order->discount_proof);
+        $order->discount_badge = $order->discount_status !== 'none' ? $this->discountStatusBadge($order->discount_status) : null;
+
+        // Approve / Reject the discount: while it waits, on an order that is still open.
+        $discountOpen = $order->discount_status === 'pending' && $order->order_status === 'pending';
+        $order->discount_approve_url = $discountOpen && $user->can('review discounts')
+            ? route('orders.discount.approve', $order->order_id) : null;
+        $order->discount_reject_url = $discountOpen && $user->can('review discounts')
+            ? route('orders.discount.reject', $order->order_id) : null;
+
+        // The price is not final while the discount waits: nothing is verified, completed or
+        // announced until staff decide it (the server refuses those too).
+        $priceFinal = $order->discount_status !== 'pending';
+
         // Verify / Reject sit inside the order's details: only while its payment
         // is pending, and only for someone who may take that decision.
         $pending = $order->payment_state === 'pending';
@@ -71,14 +94,14 @@ abstract class Controller
 
         // Cash on Pick up is verified by completing the order, so only the other
         // methods are verified or rejected here - from the moment the order exists.
-        $order->verify_url = $pending && ! $cash && $user->can('verify payments')
+        $order->verify_url = $pending && $priceFinal && ! $cash && $user->can('verify payments')
             ? route('payments.verify', $order->order_id) : null;
         $order->reject_url = $pending && ! $cash && $user->can('reject payments')
             ? route('payments.reject', $order->order_id) : null;
 
         // Completing needs a settled payment: cash settles on completion, the
         // others must be verified first.
-        $settled = $cash ? in_array($order->payment_state, ['pending', 'verified'], true) : $order->payment_state === 'verified';
+        $settled = $priceFinal && ($cash ? in_array($order->payment_state, ['pending', 'verified'], true) : $order->payment_state === 'verified');
         $order->complete_url = $order->order_status === 'pending' && $settled && $user->can('complete orders')
             ? route('orders.complete', $order->order_id) : null;
 
@@ -124,6 +147,15 @@ abstract class Controller
             'method_name' => $order->method_name,
             'reference_number' => $order->reference_number,
             'total_amount' => (float) $order->total_amount,
+            // The discount, in words the customer reads. No ID path, no reviewer: staff fields never
+            // reach this popup (it shows a row only when its key is here).
+            'discount_name' => ($order->discount_status ?? 'none') !== 'none' ? $order->discount_name : null,
+            'discount_percent' => ($order->discount_status ?? 'none') !== 'none' ? (float) $order->discount_percent : null,
+            'discount_status' => $order->discount_status ?? 'none',
+            'discount_badge' => ($order->discount_status ?? 'none') !== 'none' ? $this->discountStatusBadge($order->discount_status) : null,
+            'discount_amount' => (float) ($order->discount_amount ?? 0),
+            'discount_reject_reason' => ($order->discount_status ?? 'none') === 'rejected' ? $order->discount_reject_reason : null,
+            'subtotal_amount' => ($order->discount_status ?? 'none') !== 'none' ? (float) ($order->subtotal_amount ?? $order->total_amount) : null,
             'status_badge' => $order->status_badge,
             'payment_badge' => $order->payment_badge,
             'proof_url' => $order->proof_url,

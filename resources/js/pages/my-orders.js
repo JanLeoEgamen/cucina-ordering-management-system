@@ -30,7 +30,7 @@ const start = () => {
     initOrderCards(root);
 
     // The rest is only for a page that has an order to fix or one the customer may cancel.
-    if (!root.querySelector('[data-fix-payment], [data-cancel-order]')) {
+    if (!root.querySelector('[data-fix-payment], [data-fix-discount], [data-cancel-order]')) {
         return;
     }
 
@@ -116,11 +116,12 @@ const start = () => {
 
         event.preventDefault();
 
-        const panel = form.closest('[data-fix-payment]');
+        // The same form shape sends a new payment proof and a new ID for a rejected discount.
+        const panel = form.closest('[data-fix-payment], [data-fix-discount]');
         const file = form.querySelector('input[type="file"]');
 
         if (!file?.files?.length) {
-            showErrors(panel, [root.dataset.pickProof ?? '']);
+            showErrors(panel, [panel.hasAttribute('data-fix-discount') ? (root.dataset.pickId ?? '') : (root.dataset.pickProof ?? '')]);
 
             return;
         }

@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\DiscountRefusedException;
 use App\Models\PreOrder;
 use App\Models\PreOrderItem;
 use App\Models\PreOrderSession;
 use App\Models\PreOrderSessionDish;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
+use App\Support\OrderDiscount;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -55,6 +57,8 @@ class PreOrderController extends Controller implements HasMiddleware
             // bank / e-wallet with a reference and a proof.
             'cash' => PaymentMethod::cashOption(),
             'methods' => PaymentMethod::bankOptions(),
+            // Empty while discounts are off for pre-orders: the checkout then draws no picker.
+            'discounts' => OrderDiscount::offered('pre_orders'),
         ]);
     }
 
@@ -222,16 +226,38 @@ class PreOrderController extends Controller implements HasMiddleware
             );
         }
 
+        // The discount the customer picked (System Configuration decides whether any is offered
+        // for pre-orders). Same rules as a regular order: the server does the math from the percent it
+        // finds now, and refuses a pick that went away or whose percent moved.
+        $subtotal = $total;
+
+        try {
+            $resolved = OrderDiscount::resolve('pre_orders', $validated, $request, $subtotal);
+        } catch (DiscountRefusedException $refused) {
+            return $this->reviewResponse($session, $refused->getMessage());
+        }
+
+        $discountFields = $resolved['fields'];
+        $total = $resolved['total'];
+
         // The proof of payment a bank or e-wallet customer uploaded. Cash on
         // pickup sends none, and nothing is stored for it.
         $proof = $request->file('proof_of_payment')?->store('payments', 'public');
 
+        // The ID for the discount goes to the PRIVATE disk, never the public one.
+        $discountProof = OrderDiscount::storeProof($request, $resolved['discount'], 'pre-order-discount-proofs');
+
+        if ($discountProof) {
+            $discountFields['discount_proof'] = $discountProof;
+        }
+
         try {
             $orderNumber = '';
-            $this->writeOrder($validated, $lines, $total, $session, $proof, $orderNumber);
+            $this->writeOrder($validated, $lines, $total, $session, $proof, $orderNumber, $discountFields);
         } catch (Throwable $exception) {
-            // Nothing was written, so the uploaded picture would stay forever.
+            // Nothing was written, so the uploaded pictures would stay forever.
             $this->discardProof($proof);
+            OrderDiscount::discardProof($discountProof);
 
             throw $exception;
         }
@@ -242,12 +268,17 @@ class PreOrderController extends Controller implements HasMiddleware
             'order_number' => $orderNumber,
             'total_amount' => $total,
             'plates' => $plates,
+            // What the receipt shows when a discount was used.
+            'subtotal_amount' => $subtotal,
+            'discount_name' => $discountFields['discount_name'] ?? null,
+            'discount_amount' => $discountFields['discount_amount'] ?? 0,
+            'discount_status' => $discountFields['discount_status'] ?? 'none',
         ]);
     }
 
     // Write the order and its lines in one transaction ($orderNumber receives its
     // number). It is all or nothing; the payment is a part of the order row.
-    protected function writeOrder(array $validated, array $lines, float $total, object $session, ?string $proof, string &$orderNumber): int
+    protected function writeOrder(array $validated, array $lines, float $total, object $session, ?string $proof, string &$orderNumber, array $discountFields = []): int
     {
         $orderId = 0;
 
@@ -256,11 +287,11 @@ class PreOrderController extends Controller implements HasMiddleware
         // not an error for the customer: try again with the next number.
         for ($attempt = 1; ; $attempt++) {
             try {
-                DB::transaction(function () use ($validated, $lines, $total, $session, $proof, &$orderNumber, &$orderId) {
+                DB::transaction(function () use ($validated, $lines, $total, $session, $proof, &$orderNumber, &$orderId, $discountFields) {
                     // Read inside the transaction, as close to the insert as possible.
                     $orderNumber = PreOrder::nextOrderNumber();
 
-                    $orderId = PreOrder::createOrder([
+                    $orderId = PreOrder::createOrder($discountFields + [
                         'pre_order_session_id' => (int) $session->pre_order_session_id,
                         'user_id' => auth()->id(),
                         'order_number' => $orderNumber,
@@ -299,6 +330,8 @@ class PreOrderController extends Controller implements HasMiddleware
             'prices' => PreOrderSessionDish::pricesOfSession((int) $session->pre_order_session_id),
             'min_quantity' => $limits['min'],
             'max_quantity' => $limits['max'],
+            // The discounts on offer now: the page drops the one that went away and takes the new percent.
+            'discounts' => OrderDiscount::offered('pre_orders'),
         ], 422);
     }
 
@@ -352,6 +385,8 @@ class PreOrderController extends Controller implements HasMiddleware
             // expected_prices[pre_order_session_dish_id]: the unit price the cart showed.
             'expected_prices' => ['nullable', 'array'],
             'expected_prices.*' => ['numeric', 'min:0'],
+            // The discount the customer picked, the percent the cart showed, and the ID (judged in placeOrder()).
+            ...OrderDiscount::rules(),
             'reference_number' => ['nullable', 'string', 'max:255'],
             'proof_of_payment' => [$proofRule, 'file', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:2048'],
             'items' => ['required', 'array', 'min:1'],
@@ -365,6 +400,6 @@ class PreOrderController extends Controller implements HasMiddleware
             'proof_of_payment.required' => 'Upload the proof of payment for this payment method.',
             'proof_of_payment.image' => 'The proof of payment has to be an image.',
             'proof_of_payment.max' => 'The proof of payment may not be larger than 2 MB.',
-        ]);
+        ] + OrderDiscount::messages());
     }
 }

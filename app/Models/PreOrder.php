@@ -41,6 +41,14 @@ class PreOrder extends Model
         'reference_number',
         'proof_of_payment',
         'is_active',
+        // The discount the customer picked: a COPY of its name and percent (see Discount).
+        'discount_id',
+        'discount_name',
+        'discount_percent',
+        'subtotal_amount',
+        'discount_amount',
+        'discount_status',
+        'discount_proof',
     ];
 
     protected $fillable = self::COLUMNS;
@@ -125,6 +133,12 @@ class PreOrder extends Model
                 self::TABLE . '.reference_number',
                 self::TABLE . '.proof_of_payment',
                 self::TABLE . '.rejection_reason',
+                self::TABLE . '.subtotal_amount',
+                self::TABLE . '.discount_name',
+                self::TABLE . '.discount_percent',
+                self::TABLE . '.discount_amount',
+                self::TABLE . '.discount_status',
+                self::TABLE . '.discount_reject_reason',
                 'pre_order_sessions.title as session_title',
                 'pre_order_sessions.order_date as session_date',
                 'pre_order_sessions.start_time',

@@ -41,6 +41,11 @@ class Setting
 
     public const PRE_ORDER_MAX_QUANTITY = 'pre_orders.max_quantity';
 
+    // Where customers are offered a discount: off | orders (the live menu) | pre_orders | both.
+    public const DISCOUNT_MODE = 'discounts.mode';
+
+    public const DISCOUNT_MODES = ['off', 'orders', 'pre_orders', 'both'];
+
     // The name shown on every page, the title bar and the emails, and the path (on the public
     // disk) of the uploaded logo. An empty logo = the built-in Cucina mark.
     public const APP_NAME = 'app.name';
@@ -104,6 +109,8 @@ class Setting
         self::CUSTOMER_CANCEL => '0',
         self::PRE_ORDER_MIN_QUANTITY => '10',
         self::PRE_ORDER_MAX_QUANTITY => '',
+        // Off until an admin turns it on: nobody is offered a discount by surprise.
+        self::DISCOUNT_MODE => 'off',
     ];
 
     /* -------- Reads -------- */
@@ -205,6 +212,23 @@ class Setting
     public static function customerCancel(): bool
     {
         return self::get(self::CUSTOMER_CANCEL) === '1';
+    }
+
+    // The discount switch: one of DISCOUNT_MODES. A damaged value reads as "off".
+    public static function discountMode(): string
+    {
+        $mode = (string) self::get(self::DISCOUNT_MODE);
+
+        return in_array($mode, self::DISCOUNT_MODES, true) ? $mode : 'off';
+    }
+
+    // Are discounts offered for this kind of order? $kind: 'orders' (the live menu) or
+    // 'pre_orders'. Read fresh on every checkout, so switching it off stops the very next order.
+    public static function discountsFor(string $kind): bool
+    {
+        $mode = self::discountMode();
+
+        return $mode === 'both' || $mode === $kind;
     }
 
     // The plates one pre-order may hold: ['min' => int >= 1, 'max' => ?int]. A max of
@@ -316,6 +340,12 @@ class Setting
     public static function setCustomerCancel(bool $allowed): void
     {
         self::set(self::CUSTOMER_CANCEL, $allowed ? '1' : '0');
+    }
+
+    // Save where discounts are offered (the caller has validated it against DISCOUNT_MODES).
+    public static function setDiscountMode(string $mode): void
+    {
+        self::set(self::DISCOUNT_MODE, $mode);
     }
 
     // Save the pre-order limits (a null maximum = no limit).

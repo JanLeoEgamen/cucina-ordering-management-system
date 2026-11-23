@@ -63,6 +63,15 @@
          data-order-url="{{ route('pre-orders.store') }}"
          data-methods='@json($methods)'
          data-cash='@json($cash)'
+         data-discounts="{{ json_encode($discounts) }}"
+         data-discount-label="{{ __('Discount') }}"
+         data-subtotal-label="{{ __('Subtotal') }}"
+         data-discount-proof-required="{{ __('Upload your ID to use this discount.') }}"
+         data-discount-gone="{{ __('That discount is not available any more, so it was taken off your order.') }}"
+         data-discount-changed="{{ __(':discount is now :percent% off. Check your total.') }}"
+         data-discount-check-note="{{ __('Staff will check your ID before the discount is final. Your payment can only be verified after that. If it is not approved, you pay the full price.') }}"
+         data-discount-now-note="{{ __('This discount is applied right away.') }}"
+         data-discount-waiting-label="{{ __('Your discount is waiting for staff to check your ID.') }}"
          data-dishes='@json($dishData)'
          data-plates-one="{{ __('plate') }}"
          data-plates-many="{{ __('plates') }}"
@@ -233,6 +242,32 @@
                         </div>
                     </section>
 
+                    {{-- Only drawn while System Configuration offers discounts on pre-orders and one is open.
+                         pre-order-menu.js fills the list from data-discounts and sends discount_id / discount_proof
+                         with the order (the server does the math). --}}
+                    @if (! empty($discounts))
+                        <section id="pre-order-discount-box" class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-700/40">
+                            <label for="pre-order-discount-select" class="block text-sm font-semibold text-gray-900 dark:text-white">{{ __('Discount') }}</label>
+                            <select id="pre-order-discount-select"
+                                    class="mt-2 block w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-3 pr-10 text-sm leading-5 text-gray-900 focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-gray-300 dark:focus:ring-gray-600">
+                                <option value="">{{ __('No discount') }}</option>
+                            </select>
+
+                            <div id="pre-order-discount-proof-wrap" class="mt-3 hidden rounded-lg">
+                                <label for="pre-order-discount-proof" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    {{ __('ID for the discount') }}
+                                    <span class="font-semibold text-red-600 dark:text-red-400" aria-hidden="true">*</span>
+                                    <span class="sr-only">({{ __('required') }})</span>
+                                </label>
+                                <input type="file" id="pre-order-discount-proof" accept="image/png,image/jpeg,image/webp"
+                                       class="mt-1 block w-full text-sm text-gray-700 file:mr-3 file:rounded-full file:border-0 file:bg-gray-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-gray-700 dark:text-gray-300 dark:file:bg-mist dark:file:text-ink">
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('A clear picture of your ID (PNG, JPG or WebP, up to 2 MB).') }}</p>
+                            </div>
+
+                            <p id="pre-order-discount-note" class="mt-2 hidden text-xs text-gray-600 dark:text-gray-300"></p>
+                        </section>
+                    @endif
+
                     <section>
                         <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Payment') }}</h4>
 
@@ -334,6 +369,8 @@
                 <div>
                     <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('Total') }}</p>
                     <p id="pre-order-checkout-total" class="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">₱0.00</p>
+                    {{-- "Senior Citizen −₱40.00", shown while a discount is picked. --}}
+                    <p id="pre-order-discount-line" class="hidden text-xs tabular-nums text-gray-600 dark:text-gray-300"></p>
                 </div>
 
                 <div class="flex items-center gap-3">

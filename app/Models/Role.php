@@ -31,6 +31,7 @@ class Role extends SpatieRole
         'view roles', 'create roles', 'edit roles', 'delete roles',
         'view users', 'create users', 'edit users', 'delete users',
         'view companies', 'create companies', 'edit companies', 'delete companies',
+        'view discounts', 'create discounts', 'edit discounts', 'delete discounts', 'review discounts',
         'view settings', 'edit settings',
         'view audit-logs',
     ];

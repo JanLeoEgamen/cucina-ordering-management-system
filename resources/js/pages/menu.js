@@ -6,9 +6,11 @@
  * URLs and the dish data all come from the Blade view through `data-*`
  * attributes, so nothing is hard coded here.
  *
- * Checkout is one modal with three steps, shown by showStep():
+ * Checkout is one modal with up to four steps, shown by showStep():
  *
  *   review   the cart: change amounts, take a dish out, see the total
+ *   discount pick a discount (or none) and send the ID it needs; a step of its
+ *            own, and only while a discount is on offer (see stepList)
  *   payment  cash on pickup, or bank / e-wallet (pick a method, see the QR and
  *            the account, send the reference and the proof)
  *   confirm  the dishes and the payment, then place the order
@@ -31,6 +33,22 @@ const start = () => {
     const stockUrl = root.dataset.stockUrl ?? '';
     const bankMethods = JSON.parse(root.dataset.methods ?? '[]');
     const cashMethod = JSON.parse(root.dataset.cash ?? 'null');
+
+    // The discounts on offer ([{ id, name, percent, requires_proof }], empty while System Configuration
+    // has them off). The server refreshes this list with every refused order (see applyDiscounts).
+    let discounts = JSON.parse(root.dataset.discounts ?? '[]');
+    const discountOptions = document.querySelector('#discount-options');
+    const discountProofWrap = document.querySelector('#discount-proof-wrap');
+    const discountProofInput = document.querySelector('#discount-proof');
+    const discountProofContent = document.querySelector('#discount-proof-content');
+    const discountProofWrapper = document.querySelector('#discount-proof-wrapper');
+    const discountProofPreview = document.querySelector('#discount-proof-preview');
+    const discountProofInfo = document.querySelector('#discount-proof-info');
+    const discountProofRemove = document.querySelector('#discount-proof-remove');
+    const discountNote = document.querySelector('#discount-note');
+    const discountSummary = document.querySelector('#discount-summary');
+    const discountLine = document.querySelector('#checkout-discount-line');
+    const stepsNav = document.querySelector('#checkout-steps');
 
     // The round cart in the lower right corner opens the checkout.
     const openCartButtons = [...document.querySelectorAll('[data-open-cart]')];
@@ -111,6 +129,9 @@ const start = () => {
     let proofFile = null;
     let receipt = null;
     let placing = false;
+    let discountId = null;    // the discount the customer picked (a key of `discounts`)
+    let discountFile = null;  // the ID picture for it, when it needs one
+    let discountPreviewUrl = ''; // the object URL of that picture's preview (revoked when it goes)
     // The session closed while the page was open (the stock refresh saw it).
     let sessionClosed = false;
     // Sent with the order so a retry after a lost answer returns the same receipt
@@ -128,7 +149,24 @@ const start = () => {
 
     const money = (value) => '₱' + Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+    // The dishes before any discount.
     const total = () => [...lines.values()].reduce((sum, line) => sum + line.price * line.quantity, 0);
+
+    const pickedDiscount = () => discounts.find((discount) => Number(discount.id) === Number(discountId)) ?? null;
+
+    // What the picked discount takes off, in whole cents like the server (it does the real math;
+    // this only shows the customer what to expect).
+    const discountAmount = () => {
+        const discount = pickedDiscount();
+
+        return discount ? Math.round(total() * Number(discount.percent)) / 100 : 0;
+    };
+
+    // What the customer pays: the dishes minus the discount.
+    const payable = () => Math.round((total() - discountAmount()) * 100) / 100;
+
+    // 20 -> "20", 12.5 -> "12.5"
+    const percentText = (value) => String(Number(value));
 
     const itemCount = () => [...lines.values()].reduce((sum, line) => sum + line.quantity, 0);
 
@@ -203,6 +241,10 @@ const start = () => {
                 fields.push(...proofField());
             } else if (key === 'reference_number') {
                 fields.push(...referenceField());
+            } else if (key === 'discount_proof') {
+                fields.push(discountProofWrap);
+            } else if (key === 'discount_id' || key === 'expected_discount_percent') {
+                fields.push(discountOptions);
             } else if (key === 'payment_method_id') {
                 fields.push(...paymentOptions());
             } else if (key === 'items' || key.startsWith('items.') || key.startsWith('expected_prices')) {
@@ -344,7 +386,8 @@ const start = () => {
         cartLines.innerHTML = rows.map(lineTemplate).join('');
         cartLines.classList.toggle('hidden', empty);
         cartEmpty?.classList.toggle('hidden', ! empty);
-        checkoutTotal.textContent = money(total());
+        checkoutTotal.textContent = money(payable());
+        renderDiscount();
 
         // The round cart is always visible; only its count changes.
         if (cartBarCount) {
@@ -366,6 +409,177 @@ const start = () => {
         if (filters.inCart) {
             applyFilters();
         }
+    };
+
+    /* ---- the discount ---------------------------------------------------- */
+
+    const discountTileIdle = 'border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/40 dark:border-gray-600 dark:bg-gray-700/40 dark:hover:border-indigo-500 dark:hover:bg-indigo-900/20';
+    const discountTilePicked = 'border-gray-900 bg-gray-50 ring-2 ring-gray-200 dark:border-gray-300 dark:bg-gray-700/60 dark:ring-gray-600';
+
+    // One choice of the discount step: a card with a radio dot. `discount` is null for "No discount".
+    const discountTile = (discount, picked) => {
+        const value = discount ? Number(discount.id) : '';
+        const title = discount ? discount.name : (root.dataset.discountNoneTitle ?? '');
+        const saving = discount ? Math.round(total() * Number(discount.percent)) / 100 : 0;
+
+        // The second line: what it asks for, and what it is worth on this cart.
+        const detail = discount
+            ? `<span class="rounded-full px-2 py-0.5 text-xs font-medium ${discount.requires_proof
+                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+                : 'bg-gray-100 text-gray-600 dark:bg-gray-600/50 dark:text-gray-300'}">${escapeHtml(discount.requires_proof ? (root.dataset.discountNeedsId ?? '') : (root.dataset.discountNoId ?? ''))}</span>
+               <span class="text-xs tabular-nums text-gray-500 dark:text-gray-400">${escapeHtml(root.dataset.discountSavingLabel ?? '')} ${money(saving)}</span>`
+            : `<span class="text-xs text-gray-500 dark:text-gray-400">${escapeHtml(root.dataset.discountNoneNote ?? '')}</span>`;
+
+        return `
+            <button type="button" role="radio" aria-checked="${picked ? 'true' : 'false'}" data-discount-choice="${value}"
+                    class="flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition focus:outline-none focus:ring-4 focus:ring-indigo-200 dark:focus:ring-indigo-900 ${picked ? discountTilePicked : discountTileIdle}">
+                <span class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border ${picked
+                    ? 'border-gray-900 bg-gray-900 text-white dark:border-mist dark:bg-mist dark:text-ink'
+                    : 'border-gray-300 dark:border-gray-500'}">
+                    ${picked ? '<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>' : ''}
+                </span>
+                <span class="min-w-0 flex-1">
+                    <span class="block truncate text-sm font-semibold text-gray-900 dark:text-white">${escapeHtml(title)}</span>
+                    <span class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">${detail}</span>
+                </span>
+                ${discount ? `<span class="flex-shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold tabular-nums text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">${escapeHtml(percentText(discount.percent))}% ${escapeHtml(root.dataset.discountOffLabel ?? '')}</span>` : ''}
+            </button>`;
+    };
+
+    // The choices, the ID box, the note and the "what it does to your total" panel (the discount
+    // step), and the line under the total in the footer. A function declaration, so renderCart
+    // (above) can call it.
+    function renderDiscount() {
+        const discount = pickedDiscount();
+
+        if (discountOptions) {
+            // Rebuilt from the list (it can change after a refused order), keeping what is picked and
+            // the keyboard focus the customer had on a card.
+            const hadFocus = discountOptions.contains(document.activeElement);
+
+            discountOptions.innerHTML = discountTile(null, discount === null)
+                + discounts.map((entry) => discountTile(entry, discount !== null && Number(entry.id) === Number(discount.id))).join('');
+
+            if (hadFocus) {
+                discountOptions.querySelector('[aria-checked="true"]')?.focus();
+            }
+        }
+
+        discountProofWrap?.classList.toggle('hidden', !(discount && discount.requires_proof));
+
+        if (discountNote) {
+            // Only an ID check needs a warning; "applied right away" is plain from the card.
+            const text = discount && discount.requires_proof ? (root.dataset.discountCheckNote ?? '') : '';
+
+            discountNote.textContent = text;
+            discountNote.classList.toggle('hidden', text === '');
+        }
+
+        if (discountSummary) {
+            discountSummary.classList.toggle('hidden', !discount);
+            discountSummary.innerHTML = discount ? `
+                <dl class="space-y-1.5 px-4 py-3 text-sm">
+                    <div class="flex items-center justify-between gap-4">
+                        <dt class="text-gray-500 dark:text-gray-400">${escapeHtml(root.dataset.subtotalLabel ?? '')}</dt>
+                        <dd class="tabular-nums text-gray-900 dark:text-white">${money(total())}</dd>
+                    </div>
+                    <div class="flex items-center justify-between gap-4">
+                        <dt class="min-w-0 truncate text-gray-500 dark:text-gray-400">${escapeHtml(discount.name)} (${escapeHtml(percentText(discount.percent))}%)</dt>
+                        <dd class="tabular-nums text-emerald-700 dark:text-emerald-300">−${money(discountAmount())}</dd>
+                    </div>
+                </dl>
+                <div class="flex items-center justify-between border-t border-gray-200 px-4 py-3 dark:border-gray-700">
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">${escapeHtml(root.dataset.discountNewTotalLabel ?? '')}</span>
+                    <span class="text-base font-semibold tabular-nums text-gray-900 dark:text-white">${money(payable())}</span>
+                </div>` : '';
+        }
+
+        // The footer: what the discount takes off, under the total.
+        if (discountLine) {
+            discountLine.textContent = discount ? discount.name + ' −' + money(discountAmount()) : '';
+            discountLine.classList.toggle('hidden', !discount);
+        }
+    }
+
+    // A card was picked (one tap, or the keyboard on the focused card).
+    discountOptions?.addEventListener('click', (event) => {
+        const tile = event.target.closest('[data-discount-choice]');
+
+        if (!tile) {
+            return;
+        }
+
+        discountId = tile.dataset.discountChoice === '' ? null : Number(tile.dataset.discountChoice);
+        showErrors([]);
+        checkoutTotal.textContent = money(payable());
+        renderDiscount();
+    });
+
+    // Keep the ID picture, its preview and the box that shows it in step.
+    const setDiscountFile = (file) => {
+        if (discountPreviewUrl) {
+            URL.revokeObjectURL(discountPreviewUrl);
+            discountPreviewUrl = '';
+        }
+
+        // The server judges the file too; this only keeps an obvious mistake from being sent.
+        discountFile = file && file.type.startsWith('image/') ? file : null;
+
+        if (!discountFile && discountProofInput) {
+            discountProofInput.value = '';
+        }
+
+        if (discountFile) {
+            discountPreviewUrl = URL.createObjectURL(discountFile);
+        }
+
+        if (discountProofPreview) {
+            discountProofPreview.src = discountPreviewUrl;
+        }
+
+        discountProofWrapper?.classList.toggle('hidden', !discountFile);
+        discountProofContent?.classList.toggle('hidden', !!discountFile);
+
+        if (discountProofInfo) {
+            discountProofInfo.textContent = discountFile ? discountFile.name : '';
+        }
+    };
+
+    discountProofInput?.addEventListener('change', () => setDiscountFile(discountProofInput.files?.[0] ?? null));
+
+    // The round X over the preview: it sits above the file input, so it never opens the picker.
+    discountProofRemove?.addEventListener('click', (event) => {
+        event.preventDefault();
+        setDiscountFile(null);
+    });
+
+    // The list the server sent (with a refused order): a discount that went away is dropped from
+    // the order, and a changed percent is shown. Returns what to tell the customer.
+    const applyDiscounts = (list) => {
+        if (!Array.isArray(list)) {
+            return [];
+        }
+
+        const before = pickedDiscount();
+        const changes = [];
+
+        discounts = list;
+
+        if (before) {
+            const now = pickedDiscount();
+
+            if (!now) {
+                discountId = null;
+                setDiscountFile(null);
+                changes.push(root.dataset.discountGone ?? '');
+            } else if (Number(now.percent) !== Number(before.percent)) {
+                changes.push((root.dataset.discountChanged ?? '').replace(':discount', now.name).replace(':percent', percentText(now.percent)));
+            }
+        }
+
+        renderCart();
+
+        return changes;
     };
 
     // A quantity the customer typed, kept inside what the session still has.
@@ -894,8 +1108,16 @@ const start = () => {
 
     /* ---- steps ----------------------------------------------------------- */
 
-    // Where each step sits on the bar, and what the footer buttons say.
-    const STEP_PROGRESS = { review: 33, payment: 66, confirm: 100, placed: 100 };
+    // The steps the bar counts, in order. The discount step is only there while a discount is on offer
+    // (the list can shrink after a refused order). The receipt is past all of them.
+    const stepList = () => (discounts.length > 0 ? ['review', 'discount', 'payment', 'confirm'] : ['review', 'payment', 'confirm']);
+
+    // The step before this one, skipping the discount step when it is not counted.
+    const stepBefore = (from) => {
+        const list = stepList();
+
+        return list[Math.max(0, list.indexOf(from) - 1)];
+    };
 
     const stepLabels = {};
 
@@ -906,10 +1128,14 @@ const start = () => {
     stepLabels.placed = root.dataset.placedLabel ?? 'Order Placed';
 
     const showStep = (next) => {
-        step = next;
+        // No discount on offer (any more): there is no such step, go on to the payment.
+        step = next === 'discount' && discounts.length === 0 ? 'payment' : next;
 
-        // 0-based: 'placed' is past the three steps the bar counts.
-        const currentIndex = step === 'placed' ? STEPS.length : STEPS.indexOf(step);
+        const list = stepList();
+
+        // 0-based: 'placed' is past the steps the bar counts.
+        const currentIndex = step === 'placed' ? list.length : list.indexOf(step);
+        const progress = step === 'placed' ? 100 : Math.round(((currentIndex + 1) / list.length) * 100);
 
         for (const panel of document.querySelectorAll('[data-step-panel]')) {
             panel.classList.toggle('hidden', panel.dataset.stepPanel !== step);
@@ -917,18 +1143,32 @@ const start = () => {
 
         // Progress bar and dots: what is behind us reads as done.
         if (progressFill) {
-            progressFill.style.width = STEP_PROGRESS[step] + '%';
+            progressFill.style.width = progress + '%';
         }
 
         if (progressBar) {
-            progressBar.setAttribute('aria-valuenow', String(STEP_PROGRESS[step]));
+            progressBar.setAttribute('aria-valuenow', String(progress));
+        }
+
+        if (stepsNav) {
+            stepsNav.style.gridTemplateColumns = 'repeat(' + list.length + ', minmax(0, 1fr))';
         }
 
         for (const dot of document.querySelectorAll('[data-step-dot]')) {
             const key = dot.dataset.stepDot;
-            const index = Number(dot.dataset.stepNumber) - 1;
+            const index = list.indexOf(key);
+            const item = dot.closest('li');
+
+            // A step that is not counted (the discount, while none is on offer) leaves the bar.
+            item?.classList.toggle('hidden', index === -1);
+            item?.classList.toggle('flex', index !== -1);
+
+            if (index === -1) {
+                continue;
+            }
+
             // Everything before the current step reads as done; the receipt is
-            // past all three.
+            // past all of them.
             const state = index < currentIndex ? 'done' : (index === currentIndex ? 'active' : 'todo');
 
             dot.className = 'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border text-xs font-semibold ' + (
@@ -953,18 +1193,26 @@ const start = () => {
         }
 
         if (stepProgress) {
-            // "Step 2 of 3" — the receipt is not one of the three steps.
+            // "Step 2 of 4" — the receipt is not one of the counted steps.
             stepProgress.textContent = step === 'placed'
                 ? ''
-                : (root.dataset.stepProgress ?? '').replace(':current', String(currentIndex + 1)).replace(':total', String(STEPS.length));
+                : (root.dataset.stepProgress ?? '').replace(':current', String(currentIndex + 1)).replace(':total', String(list.length));
         }
 
         // Footer: the labels, and what is possible from here.
         backButton?.classList.toggle('hidden', step === 'placed');
 
         if (step === 'review') {
-            nextButton.textContent = root.dataset.nextReview ?? nextButton.textContent;
+            // "Proceed to Payment" goes to the payment; with a discount step in between it is "Continue".
+            nextButton.textContent = discounts.length > 0
+                ? (root.dataset.nextPayment ?? 'Continue')
+                : (root.dataset.nextReview ?? nextButton.textContent);
             nextButton.disabled = lines.size === 0;
+        }
+
+        if (step === 'discount') {
+            nextButton.textContent = root.dataset.nextReview ?? 'Proceed to Payment';
+            nextButton.disabled = false;
         }
 
         if (step === 'payment') {
@@ -990,9 +1238,6 @@ const start = () => {
 
         showErrors([]);
     };
-
-    // The three steps the progress bar counts; the receipt is past them.
-    const STEPS = ['review', 'payment', 'confirm'];
 
     /* ---- payment: the two choices ---------------------------------------- */
 
@@ -1284,7 +1529,7 @@ const start = () => {
                 <dl class="space-y-2 px-4 py-3 text-sm">
                     <div class="flex items-start justify-between gap-4">
                         <dt class="text-gray-500 dark:text-gray-400">${escapeHtml(name)}</dt>
-                        <dd class="text-right font-medium text-gray-900 dark:text-white">${money(total())}</dd>
+                        <dd class="text-right font-medium text-gray-900 dark:text-white">${money(payable())}</dd>
                     </div>
                     ${reference ? `<div class="flex items-start justify-between gap-4">
                         <dt class="text-gray-500 dark:text-gray-400">${escapeHtml(root.dataset.referenceLabel ?? '')}</dt>
@@ -1321,11 +1566,23 @@ const start = () => {
                             <span class="tabular-nums text-gray-900 dark:text-white">${money(line.price * line.quantity)}</span>
                         </li>`).join('')}
                 </ul>
+                ${pickedDiscount() ? `
+                    <div class="space-y-1 border-t border-gray-200 px-4 py-2 text-sm dark:border-gray-700">
+                        <div class="flex items-center justify-between gap-4">
+                            <span class="text-gray-500 dark:text-gray-400">${escapeHtml(root.dataset.subtotalLabel ?? '')}</span>
+                            <span class="tabular-nums text-gray-900 dark:text-white">${money(total())}</span>
+                        </div>
+                        <div class="flex items-center justify-between gap-4">
+                            <span class="min-w-0 truncate text-gray-500 dark:text-gray-400">${escapeHtml(root.dataset.discountLabel ?? '')}: ${escapeHtml(pickedDiscount().name)} (${escapeHtml(percentText(pickedDiscount().percent))}%)</span>
+                            <span class="tabular-nums text-gray-900 dark:text-white">−${money(discountAmount())}</span>
+                        </div>
+                    </div>` : ''}
                 <div class="flex items-center justify-between border-t border-gray-200 px-4 py-3 dark:border-gray-700">
                     <span class="text-sm font-medium text-gray-700 dark:text-gray-300">${escapeHtml(root.dataset.totalLabel ?? 'Total')}</span>
-                    <span class="text-base font-semibold tabular-nums text-gray-900 dark:text-white">${money(total())}</span>
+                    <span class="text-base font-semibold tabular-nums text-gray-900 dark:text-white">${money(payable())}</span>
                 </div>
             </div>
+            ${pickedDiscount()?.requires_proof ? `<p class="rounded-xl bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">${escapeHtml(root.dataset.discountCheckNote ?? '')}</p>` : ''}
             ${paymentSummary()}`;
     };
 
@@ -1353,7 +1610,14 @@ const start = () => {
                         <dt class="text-gray-500 dark:text-gray-400">${escapeHtml(root.dataset.totalLabel ?? 'Total')}</dt>
                         <dd class="text-gray-900 dark:text-white">${money(receipt.total)}</dd>
                     </div>
+                    ${receipt.discountName && receipt.discountAmount > 0 ? `
+                    <div class="flex items-center justify-between gap-4">
+                        <dt class="text-gray-500 dark:text-gray-400">${escapeHtml(root.dataset.discountLabel ?? '')}: ${escapeHtml(receipt.discountName)}</dt>
+                        <dd class="text-gray-900 dark:text-white">−${money(receipt.discountAmount)}</dd>
+                    </div>` : ''}
                 </dl>
+
+                ${receipt.discountStatus === 'pending' ? `<p class="mx-auto mt-3 max-w-sm rounded-xl bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">${escapeHtml(root.dataset.discountWaitingLabel ?? '')}</p>` : ''}
 
                 <p class="mx-auto mt-3 max-w-sm text-xs text-gray-500 dark:text-gray-400">${escapeHtml(root.dataset.verifyingLabel ?? '')}</p>
 
@@ -1465,7 +1729,7 @@ const start = () => {
     // cancel. Instead of a stale number that fails at checkout, the menu asks the
     // server for the numbers every few seconds. Plain polling on purpose: one tiny
     // GET, no websocket server to run, works on any hosting.
-    const POLL_MS = 5000;
+    const POLL_MS = 1000;
     const liveDot = document.querySelector('#stock-live');
     const liveLabel = liveDot?.querySelector('[data-live-label]');
     let pollTimer = null;
@@ -1492,7 +1756,7 @@ const start = () => {
 
         changes.slice(0, 3).forEach((message) => showToast(message, 'warning'));
 
-        if (step === 'payment' || step === 'confirm') {
+        if (step === 'discount' || step === 'payment' || step === 'confirm') {
             showStep('review');
         }
     };
@@ -1565,7 +1829,7 @@ const start = () => {
             if (! sessionClosed) {
                 scheduleRefresh();
             }
-        }, POLL_MS + Math.random() * 1000);
+        }, POLL_MS + Math.random() * 300);
     };
 
     // Coming back to the tab: show the real numbers now, not after the next tick.
@@ -1582,7 +1846,9 @@ const start = () => {
 
     const orderKeyFor = (methodIdentifier) => {
         // The price is part of the order: the same cart at another price is another order.
-        const fingerprint = [...lines.values()].map((line) => line.id + 'x' + line.quantity + '@' + line.price).sort().join(',') + '|' + methodIdentifier;
+        const fingerprint = [...lines.values()].map((line) => line.id + 'x' + line.quantity + '@' + line.price).sort().join(',') + '|' + methodIdentifier
+            // Another discount is another order (and another total).
+            + '|' + (pickedDiscount() ? pickedDiscount().id + '@' + pickedDiscount().percent : '');
 
         if (orderKey.fingerprint !== fingerprint) {
             orderKey = { value: newKey(), fingerprint };
@@ -1639,6 +1905,18 @@ const start = () => {
                 data.append('proof_of_payment', proofFile);
             }
 
+            // The discount: only its id, the percent the customer saw and the ID picture travel. The
+            // server finds the percent itself and does the math; it refuses the order when the percent
+            // moved (like it does for a price).
+            if (pickedDiscount()) {
+                data.append('discount_id', String(pickedDiscount().id));
+                data.append('expected_discount_percent', String(pickedDiscount().percent));
+
+                if (pickedDiscount().requires_proof && discountFile) {
+                    data.append('discount_proof', discountFile);
+                }
+            }
+
             for (const line of lines.values()) {
                 data.append('items[' + line.id + ']', String(line.quantity));
                 // The price the customer saw (and paid, for a bank order): the server
@@ -1663,9 +1941,20 @@ const start = () => {
                     // cart, and go back to it instead of to the payment step.
                     applyPrices(payload.prices);
                     applyStock(payload.stock);
+                    // A discount that went away, or whose percent moved, is dealt with too.
+                    applyDiscounts(payload.discounts);
                     showStep('review');
                     showErrors(messages(payload));
                     flagFields(cartRows());
+
+                    return;
+                }
+
+                // The ID is missing or not a picture: back to the discount step, where the box is.
+                if (payload.errors && (payload.errors.discount_proof || payload.errors.discount_id)) {
+                    showStep('discount');
+                    showErrors(messages(payload));
+                    flagServerErrors(payload.errors);
 
                     return;
                 }
@@ -1696,6 +1985,9 @@ const start = () => {
                 total: Number(payload.total_amount ?? 0),
                 items: itemCount(),
                 method: method.method_name,
+                discountName: payload.discount_name ?? null,
+                discountAmount: Number(payload.discount_amount ?? 0),
+                discountStatus: payload.discount_status ?? 'none',
             };
 
             // Placed: empty the cart, move the stock numbers on, show the receipt.
@@ -1703,6 +1995,8 @@ const start = () => {
             methodId = null;
             choice = null;
             proofFile = null;
+            discountId = null;
+            setDiscountFile(null);
             referenceInput && (referenceInput.value = '');
 
             const input = document.querySelector('#proof-image');
@@ -1738,6 +2032,30 @@ const start = () => {
             if (lines.size === 0) {
                 showErrors([root.dataset.emptyCart ?? '']);
                 flagFields([document.querySelector('#cart-empty')]);
+
+                return;
+            }
+
+            // With a discount on offer it has a step of its own, before the payment.
+            if (discounts.length > 0) {
+                renderDiscount();
+                showStep('discount');
+
+                return;
+            }
+
+            renderChoice();
+            renderMethods();
+            showStep('payment');
+
+            return;
+        }
+
+        if (step === 'discount') {
+            // A discount that needs an ID cannot go on without it.
+            if (pickedDiscount()?.requires_proof && !discountFile) {
+                showErrors([root.dataset.discountProofRequired ?? '']);
+                flagFields([discountProofWrap]);
 
                 return;
             }
@@ -1797,8 +2115,15 @@ const start = () => {
             return;
         }
 
-        if (step === 'payment') {
+        if (step === 'discount') {
             showStep('review');
+
+            return;
+        }
+
+        if (step === 'payment') {
+            // Back over the discount step, when there is one.
+            showStep(stepBefore('payment'));
 
             return;
         }

@@ -81,6 +81,23 @@
          data-price-changed="{{ __(':dish is now :price (was :old). Check your cart.') }}"
          data-methods='@json($methods)'
          data-cash='@json($cash)'
+         data-discounts="{{ json_encode($discounts) }}"
+         data-discount-label="{{ __('Discount') }}"
+         data-subtotal-label="{{ __('Subtotal') }}"
+         data-discount-proof-required="{{ __('Upload your ID to use this discount.') }}"
+         data-discount-gone="{{ __('That discount is not available any more, so it was taken off your order.') }}"
+         data-discount-changed="{{ __(':discount is now :percent% off. Check your total.') }}"
+         data-discount-check-note="{{ __('Staff will check your ID before the discount is final. Your payment can only be verified after that. If it is not approved, you pay the full price.') }}"
+         data-discount-now-note="{{ __('This discount is applied right away.') }}"
+         data-discount-waiting-label="{{ __('Your discount is waiting for staff to check your ID.') }}"
+         data-discount-none-title="{{ __('No discount') }}"
+         data-discount-none-note="{{ __('Pay the full price.') }}"
+         data-discount-off-label="{{ __('off') }}"
+         data-discount-needs-id="{{ __('ID needed') }}"
+         data-discount-no-id="{{ __('No ID needed') }}"
+         data-discount-saving-label="{{ __('You save') }}"
+         data-discount-new-total-label="{{ __('New total') }}"
+         data-discount-id-attached="{{ __('ID attached') }}"
          data-dishes='@json($dishes)'
          data-step-progress="{{ __('Step :current of :total') }}"
          data-empty-cart="{{ __('Your cart is empty. Pick a dish from the menu.') }}"
@@ -527,13 +544,16 @@
                     <div id="checkout-progress" class="h-full w-0 rounded-full bg-indigo-600 transition-all duration-300 ease-out"></div>
                 </div>
 
-                <ol class="mt-3 grid grid-cols-3 gap-2">
+                {{-- The Discount step is only counted while a discount is on offer; menu.js hides its
+                     item and sets the number of columns (3 or 4) whenever the list changes. --}}
+                <ol id="checkout-steps" class="mt-3 grid gap-2" style="grid-template-columns: repeat({{ empty($discounts) ? 3 : 4 }}, minmax(0, 1fr))">
                     @foreach ([
                         ['key' => 'review', 'name' => __('Review Order')],
+                        ['key' => 'discount', 'name' => __('Discount')],
                         ['key' => 'payment', 'name' => __('Payment')],
                         ['key' => 'confirm', 'name' => __('Confirm Order')],
                     ] as $index => $progressStep)
-                        <li class="flex items-center gap-2">
+                        <li class="{{ $progressStep['key'] === 'discount' && empty($discounts) ? 'hidden' : 'flex' }} items-center gap-2">
                             <span data-step-dot="{{ $progressStep['key'] }}" data-step-name="{{ $progressStep['name'] }}" data-step-number="{{ $index + 1 }}"
                                   class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-xs font-semibold text-gray-400 dark:border-gray-600 dark:bg-gray-700">
                                 {{ $index + 1 }}
@@ -571,7 +591,66 @@
                     </div>
                 </div>
 
-                {{-- Step 2: how the customer pays --}}
+                {{-- Step 2: the discount (only a step while System Configuration offers one and one is open).
+                     menu.js draws the choices from data-discounts, shows the ID box for a discount that needs
+                     one and sends discount_id / discount_proof with the order (the server does the math). --}}
+                @if (! empty($discounts))
+                    <div data-step-panel="discount" class="hidden">
+                        <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Do you have a discount?') }}</h4>
+                        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ __('Pick the one that applies to you. Only one discount can be used on an order.') }}</p>
+
+                        <div id="discount-options" role="radiogroup" aria-label="{{ __('Discount') }}" class="mt-3 grid grid-cols-1 gap-3"></div>
+
+                        <div id="discount-proof-wrap" class="mt-4 hidden rounded-xl">
+                            <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {{ __('ID for the discount') }}
+                                <span class="font-semibold text-red-600 dark:text-red-400" aria-hidden="true">*</span>
+                                <span class="sr-only">({{ __('required') }})</span>
+                            </span>
+
+                            {{-- Same look as the proof of payment's drop zone: the real file input covers it. --}}
+                            <div id="discount-proof-zone"
+                                 class="relative mt-1 cursor-pointer rounded-xl border-2 border-dashed border-gray-400 bg-white p-3 text-center transition-colors duration-200 hover:border-indigo-400 hover:bg-indigo-50/60 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-200 dark:border-gray-500 dark:bg-gray-800/60 dark:hover:border-indigo-500 dark:hover:bg-indigo-900/20">
+                                <div id="discount-proof-content" class="flex flex-col items-center justify-center gap-2 px-4 py-4">
+                                    <span class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300">
+                                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Zm6-10.125a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.294 6.336a6.721 6.721 0 0 1-3.17.789 6.721 6.721 0 0 1-3.168-.789 3.376 3.376 0 0 1 6.338 0Z" />
+                                        </svg>
+                                    </span>
+                                    <p class="text-sm text-gray-600 dark:text-gray-300">
+                                        {{ __('Drop a picture of your ID here, or') }}
+                                        <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ __('click to browse') }}</span>
+                                    </p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('A clear picture (PNG, JPG or WebP, up to 2 MB)') }}</p>
+                                </div>
+
+                                <div id="discount-proof-wrapper" class="hidden">
+                                    <div class="relative">
+                                        <img id="discount-proof-preview" src="" alt=""
+                                             class="mx-auto max-h-40 rounded-lg bg-gray-50 object-contain ring-1 ring-gray-200 dark:bg-gray-900/40 dark:ring-gray-700">
+                                        <button type="button" id="discount-proof-remove"
+                                                class="absolute right-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-gray-900/60 text-white transition hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-white/70"
+                                                aria-label="{{ __('Remove') }}">
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                                                <path d="M6 6l12 12M18 6L6 18" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <p id="discount-proof-info" class="mt-2 truncate text-xs text-gray-500 dark:text-gray-400">{{ __('Click the picture to replace it') }}</p>
+                                </div>
+
+                                <input type="file" id="discount-proof" accept="image/png,image/jpeg,image/webp"
+                                       class="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0">
+                            </div>
+                        </div>
+
+                        <p id="discount-note" class="mt-3 hidden rounded-xl bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200"></p>
+
+                        {{-- What the picked discount does to the total, drawn by menu.js. --}}
+                        <div id="discount-summary" class="mt-4 hidden overflow-hidden rounded-2xl bg-gray-50 dark:bg-gray-700/40"></div>
+                    </div>
+                @endif
+                {{-- Step 3: how the customer pays --}}
                 <div data-step-panel="payment" class="hidden">
                     {{-- One flat list of payment methods: cash on pickup first, then the
                          bank / e-wallet methods (filled in by menu.js into #bank-methods). --}}
@@ -671,7 +750,7 @@
                     </div>
                 </div>
 
-                {{-- Step 3: one last look before it is sent --}}
+                {{-- Step 4: one last look before it is sent --}}
                 <div data-step-panel="confirm" class="hidden">
                     <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Confirm your order') }}</h4>
                     <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ __('Check the dishes and how you are paying, then place the order.') }}</p>
@@ -690,6 +769,8 @@
                 <div>
                     <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('Total') }}</p>
                     <p id="checkout-total" class="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">₱0.00</p>
+                    {{-- "Senior Citizen −₱40.00", shown while a discount is picked. --}}
+                    <p id="checkout-discount-line" class="hidden text-xs tabular-nums text-gray-600 dark:text-gray-300"></p>
                 </div>
 
                 <div class="flex items-center gap-3">

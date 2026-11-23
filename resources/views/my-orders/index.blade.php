@@ -26,7 +26,8 @@
 
     <div id="my-orders-root" class="container mx-auto max-w-3xl px-4 py-6 sm:px-6 lg:px-8"
          data-failed="{{ __('Your request could not be sent. Please try again.') }}"
-         data-pick-proof="{{ __('Choose the image of your new proof of payment.') }}">
+         data-pick-proof="{{ __('Choose the image of your new proof of payment.') }}"
+         data-pick-id="{{ __('Choose the picture of your new ID.') }}">
         {{-- Search and filters: a plain GET form, so the pager keeps them (withQueryString) and a
              filtered list can be bookmarked. Shown while there is anything to filter. --}}
         @if ($orders->total() > 0 || $filtered)
@@ -139,7 +140,33 @@
                             <span class="tabular-nums text-gray-900 dark:text-white">₱{{ number_format((float) $item['sub_total'], 2) }}</span>
                         </li>
                     @endforeach
+
+                    {{-- The discount: what it took off (while it waits for staff it is "expected"), or why it was not given. --}}
+                    @if (($order->discount_status ?? 'none') !== 'none')
+                        <li class="{{ $itemRow }}">
+                            <span class="min-w-0 flex-1 text-gray-800 dark:text-gray-200">
+                                {{ $order->discount_name }} ({{ (float) $order->discount_percent }}%)
+                                {!! $order->popup['discount_badge'] !!}
+                            </span>
+                            <span class="tabular-nums text-gray-900 dark:text-white">
+                                @if ($order->discount_status === 'rejected')
+                                    —
+                                @else
+                                    −₱{{ number_format((float) $order->discount_amount, 2) }}
+                                @endif
+                            </span>
+                        </li>
+                    @endif
                 </ul>
+
+                @if (($order->discount_status ?? 'none') === 'pending')
+                    <p class="mx-5 mb-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">{{ __('Staff will check your ID before the discount is final. Until then the payment cannot be verified.') }}</p>
+                @elseif (($order->discount_status ?? 'none') === 'rejected')
+                    <p class="mx-5 mb-3 rounded-lg bg-red-50 p-2 text-xs text-red-800 dark:bg-red-900/30 dark:text-red-200">
+                        <span class="font-semibold">{{ __('Discount not approved') }}</span>@if ($order->discount_reject_reason): {{ $order->discount_reject_reason }}@endif
+                        {{ __('The order costs its full price.') }}
+                    </p>
+                @endif
 
                 {{-- How it is being paid, and the total --}}
                 <div class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-5 py-3 dark:border-gray-700">
@@ -189,6 +216,32 @@
                                 </button>
                             </div>
                         </div>
+                    </div>
+                @endif
+
+                {{-- A rejected discount on an order that is still waiting: the customer may send a new ID and the
+                     discount waits for staff again. my-orders.js sends it (same script as the new payment proof);
+                     the URL is only set while it applies. --}}
+                @if ($order->discount_reupload_url)
+                    <div class="border-t border-gray-200 bg-gray-50 px-5 py-4 dark:border-gray-700 dark:bg-gray-700/30" data-fix-discount>
+                        <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Try the discount again') }}</p>
+                        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                            {{ __('Send a clearer picture of your ID, or a different one. The discount goes back to staff to check, and the total goes back to the discounted price meanwhile.') }}
+                        </p>
+
+                        <div data-fix-errors role="alert" class="mt-2 hidden rounded-lg bg-red-50 p-2 text-xs text-red-800 dark:bg-red-900/30 dark:text-red-200"></div>
+
+                        <form data-reupload-form action="{{ $order->discount_reupload_url }}" method="POST" enctype="multipart/form-data" class="mt-3 space-y-2">
+                            <div>
+                                <label for="discount-id-{{ $order->order_id }}" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('New ID for the discount') }}</label>
+                                <input type="file" id="discount-id-{{ $order->order_id }}" name="discount_proof" accept="image/png,image/jpeg,image/webp" required
+                                       class="mt-1 block w-full rounded-lg border border-gray-300 bg-white text-sm text-gray-700 file:mr-3 file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-medium dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:file:bg-gray-600">
+                            </div>
+                            <button type="submit" data-loading-label="{{ __('Sending…') }}"
+                                    class="inline-flex w-full items-center justify-center rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto dark:focus:ring-indigo-800">
+                                {{ __('Send new ID') }}
+                            </button>
+                        </form>
                     </div>
                 @endif
 

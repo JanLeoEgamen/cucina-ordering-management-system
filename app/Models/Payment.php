@@ -191,6 +191,15 @@ class Payment extends Model
             ]);
     }
 
+    // The order's total changed (a discount was rejected): the payment is for the new amount.
+    public static function setAmount(int $orderId, float $amount): int
+    {
+        return DB::table(self::TABLE)
+            ->where('order_id', $orderId)
+            ->whereNull('deleted_at')
+            ->update(['amount' => $amount, 'updated_at' => now()]);
+    }
+
     // Verify, reject or put back to pending. The reviewer and the moment are
     // stamped (and cleared again for pending, when $verifiedBy is null); the
     // reason belongs to a rejection only, so any other status clears it.
@@ -232,6 +241,7 @@ class Payment extends Model
                 self::TABLE . '.created_at',
                 'orders.order_number',
                 'orders.order_status',
+                'orders.discount_status',
                 'orders.session_id',
                 self::TABLE . '.payment_method_id',
                 'order_sessions.start_time',

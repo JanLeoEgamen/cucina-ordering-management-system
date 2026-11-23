@@ -36,6 +36,14 @@ class Order extends Model
         'order_status',
         'payment_status',
         'is_active',
+        // The discount the customer picked: a COPY of its name and percent (see Discount).
+        'discount_id',
+        'discount_name',
+        'discount_percent',
+        'subtotal_amount',
+        'discount_amount',
+        'discount_status',
+        'discount_proof',
     ];
 
     protected $fillable = self::COLUMNS;
@@ -96,6 +104,7 @@ class Order extends Model
                 self::TABLE . '.order_status',
                 self::TABLE . '.payment_status',
                 self::TABLE . '.ready_at',
+                ...self::DISCOUNT_COLUMNS,
                 DB::raw(User::fullNameSql('users') . ' as customer_name'),
                 'payments.payment_method_id',
                 'payments.reference_number',
@@ -115,6 +124,19 @@ class Order extends Model
             return $order;
         })->values()->all();
     }
+
+    // What the lists read about an order's discount. discount_proof is the PRIVATE file path:
+    // Controller::orderRow() swaps it for the guarded proof URL before a row is sent out, and the
+    // customer's popup never gets it.
+    protected const DISCOUNT_COLUMNS = [
+        self::TABLE . '.subtotal_amount',
+        self::TABLE . '.discount_name',
+        self::TABLE . '.discount_percent',
+        self::TABLE . '.discount_amount',
+        self::TABLE . '.discount_status',
+        self::TABLE . '.discount_reject_reason',
+        self::TABLE . '.discount_proof',
+    ];
 
     // Orders on one page of a customer's own list (My Orders).
     public const USER_PAGE_SIZE = 10;
@@ -138,6 +160,7 @@ class Order extends Model
                 self::TABLE . '.order_status',
                 self::TABLE . '.payment_status',
                 self::TABLE . '.ready_at',
+                ...self::DISCOUNT_COLUMNS,
                 'order_sessions.order_date as session_date',
                 'order_sessions.start_time',
                 'order_sessions.end_time',
@@ -340,6 +363,8 @@ class Order extends Model
                 self::TABLE . '.user_id',
                 self::TABLE . '.order_number',
                 self::TABLE . '.total_amount',
+                self::TABLE . '.discount_name',
+                self::TABLE . '.discount_status',
                 DB::raw(User::fullNameSql('users') . ' as customer_name'),
                 'payment_methods.method_name',
             ]);
@@ -377,6 +402,82 @@ class Order extends Model
             ->where('order_id', $orderId)
             ->whereNull('deleted_at')
             ->value('ready_at');
+    }
+
+    // Where the order's discount stands (none / pending / approved / rejected), or null when
+    // there is no such order. A pending discount stops the payment from being verified and the
+    // order from being completed or announced: staff decide the discount first.
+    public static function discountStatusOf(int $orderId): ?string
+    {
+        return DB::table(self::TABLE)
+            ->where('order_id', $orderId)
+            ->whereNull('deleted_at')
+            ->value('discount_status');
+    }
+
+    // The order with its discount fields, read WITH a row lock: the first thing a discount decision
+    // does inside its transaction (two reviewers pressing Approve / Reject together queue up and the
+    // second sees what the first left). SQLite has no row locks and ignores the hint.
+    public static function lockedDiscount(int $orderId): ?object
+    {
+        return DB::table(self::TABLE)
+            ->where('order_id', $orderId)
+            ->whereNull('deleted_at')
+            ->lockForUpdate()
+            ->first(['order_id', 'user_id', 'order_status', 'total_amount', 'subtotal_amount', 'discount_amount', 'discount_name', 'discount_percent', 'discount_status', 'discount_proof']);
+    }
+
+    // The customer sent a new ID for a REJECTED discount: it waits for staff again. The discount (a copy
+    // of the percent the order was placed with) is applied back to the subtotal, the old decision is
+    // cleared and the new picture replaces the old path. (The payment's amount is moved by the caller.)
+    public static function reopenDiscount(int $orderId, string $proofPath, float $discountAmount, float $newTotal): int
+    {
+        return DB::table(self::TABLE)
+            ->where('order_id', $orderId)
+            ->whereNull('deleted_at')
+            ->update([
+                'discount_status' => 'pending',
+                'discount_amount' => $discountAmount,
+                'total_amount' => $newTotal,
+                'discount_proof' => $proofPath,
+                'discount_reject_reason' => null,
+                'discount_decided_by' => null,
+                'discount_decided_at' => null,
+                'updated_at' => now(),
+            ]);
+    }
+
+    // Approve the discount: the total stays as it was placed.
+    public static function approveDiscount(int $orderId, int $reviewerId): int
+    {
+        return DB::table(self::TABLE)
+            ->where('order_id', $orderId)
+            ->whereNull('deleted_at')
+            ->update([
+                'discount_status' => 'approved',
+                'discount_decided_by' => $reviewerId,
+                'discount_decided_at' => now(),
+                'discount_reject_reason' => null,
+                'updated_at' => now(),
+            ]);
+    }
+
+    // Reject the discount: no discount any more, so the order costs its full subtotal again.
+    // (The payment's amount is moved with it by the caller.)
+    public static function rejectDiscount(int $orderId, int $reviewerId, string $reason, float $newTotal): int
+    {
+        return DB::table(self::TABLE)
+            ->where('order_id', $orderId)
+            ->whereNull('deleted_at')
+            ->update([
+                'discount_status' => 'rejected',
+                'discount_amount' => 0,
+                'total_amount' => $newTotal,
+                'discount_decided_by' => $reviewerId,
+                'discount_decided_at' => now(),
+                'discount_reject_reason' => $reason,
+                'updated_at' => now(),
+            ]);
     }
 
     // The status of a live order, read WITH a row lock. Call it first inside a
@@ -487,6 +588,8 @@ class Order extends Model
                 ->whereNull(self::TABLE . '.ready_at')
                 ->whereNull(self::TABLE . '.deleted_at')
                 ->whereNull('payments.deleted_at')
+                // A discount still waiting for staff: the price is not final, so nothing is announced.
+                ->where(self::TABLE . '.discount_status', '!=', 'pending')
                 ->where(function (Builder $settled) {
                     $settled->where('payments.payment_status', 'verified')
                         ->orWhere(fn (Builder $cash) => $cash
