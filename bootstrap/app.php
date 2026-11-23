@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AuditTrail;
 use App\Http\Middleware\EnsureProfileIsComplete;
+use App\Http\Middleware\ServerTiming;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -29,6 +30,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // The audit trail: last in the `web` group so the session (and the signed-in user) is
         // ready, and it covers every route of the group, present and future.
         $middleware->appendToGroup('web', AuditTrail::class);
+
+        // Opt-in `Server-Timing` header (SERVER_TIMING=true): first, so it wraps everything else.
+        $middleware->prependToGroup('web', ServerTiming::class);
 
         // Behind a load balancer the app only sees the balancer's address: trust its
         // X-Forwarded-* headers so the client IP (login throttling!), the host and

@@ -41,6 +41,10 @@ return [
 
     'debug' => (bool) env('APP_DEBUG', false),
 
+    // Adds a Server-Timing header (PHP time, database time, query count) for people who can read the
+    // audit trail, and logs slow after-response work. For finding out why a request is slow; off by default.
+    'server_timing' => (bool) env('SERVER_TIMING', false),
+
     /*
     |--------------------------------------------------------------------------
     | Application URL
