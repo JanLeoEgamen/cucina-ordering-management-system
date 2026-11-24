@@ -53,7 +53,8 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
-
+        <meta name="google-site-verification" content="GcdSl2dZ6PgZR1eT6DdnN_dyBjJ-YGS5yEg6_bpFFpw" />
+        
         <title>{{ \App\Models\Setting::appName() }} &middot; {{ __('Order fresh, pick up fast') }}</title>
         <meta name="description" content="{{ __('Order from the live menu, pay cash on pickup or online, and follow your order.') }}">
 
