@@ -28,66 +28,140 @@
          data-failed="{{ __('Your request could not be sent. Please try again.') }}"
          data-pick-proof="{{ __('Choose the image of your new proof of payment.') }}"
          data-pick-id="{{ __('Choose the picture of your new ID.') }}">
-        {{-- Search and filters: a plain GET form, so the pager keeps them (withQueryString) and a
-             filtered list can be bookmarked. Shown while there is anything to filter. --}}
+        {{-- Search and filters, collapsible: a plain GET form, so the pager keeps them (withQueryString) and a
+             filtered list can be bookmarked. Shown while there is anything to filter.
+             Collapsed it is one round search icon (its badge counts what is applied); a click opens the slim
+             bar (search + a filter icon + Search + close), and the four filters live in a popover that
+             opens from the filter icon. The bar starts open while a search / filter is applied. --}}
         @if ($orders->total() > 0 || $filtered)
-            <form method="GET" action="{{ route('my-orders.index') }}" role="search" aria-label="{{ __('Search and filter my orders') }}"
-                  class="mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                <label for="orders-q" class="sr-only">{{ __('Search my orders') }}</label>
-                <input type="search" id="orders-q" name="q" value="{{ $filters['q'] }}" maxlength="100"
-                       placeholder="{{ __('Search order number, dish, payment method or reference') }}"
-                       class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 placeholder-gray-400 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400">
-
-                <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <div>
-                        <label for="orders-status" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Order status') }}</label>
-                        <select id="orders-status" name="status"
-                                class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white">
-                            <option value="">{{ __('All') }}</option>
-                            @foreach (\App\Models\Order::USER_ORDER_STATUSES as $value)
-                                <option value="{{ $value }}" @selected($filters['status'] === $value)>{{ __(ucfirst($value)) }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div>
-                        <label for="orders-payment" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Payment status') }}</label>
-                        <select id="orders-payment" name="payment"
-                                class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white">
-                            <option value="">{{ __('All') }}</option>
-                            @foreach (\App\Models\Order::USER_PAYMENT_STATUSES as $value)
-                                <option value="{{ $value }}" @selected($filters['payment'] === $value)>{{ __(ucfirst($value)) }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div>
-                        <label for="orders-from" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Placed from') }}</label>
-                        <input type="date" id="orders-from" name="from" value="{{ $filters['from'] }}"
-                               class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white">
-                    </div>
-
-                    <div>
-                        <label for="orders-to" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Placed until') }}</label>
-                        <input type="date" id="orders-to" name="to" value="{{ $filters['to'] }}"
-                               class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+            @php
+                $activeFilters = collect(['status', 'payment', 'from', 'to'])->filter(fn ($key) => ($filters[$key] ?? '') !== '')->count();
+                $field = 'mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 transition focus:border-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-200 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-gray-300 dark:focus:ring-gray-600';
+                $label = 'block text-xs font-medium text-gray-600 dark:text-gray-300';
+                $appliedCount = $activeFilters + ($filters['q'] !== '' ? 1 : 0);
+            @endphp
+            <div x-data="{ bar: {{ $filtered ? 'true' : 'false' }}, open: false, clip: false }" @keydown.escape="open = false" class="mb-4">
+                {{-- The two states trade places by growing / shrinking their grid row (0fr <-> 1fr), so the
+                     list below glides up or down instead of jumping; the bar also fades and slides in.
+                     Overflow is clipped only while that runs (clip), so the filters popover and the badge
+                     are never cut off once it is still. Reduced motion zeroes every duration (app.css). --}}
+                <div class="grid transition-[grid-template-rows] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] {{ $filtered ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]' }}"
+                     :class="{ 'grid-rows-[0fr]': bar, 'grid-rows-[1fr]': !bar }">
+                    <div class="min-h-0 {{ $filtered ? 'overflow-hidden' : '' }}" :class="{ 'overflow-hidden': bar || clip }">
+                        <div class="flex justify-end transition-opacity duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] {{ $filtered ? 'opacity-0' : '' }}"
+                             :class="{ 'opacity-0': bar, 'opacity-100': ! bar }" :inert="bar">
+                            <button type="button" @click="bar = true; clip = true; setTimeout(() => clip = false, 520); $nextTick(() => $refs.q.focus())" :aria-expanded="bar.toString()" aria-controls="orders-search"
+                                    aria-label="{{ __('Search and filter my orders') }}" title="{{ __('Search and filter my orders') }}"
+                                    class="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 shadow-sm transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M17 10.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" />
+                                </svg>
+                                @if ($appliedCount > 0)
+                                    <span class="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 px-1 text-xs font-semibold text-white">{{ $appliedCount }}</span>
+                                @endif
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <div class="mt-3 flex flex-wrap items-center gap-2">
-                    <button type="submit"
-                            class="inline-flex items-center justify-center rounded-full bg-indigo-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-800">
-                        {{ __('Search') }}
-                    </button>
+                <div class="grid transition-[grid-template-rows] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] {{ $filtered ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]' }}"
+                     :class="{ 'grid-rows-[1fr]': bar, 'grid-rows-[0fr]': !bar }">
+                    <div class="min-h-0 {{ $filtered ? '' : 'overflow-hidden' }}" :class="{ 'overflow-hidden': !bar || clip }">
+                        <form id="orders-search" method="GET" action="{{ route('my-orders.index') }}" role="search" aria-label="{{ __('Search and filter my orders') }}"
+                              @click.outside="open = false"
+                              class="relative rounded-xl border border-gray-200 bg-white p-3 shadow-sm transition-[clip-path,opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-gray-700 dark:bg-gray-800 {{ $filtered ? '' : 'translate-x-8 [clip-path:inset(-600px_-24px_-600px_100%)] opacity-0' }}"
+                              :class="{ 'translate-x-0 [clip-path:inset(-600px_-24px_-600px_-4px)] opacity-100': bar, 'translate-x-8 [clip-path:inset(-600px_-24px_-600px_100%)] opacity-0': ! bar }" :inert="! bar">
+                            <div class="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+                                <div class="relative min-w-0 flex-1 basis-full sm:basis-auto">
+                                    <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M17 10.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" />
+                                    </svg>
+                                    <label for="orders-q" class="sr-only">{{ __('Search my orders') }}</label>
+                                    <input type="search" id="orders-q" name="q" x-ref="q" value="{{ $filters['q'] }}" maxlength="100"
+                                           placeholder="{{ __('Search order number, dish, payment method or reference') }}"
+                                           class="block w-full truncate rounded-full border border-gray-300 bg-white py-2 pl-9 pr-3 text-base text-gray-900 placeholder-gray-400 transition focus:border-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-200 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 dark:focus:border-gray-300 dark:focus:ring-gray-600">
+                                </div>
 
-                    @if ($filtered)
-                        <a href="{{ route('my-orders.index') }}"
-                           class="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
-                            {{ __('Clear filters') }}
-                        </a>
-                    @endif
+                                {{-- Icon only: the badge says how many filters are on. --}}
+                                <button type="button" @click="open = !open" :aria-expanded="open.toString()" aria-controls="orders-filters"
+                                        aria-label="{{ __('Filters') }}" title="{{ __('Filters') }}"
+                                        class="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M6 12h12M10 18h4" />
+                                    </svg>
+                                    @if ($activeFilters > 0)
+                                        <span class="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 px-1 text-xs font-semibold text-white">{{ $activeFilters }}</span>
+                                    @endif
+                                </button>
+
+                                <button type="submit"
+                                        class="inline-flex h-10 flex-1 items-center justify-center rounded-full bg-indigo-600 px-5 text-sm sm:flex-none font-medium text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-800">
+                                    {{ __('Search') }}
+                                </button>
+
+                                <button type="button" @click="bar = false; open = false; clip = true; setTimeout(() => clip = false, 520)" aria-label="{{ __('Close search') }}" title="{{ __('Close search') }}"
+                                        class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            {{-- The filters pop open under the bar (over the orders, nothing is pushed down). --}}
+                            <div id="orders-filters" x-show="open" x-cloak
+                                     x-transition:enter="transition-[clip-path,opacity] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]" x-transition:enter-start="[clip-path:inset(-24px_-24px_-24px_100%)] opacity-0" x-transition:enter-end="[clip-path:inset(-24px)] opacity-100"
+                                     x-transition:leave="transition-[clip-path,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]" x-transition:leave-start="[clip-path:inset(-24px)] opacity-100" x-transition:leave-end="[clip-path:inset(-24px_-24px_-24px_100%)] opacity-0"
+                                 class="absolute inset-x-0 top-full z-20 mt-2 rounded-xl border border-gray-200 bg-white p-4 shadow-lg sm:left-auto sm:w-96 dark:border-gray-700 dark:bg-gray-800">
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label for="orders-status" class="{{ $label }}">{{ __('Order status') }}</label>
+                                        <select id="orders-status" name="status" class="{{ $field }}">
+                                            <option value="">{{ __('All') }}</option>
+                                            @foreach (\App\Models\Order::USER_ORDER_STATUSES as $value)
+                                                <option value="{{ $value }}" @selected($filters['status'] === $value)>{{ __(ucfirst($value)) }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label for="orders-payment" class="{{ $label }}">{{ __('Payment status') }}</label>
+                                        <select id="orders-payment" name="payment" class="{{ $field }}">
+                                            <option value="">{{ __('All') }}</option>
+                                            @foreach (\App\Models\Order::USER_PAYMENT_STATUSES as $value)
+                                                <option value="{{ $value }}" @selected($filters['payment'] === $value)>{{ __(ucfirst($value)) }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label for="orders-from" class="{{ $label }}">{{ __('Placed from') }}</label>
+                                        <input type="date" id="orders-from" name="from" value="{{ $filters['from'] }}" class="{{ $field }}">
+                                    </div>
+
+                                    <div>
+                                        <label for="orders-to" class="{{ $label }}">{{ __('Placed until') }}</label>
+                                        <input type="date" id="orders-to" name="to" value="{{ $filters['to'] }}" class="{{ $field }}">
+                                    </div>
+                                </div>
+
+                                <button type="submit"
+                                        class="mt-4 inline-flex w-full items-center justify-center rounded-full bg-indigo-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-800">
+                                    {{ __('Apply filters') }}
+                                </button>
+                            </div>
+
+                            @if ($filtered)
+                                <div class="mt-2 text-right">
+                                    <a href="{{ route('my-orders.index') }}"
+                                       class="text-xs font-medium text-gray-500 underline-offset-2 transition hover:text-gray-900 hover:underline focus:outline-none focus:ring-4 focus:ring-gray-200 dark:text-gray-400 dark:hover:text-white">
+                                        {{ __('Clear filters') }}
+                                    </a>
+                                </div>
+                            @endif
+                        </form>
+                    </div>
                 </div>
-            </form>
+            </div>
         @endif
 
         @forelse ($orders as $order)

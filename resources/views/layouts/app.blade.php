@@ -70,8 +70,19 @@
                 open: false,
                 collapsed: document.documentElement.classList.contains('cucina-sidebar-collapsed'),
                 toggleSidebar() {
+                    const root = document.documentElement;
+
                     this.collapsed = ! this.collapsed;
-                    document.documentElement.classList.toggle('cucina-sidebar-collapsed', this.collapsed);
+                    root.classList.toggle('cucina-sidebar-collapsed', this.collapsed);
+
+                    // The sidebar slides under a pointer that has not moved: whatever group icon ends up beneath
+                    // it must not pop its hover panel open. `sidebar-switching` (app.css) keeps the panels shut
+                    // until the animation is over AND the pointer moves again.
+                    root.classList.add('sidebar-switching');
+                    clearTimeout(this.switchTimer);
+                    this.switchTimer = setTimeout(() => {
+                        document.addEventListener('mousemove', () => root.classList.remove('sidebar-switching'), { once: true });
+                    }, 350);
 
                     try {
                         localStorage.setItem('cucina.sidebar.collapsed', this.collapsed ? '1' : '0');
@@ -83,6 +94,13 @@
                 // data-nav-closed attribute of <html>, which app.css reads, and in localStorage.
                 toggleGroup(key) {
                     const root = document.documentElement;
+
+                    // In the icon rail a group is one icon that opens a hover panel: pressing it must not
+                    // change (and store) the folded state of the open sidebar behind it.
+                    if (root.classList.contains('cucina-sidebar-collapsed') && window.matchMedia('(min-width: 1024px)').matches) {
+                        return;
+                    }
+
                     const closed = (root.getAttribute('data-nav-closed') || '').split(' ').filter(Boolean);
                     const index = closed.indexOf(key);
 
@@ -121,7 +139,7 @@
                 sidebar. `.app-content` is the hook the collapsed state uses to
                 shrink that offset to 5rem (resources/css/app.css).
             --}}
-            <div class="app-content pt-16 transition-[padding] duration-300 ease-in-out lg:pt-0 lg:pl-64">
+            <div class="app-content pt-16 transition-[padding] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] lg:pt-0 lg:pl-64">
                 {{--
                     Desktop top bar: the theme switch, the notification bell (badge + latest
                     notifications) and the account menu, always in the top right. Sticky and

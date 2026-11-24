@@ -61,7 +61,7 @@
 --}}
 <aside id="app-sidebar"
        aria-label="{{ __('Main navigation') }}"
-       class="fixed inset-y-0 left-0 z-50 h-screen w-64 -translate-x-full bg-gray-50 p-3 transition-[width,transform] duration-300 ease-in-out dark:bg-gray-900 lg:translate-x-0"
+       class="fixed inset-y-0 left-0 z-50 h-screen w-64 -translate-x-full bg-gray-50 p-3 transition-[width,transform] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] dark:bg-gray-900 lg:translate-x-0"
        :class="{ '!translate-x-0': open }">
 
     {{--
@@ -76,7 +76,7 @@
             @click="toggleSidebar()"
             :aria-expanded="(! collapsed) ? 'true' : 'false'"
             :title="collapsed ? '{{ __('Expand sidebar') }}' : '{{ __('Collapse sidebar') }}'"
-            class="absolute -right-[calc(1.125rem+0.5px)] top-1/2 z-20 -mt-[1.125rem] hidden h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-card transition-colors hover:border-gray-600 hover:bg-gray-700 hover:text-white focus:outline-none ring-4 ring-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-mist dark:hover:bg-mist dark:hover:text-ink dark:ring-gray-700 lg:flex">
+            class="absolute -right-[calc(0.875rem+0.5px)] top-1/2 z-20 -mt-[1.125rem] hidden h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-card transition-colors hover:border-gray-600 hover:bg-gray-700 hover:text-white focus:outline-none ring-4 ring-gray-200 dark:border-gray-500 dark:bg-gray-700 dark:text-gray-100 dark:hover:border-mist dark:hover:bg-mist dark:hover:text-ink dark:ring-gray-900 lg:flex">
         <span class="sr-only">{{ __('Toggle sidebar') }}</span>
         <svg class="sidebar-toggle-icon h-5 w-5 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
@@ -106,7 +106,7 @@
 
         {{-- Links, in one white rounded panel --}}
         <div class="mt-1 flex min-h-0 flex-1 flex-col rounded-2xl bg-white shadow-card dark:bg-gray-800">
-        <nav data-soft-nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="{{ __('Main navigation') }}">
+        <nav data-soft-nav class="sidebar-scroll flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-3 py-4" aria-label="{{ __('Main navigation') }}">
             <a href="{{ route('dashboard') }}"
                @click="open = false"
                title="{{ __('Dashboard') }}"
@@ -123,14 +123,17 @@
                     {{-- The title is a button: it folds the group (state: html[data-nav-closed], kept in
                          localStorage, see layouts/app.blade.php). The icon rail has no room for it, so a
                          thin rule marks the group there and its links always show. --}}
-                    <button type="button" @click="toggleGroup('ordering')" aria-expanded="true" aria-controls="nav-group-ordering"
-                            class="nav-group-title sidebar-label group flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-1 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-200">
-                        <span>{{ __('Ordering') }}</span>
-                        <svg class="nav-chevron h-3.5 w-3.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 9-7 7-7-7" /></svg>
+                    <button type="button" @click="toggleGroup('ordering')" aria-expanded="true" aria-controls="nav-group-ordering" aria-label="{{ __('Ordering') }}"
+                            class="nav-group-title group flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-medium text-gray-800 transition hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-100 dark:hover:bg-gray-700">
+                        <span class="flex min-w-0 items-center gap-3">
+                            <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                            <span class="truncate">{{ __('Ordering') }}</span>
+                        </span>
+                        <svg class="nav-chevron h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 9-7 7-7-7" /></svg>
                     </button>
                     <hr class="sidebar-rule mx-3 hidden border-gray-100 dark:border-gray-700">
                     <div id="nav-group-ordering" class="nav-group-items">
-                    <div class="nav-group-inner space-y-1">
+                    <div class="nav-group-inner nav-tree space-y-1" data-title="{{ __('Ordering') }}">
                 @can('view menu')
                     <a href="{{ route('menu.index') }}"
                        @click="open = false"
@@ -187,14 +190,17 @@
                     {{-- The title is a button: it folds the group (state: html[data-nav-closed], kept in
                          localStorage, see layouts/app.blade.php). The icon rail has no room for it, so a
                          thin rule marks the group there and its links always show. --}}
-                    <button type="button" @click="toggleGroup('service')" aria-expanded="true" aria-controls="nav-group-service"
-                            class="nav-group-title sidebar-label group flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-1 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-200">
-                        <span>{{ __('Service') }}</span>
-                        <svg class="nav-chevron h-3.5 w-3.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 9-7 7-7-7" /></svg>
+                    <button type="button" @click="toggleGroup('service')" aria-expanded="true" aria-controls="nav-group-service" aria-label="{{ __('Service') }}"
+                            class="nav-group-title group flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-medium text-gray-800 transition hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-100 dark:hover:bg-gray-700">
+                        <span class="flex min-w-0 items-center gap-3">
+                            <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <span class="truncate">{{ __('Service') }}</span>
+                        </span>
+                        <svg class="nav-chevron h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 9-7 7-7-7" /></svg>
                     </button>
                     <hr class="sidebar-rule mx-3 hidden border-gray-100 dark:border-gray-700">
                     <div id="nav-group-service" class="nav-group-items">
-                    <div class="nav-group-inner space-y-1">
+                    <div class="nav-group-inner nav-tree space-y-1" data-title="{{ __('Service') }}">
                 @can('view order-sessions')
                     <a href="{{ route('order-sessions.index') }}"
                        @click="open = false"
@@ -251,14 +257,17 @@
                     {{-- The title is a button: it folds the group (state: html[data-nav-closed], kept in
                          localStorage, see layouts/app.blade.php). The icon rail has no room for it, so a
                          thin rule marks the group there and its links always show. --}}
-                    <button type="button" @click="toggleGroup('catalog')" aria-expanded="true" aria-controls="nav-group-catalog"
-                            class="nav-group-title sidebar-label group flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-1 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-200">
-                        <span>{{ __('Catalog') }}</span>
-                        <svg class="nav-chevron h-3.5 w-3.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 9-7 7-7-7" /></svg>
+                    <button type="button" @click="toggleGroup('catalog')" aria-expanded="true" aria-controls="nav-group-catalog" aria-label="{{ __('Catalog') }}"
+                            class="nav-group-title group flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-medium text-gray-800 transition hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-100 dark:hover:bg-gray-700">
+                        <span class="flex min-w-0 items-center gap-3">
+                            <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                            <span class="truncate">{{ __('Catalog') }}</span>
+                        </span>
+                        <svg class="nav-chevron h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 9-7 7-7-7" /></svg>
                     </button>
                     <hr class="sidebar-rule mx-3 hidden border-gray-100 dark:border-gray-700">
                     <div id="nav-group-catalog" class="nav-group-items">
-                    <div class="nav-group-inner space-y-1">
+                    <div class="nav-group-inner nav-tree space-y-1" data-title="{{ __('Catalog') }}">
                 @can('view dishes')
                     <a href="{{ route('dishes.index') }}"
                        @click="open = false"
@@ -304,14 +313,17 @@
                     {{-- The title is a button: it folds the group (state: html[data-nav-closed], kept in
                          localStorage, see layouts/app.blade.php). The icon rail has no room for it, so a
                          thin rule marks the group there and its links always show. --}}
-                    <button type="button" @click="toggleGroup('access')" aria-expanded="true" aria-controls="nav-group-access"
-                            class="nav-group-title sidebar-label group flex w-full items-center justify-between rounded-lg px-3 pb-1 pt-1 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-200">
-                        <span>{{ __('Access') }}</span>
-                        <svg class="nav-chevron h-3.5 w-3.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 9-7 7-7-7" /></svg>
+                    <button type="button" @click="toggleGroup('access')" aria-expanded="true" aria-controls="nav-group-access" aria-label="{{ __('Access') }}"
+                            class="nav-group-title group flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-medium text-gray-800 transition hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-100 dark:hover:bg-gray-700">
+                        <span class="flex min-w-0 items-center gap-3">
+                            <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                            <span class="truncate">{{ __('Access') }}</span>
+                        </span>
+                        <svg class="nav-chevron h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 9-7 7-7-7" /></svg>
                     </button>
                     <hr class="sidebar-rule mx-3 hidden border-gray-100 dark:border-gray-700">
                     <div id="nav-group-access" class="nav-group-items">
-                    <div class="nav-group-inner space-y-1">
+                    <div class="nav-group-inner nav-tree space-y-1" data-title="{{ __('Access') }}">
                 @can('view roles')
                     <a href="{{ route('roles.index') }}"
                        @click="open = false"

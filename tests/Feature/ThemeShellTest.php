@@ -176,7 +176,7 @@ class ThemeShellTest extends TestCase
         // Halfway down the sidebar's right edge (clear of the brand at the
         // top), centred with a margin: a transform would be overridden by the press
         // effect and make the handle jump.
-        $this->assertStringContainsString('absolute -right-[calc(1.125rem+0.5px)] top-1/2', $html);
+        $this->assertStringContainsString('absolute -right-[calc(0.875rem+0.5px)] top-1/2', $html);
         $this->assertStringContainsString('-mt-[1.125rem]', $html);
         $this->assertStringNotContainsString('-translate-y-1/2', $html);
 
@@ -190,7 +190,7 @@ class ThemeShellTest extends TestCase
 
         // Each title is a button that folds its group (not a plain label).
         foreach (['ordering' => 'Ordering', 'service' => 'Service', 'catalog' => 'Catalog', 'access' => 'Access'] as $key => $title) {
-            $this->assertStringContainsString('<span>' . $title . '</span>', $all);
+            $this->assertStringContainsString('<span class="truncate">' . $title . '</span>', $all);
             $this->assertStringContainsString("@click=\"toggleGroup('" . $key . "')\"", $all);
             $this->assertStringContainsString('data-nav-group="' . $key . '"', $all);
             $this->assertStringContainsString('id="nav-group-' . $key . '"', $all);
@@ -199,9 +199,9 @@ class ThemeShellTest extends TestCase
         // A customer sees only the ordering group.
         $customer = $this->actingAs($this->userWith('view menu', 'view my orders'))->get(route('dashboard'))->assertOk()->getContent();
 
-        $this->assertStringContainsString('<span>Ordering</span>', $customer);
-        $this->assertStringNotContainsString('<span>Service</span>', $customer);
-        $this->assertStringNotContainsString('<span>Access</span>', $customer);
+        $this->assertStringContainsString('<span class="truncate">Ordering</span>', $customer);
+        $this->assertStringNotContainsString('<span class="truncate">Service</span>', $customer);
+        $this->assertStringNotContainsString('<span class="truncate">Access</span>', $customer);
     }
 
     public function test_a_sidebar_group_can_be_folded_and_the_group_of_the_current_page_is_marked_to_open(): void
