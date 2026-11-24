@@ -22,7 +22,7 @@ class ServerTimingTest extends TestCase
 
         $response = $this->actingAs($this->superAdmin())->getJson(route('order-sessions.index'))->assertOk();
 
-        $this->assertMatchesRegularExpression('/^total;dur=\d+, db;dur=\d+;desc="\d+ queries"$/', $response->headers->get('Server-Timing'));
+        $this->assertMatchesRegularExpression('/^boot;dur=\d+, total;dur=\d+, db;dur=\d+;desc="\d+ queries", php;desc="[\w-]+, opcache (on|OFF)"$/', $response->headers->get('Server-Timing'));
     }
 
     public function test_nobody_else_sees_it(): void
