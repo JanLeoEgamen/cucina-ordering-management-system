@@ -44,13 +44,16 @@ export function initTableToolbar(table, root = document.querySelector('[data-tab
 
     let searchTimer = null;
 
+    // A table in serverSide mode asks the server on every search, so it waits a little longer.
+    const searchDelay = () => (table.page.info().serverSide ? 350 : 150);
+
     search?.addEventListener('input', () => {
-        // A short pause, so typing is not one redraw per key.
+        // A short pause, so typing is not one redraw (or one request) per key.
         clearTimeout(searchTimer);
 
         searchTimer = setTimeout(() => {
             table.search(search.value.trim()).draw();
-        }, 150);
+        }, searchDelay());
     });
 
     /* ---- sort ------------------------------------------------------------- */
@@ -187,7 +190,8 @@ export function initTableToolbar(table, root = document.querySelector('[data-tab
 
     /* ---- export (Excel / PDF) ---------------------------------------------- */
 
-    // What is exported is what the table shows now (search, filters, sort; every page).
+    // What is exported is what the table shows now (search, filters, sort; every page; a serverSide table
+    // fetches its rows from the server, see table-export.js).
     // The writers are loaded on the first export, not with the page.
     for (const button of root.querySelectorAll('[data-table-export]')) {
         button.addEventListener('click', async () => {
@@ -195,7 +199,10 @@ export function initTableToolbar(table, root = document.querySelector('[data-tab
 
             // Ask first, naming the format and how many rows the file will hold. An empty table
             // skips the question: exportTable() then only says there is nothing to export.
-            const count = table.rows({ search: 'applied' }).count();
+            // A serverSide table holds one page: the matches are what the server counted.
+            const count = table.page.info().serverSide
+                ? table.page.info().recordsDisplay
+                : table.rows({ search: 'applied' }).count();
 
             if (count > 0 && root.dataset.confirmText) {
                 const { confirmDialog } = await import('./confirm-dialog.js');

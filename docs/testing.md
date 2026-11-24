@@ -1,7 +1,7 @@
 # Testing
 
 ```
-php artisan test                      # all (baseline 2026-11-23: 761 passed)
+php artisan test                      # all (baseline 2026-11-24: 770 passed)
 php artisan test --filter=DishTest    # one class
 php scripts/harness.php               # docs drift check + full suite
 ```
@@ -67,6 +67,7 @@ php scripts/harness.php               # docs drift check + full suite
 | Notification links (a new link carries `?order=ID#order-ID`; opening an **old** `/my-orders#order-ID` link redirects through `?order=ID`; other links unchanged) | `NotificationTest` |
 | Signed-in user cache (a second request identifies the user with no query; a role taken away, a direct permission revoked, a role's permissions emptied and a deleted account are felt on the very next request; `AUTH_CACHE_TTL=0` reads the database again; run through the real session guard, not `actingAs`) | `AuthCacheTest` |
 | Table cache (a second read costs no query; Eloquent insert, query builder update and soft delete are each seen by the next read; a joined table (dish types) is followed; checkout methods, users + roles, the orders feed, My Orders (per customer, statuses, a search read fresh) and the pending-payments count follow their tables; a session's status still follows the clock while its rows are cached; the `database` cache driver cannot change the id `insertGetId` returns, a missing cache table never breaks a write, a finished migration starts the cache from nothing) | `TableCacheTest` |
+| Server-side Orders / Payments tables (F22: one page with the totals and the filter options; `length` capped, -1 not honoured; the same number of queries for 3 or 63 orders; every search word needed, a customer / a dish / a number, case and wildcard safe; every filter and the sort; text still escaped; Payments paging / search / filters; the permission) | `ServerSideTablesTest` |
 | `perf:check` (runs, and leaves no scratch table behind) | `PerfCheckTest` |
 | Server-Timing diagnostics (off by default; on gives `total` + `db` + query count to staff who read the audit trail, nobody else, not guests) | `ServerTimingTest` |
 | Query budget (`Setting` read once and never stale after a save, also inside a transaction; the bell poll runs no notification query while nothing changed and sees a new row, a read-all at once; creating a session runs the same number of queries for 2 or 25 dishes; a session is not left behind when one of its dishes cannot be saved) | `QueryBudgetTest` |
