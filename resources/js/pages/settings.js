@@ -1,14 +1,84 @@
 /**
  * System configuration page.
  *
- * One form for all settings: Save asks for confirmation (the page's shared
- * #save-modal), then sends the form as it is and reports with a toast. A
- * validation error stays on the page, with the values the user typed.
+ * One form for all settings, shown one tab at a time. Save asks for confirmation (the page's
+ * shared #save-modal), then sends the WHOLE form (hidden tabs included) and reports with a
+ * toast. A validation error stays on the page, with the values the user typed.
  */
 import { showToast } from '../ui/toast';
 
 const start = () => {
     const form = document.querySelector('#settings-form');
+
+    /* ---- tabs ----------------------------------------------------------------
+     *
+     * Every panel is in the form; a hidden one is only `hidden`, so Save still sends it. The
+     * open tab is kept in the URL hash (#notifications) with replaceState: a refresh or a
+     * shared link lands on it, and the back button does not step through tabs. This runs
+     * before the read only check below: someone without `edit settings` has tabs too.
+     */
+    const tabs = [...document.querySelectorAll('[data-settings-tab]')];
+    const panels = [...document.querySelectorAll('[data-settings-panel]')];
+
+    const showTab = (name, { focus = false, remember = true } = {}) => {
+        if (!tabs.some((tab) => tab.dataset.settingsTab === name)) {
+            return;
+        }
+
+        for (const tab of tabs) {
+            const on = tab.dataset.settingsTab === name;
+
+            tab.setAttribute('aria-selected', on ? 'true' : 'false');
+            tab.tabIndex = on ? 0 : -1;
+
+            if (on && focus) {
+                tab.focus();
+            }
+        }
+
+        panels.forEach((panel) => panel.classList.toggle('hidden', panel.dataset.settingsPanel !== name));
+
+        if (remember) {
+            try {
+                history.replaceState(history.state, '', '#' + name);
+            } catch (error) {
+                // The tab still works without a hash.
+            }
+        }
+    };
+
+    // Show the tab and the (folded) block a control is in, so a field that needs attention can be seen.
+    const reveal = (control) => {
+        const panel = control.closest('[data-settings-panel]');
+
+        if (panel) {
+            showTab(panel.dataset.settingsPanel);
+        }
+
+        control.closest('details')?.setAttribute('open', '');
+    };
+
+    const fromHash = () => showTab(decodeURIComponent(location.hash.slice(1)), { remember: false });
+
+    tabs.forEach((tab, index) => {
+        tab.addEventListener('click', () => showTab(tab.dataset.settingsTab));
+
+        // Arrow keys move along the tabs, as a tab list does.
+        tab.addEventListener('keydown', (event) => {
+            const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+
+            if (step) {
+                event.preventDefault();
+                showTab(tabs[(index + step + tabs.length) % tabs.length].dataset.settingsTab, { focus: true });
+            } else if (event.key === 'Home' || event.key === 'End') {
+                event.preventDefault();
+                showTab(tabs[event.key === 'Home' ? 0 : tabs.length - 1].dataset.settingsTab, { focus: true });
+            }
+        });
+    });
+
+    window.addEventListener('hashchange', fromHash);
+    fromHash();
     const errors = document.querySelector('#settings-errors');
     const confirmTitle = document.querySelector('#save-modal-title');
     const confirmMessage = document.querySelector('#save-modal-message');
@@ -133,8 +203,11 @@ const start = () => {
         }
 
         const label = form.querySelector('label[for="' + control.id + '"]');
-        // The switch sits beside its text, so its line goes under the text, not beside it.
-        const anchor = control.type === 'checkbox' ? label : (control.closest('.mt-1') ?? label);
+        // A setting is its words on one side and its control on the other (<x-settings.field>): the line
+        // goes under the control, or under the words for a switch, which sits beside them.
+        const field = control.closest('[data-field]');
+        const textBox = field?.querySelector('[data-field-text]');
+        const controlBox = field?.querySelector('[data-control]');
 
         const badge = document.createElement('span');
         badge.className = 'ml-2 hidden rounded-full bg-gray-900 px-2 py-0.5 align-middle text-[11px] font-semibold leading-4 text-white dark:bg-mist dark:text-ink';
@@ -153,7 +226,14 @@ const start = () => {
         button.addEventListener('click', () => undo(control));
 
         note.append(was, button);
-        anchor?.after(note);
+
+        if (control.type === 'checkbox' && textBox) {
+            textBox.append(note);
+        } else if (controlBox) {
+            controlBox.append(note);
+        } else {
+            label?.after(note);
+        }
 
         const mark = { badge, note, was };
 
@@ -162,8 +242,11 @@ const start = () => {
         return mark;
     };
 
+    const tabCounts = new Map(tabs.map((tab) => [tab.dataset.settingsTab, tab.querySelector('[data-tab-count]')]));
+
     const refreshChanges = () => {
         let count = 0;
+        const perTab = {};
 
         for (const control of controls) {
             const saved = baseline.get(control);
@@ -172,6 +255,12 @@ const start = () => {
 
             if (changed) {
                 count++;
+
+                const tab = control.closest('[data-settings-panel]')?.dataset.settingsPanel;
+
+                if (tab) {
+                    perTab[tab] = (perTab[tab] ?? 0) + 1;
+                }
             } else if (!marks.has(control)) {
                 continue;
             }
@@ -191,11 +280,31 @@ const start = () => {
             }
         }
 
+        // A tab that holds edits says how many, so nothing changed on another tab is forgotten.
+        tabCounts.forEach((badge, name) => {
+            if (!badge) {
+                return;
+            }
+
+            badge.textContent = String(perTab[name] ?? 0);
+            badge.classList.toggle('hidden', !perTab[name]);
+        });
+
         if (summary) {
-            summary.textContent = count === 1
-                ? copy('labelChange', '1 unsaved change')
-                : copy('labelChanges', ':n unsaved changes').replace(':n', String(count));
-            summary.classList.toggle('hidden', count === 0);
+            if (count === 0) {
+                summary.textContent = copy('labelNone', 'No unsaved changes');
+            } else {
+                summary.textContent = count === 1
+                    ? copy('labelChange', '1 unsaved change')
+                    : copy('labelChanges', ':n unsaved changes').replace(':n', String(count));
+            }
+
+            // Quiet when there is nothing to save, strong when there is.
+            summary.classList.toggle('font-medium', count > 0);
+            summary.classList.toggle('text-gray-900', count > 0);
+            summary.classList.toggle('dark:text-white', count > 0);
+            summary.classList.toggle('text-gray-500', count === 0);
+            summary.classList.toggle('dark:text-gray-400', count === 0);
         }
     };
 
@@ -250,7 +359,14 @@ const start = () => {
         event.preventDefault();
         showErrors([]);
 
-        // The browser's own message for an empty time, before asking anything.
+        // The browser's own message for an empty time, before asking anything. It cannot point at a
+        // field inside a hidden tab or a folded block, so open the first wrong one first.
+        const invalid = [...form.elements].find((control) => control.willValidate && !control.checkValidity());
+
+        if (invalid) {
+            reveal(invalid);
+        }
+
         if (!form.reportValidity()) {
             return;
         }

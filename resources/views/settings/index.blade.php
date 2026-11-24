@@ -4,19 +4,30 @@
     </x-slot>
 
     @php
-        $label = 'block text-sm font-medium text-gray-700 dark:text-gray-300';
         $input = 'block w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm leading-5 text-gray-900 placeholder-gray-400 transition focus:border-gray-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-gray-200 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-700/60 dark:text-white dark:placeholder-gray-400 dark:focus:border-gray-300 dark:focus:bg-gray-700 dark:focus:ring-gray-600 dark:[color-scheme:dark]';
         $submitButton = 'rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-gray-300 disabled:opacity-60 dark:focus:ring-gray-600';
         $canEdit = auth()->user()->can('edit settings');
+
+        // The tabs, in the order they are drawn. The first one is open until settings.js reads the URL hash.
+        $tabs = [
+            'branding' => [__('Branding'), __('Name and logo')],
+            'ordering' => [__('Ordering'), __('Sessions, orders, pre-orders')],
+            'pricing' => [__('Pricing'), __('Discounts and ala carte')],
+            'notifications' => [__('Notifications'), __('Email, Google Chat, who is told')],
+            'public-pages' => [__('Public pages'), __('Support, privacy, terms')],
+        ];
     @endphp
 
-    <div class="container mx-auto max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
+    <div class="container mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         {{--
-            One form for the whole page; each setting group is a card (section), so more
-            can be added below this one. Saving is confirmed (the page's shared
-            confirmation modal) and sent by resources/js/pages/settings.js.
+            One form for the whole page. The settings are grouped into tabs (resources/js/pages/settings.js shows
+            one panel at a time and keeps the URL hash), but every panel stays in the form, so Save sends them all.
+            Saving is confirmed (the page's shared confirmation modal) and sent by settings.js. A new setting goes
+            into the panel it belongs to as an <x-settings.field>.
         --}}
-        <form id="settings-form" method="POST" action="{{ route('settings.update') }}" enctype="multipart/form-data"
+        {{-- novalidate: the browser cannot point at a field inside a hidden tab, and then refuses the submit without a word.
+             settings.js checks the fields itself on submit, opens the tab of the first wrong one, and the server validates anyway. --}}
+        <form id="settings-form" method="POST" action="{{ route('settings.update') }}" enctype="multipart/form-data" novalidate
               data-confirm-title="{{ __('Confirm Save') }}"
               data-confirm-message="{{ __('Are you sure you want to save the system configuration? The app name and logo change on every page, new order sessions will start from these times, the pre-order limits apply to every new pre-order, and the public privacy policy and terms of service pages change.') }}"
               data-confirm-label="{{ __('Save Configuration') }}"
@@ -25,289 +36,239 @@
               data-label-undo="{{ __('Undo') }}"
               data-label-on="{{ __('On') }}"
               data-label-off="{{ __('Off') }}"
+              data-label-none="{{ __('No unsaved changes') }}"
               data-label-change="{{ __('1 unsaved change') }}"
-              data-label-changes="{{ __(':n unsaved changes') }}"
-              class="space-y-6">
+              data-label-changes="{{ __(':n unsaved changes') }}">
             @csrf
             @method('PUT')
 
-            {{-- Any refused save: filled in by settings.js, at the top where it is seen whichever card caused it. --}}
-            <div id="settings-errors" class="hidden rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300" role="alert"></div>
+            <div class="lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-start lg:gap-8">
+                {{-- The tabs: a scrolling strip on a phone, a column beside the settings from lg. --}}
+                <nav id="settings-tabs" role="tablist" aria-label="{{ __('System Configuration') }}"
+                     class="-mx-4 mb-5 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6 lg:sticky lg:top-24 lg:mx-0 lg:mb-0 lg:flex-col lg:gap-1 lg:overflow-visible lg:px-0 lg:pb-0">
+                    @foreach ($tabs as $id => [$title, $subtitle])
+                        <button type="button" role="tab" id="settings-tab-{{ $id }}" data-settings-tab="{{ $id }}"
+                                aria-controls="settings-panel-{{ $id }}" aria-selected="{{ $loop->first ? 'true' : 'false' }}"
+                                tabindex="{{ $loop->first ? '0' : '-1' }}"
+                                class="group flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-left text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-4 focus-visible:ring-gray-300 aria-selected:bg-gray-900 aria-selected:text-white aria-selected:hover:bg-gray-900 lg:px-4 lg:py-2.5 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white dark:focus-visible:ring-gray-600 dark:aria-selected:bg-mist dark:aria-selected:text-ink dark:aria-selected:hover:bg-mist">
+                            <span class="min-w-0">
+                                <span class="block whitespace-nowrap lg:whitespace-normal">{{ $title }}</span>
+                                <span class="hidden text-xs font-normal text-gray-500 group-aria-selected:text-white/70 lg:block dark:text-gray-400 dark:group-aria-selected:text-ink/70">{{ $subtitle }}</span>
+                            </span>
+                            {{-- How many fields of this tab differ from what is saved (filled in by settings.js). --}}
+                            <span data-tab-count class="ml-auto hidden min-w-5 rounded-full bg-gray-900 px-1.5 text-center text-[11px] font-semibold leading-5 text-white group-aria-selected:bg-white group-aria-selected:text-gray-900 dark:bg-mist dark:text-ink dark:group-aria-selected:bg-ink dark:group-aria-selected:text-mist" aria-hidden="true"></span>
+                        </button>
+                    @endforeach
+                </nav>
 
-            {{-- The name and logo every page, error page and email shows (Setting::brand()). --}}
-            <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
-                <div class="border-b border-gray-100 px-6 py-4 dark:border-gray-700">
-                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ __('Branding') }}</h3>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {{ __('The name and logo shown in the menu, on the sign in pages, in the browser tab and in emails.') }}
-                    </p>
-                </div>
+                <div class="min-w-0">
+                    {{-- The name and logo every page, error page and email shows (Setting::brand()). --}}
+                    <x-settings.panel id="branding" :title="__('Branding')" active
+                        :description="__('The name and logo shown in the menu, on the sign in pages, in the browser tab and in emails.')">
+                        <x-settings.section>
+                            <x-settings.field :label="__('App name')" for="app-name">
+                                <input type="text" name="app_name" id="app-name" required maxlength="60"
+                                       value="{{ $brand['name'] }}" placeholder="{{ \App\Models\Setting::DEFAULT_APP_NAME }}" @disabled(! $canEdit)
+                                       class="{{ $input }}">
+                            </x-settings.field>
 
-                <div class="space-y-5 p-6">
-                    <div>
-                        <label for="app-name" class="{{ $label }}">{{ __('App name') }}</label>
-                        <div class="mt-1">
-                            <input type="text" name="app_name" id="app-name" required maxlength="60"
-                                   value="{{ $brand['name'] }}" placeholder="{{ \App\Models\Setting::DEFAULT_APP_NAME }}" @disabled(! $canEdit)
-                                   class="{{ $input }}">
-                        </div>
-                    </div>
+                            <x-settings.field :label="__('Logo')" for="app-logo" stacked
+                                :hint="__('JPG, PNG or WebP, up to 2 MB. A square picture with a transparent background works best: it is shown small, in the menu and on light and dark panels.')">
+                                <div class="flex flex-wrap items-center gap-4">
+                                    {{-- What the logo looks like now; settings.js swaps in the picked file. A picture
+                                         on the sign in panel and the menu sits on light AND dark backgrounds. --}}
+                                    <div id="app-logo-preview"
+                                         class="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-gray-50 p-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700/60 dark:text-white">
+                                        <x-application-logo class="h-full w-full fill-current" />
+                                    </div>
 
-                    <div>
-                        <span class="{{ $label }}">{{ __('Logo') }}</span>
-                        <div class="mt-2 flex flex-wrap items-center gap-4">
-                            {{-- What the logo looks like now; settings.js swaps in the picked file. A picture
-                                 on the sign in panel and the menu sits on light AND dark backgrounds. --}}
-                            <div id="app-logo-preview"
-                                 class="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-gray-50 p-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700/60 dark:text-white">
-                                <x-application-logo class="h-full w-full fill-current" />
-                            </div>
+                                    <div class="min-w-0 flex-1">
+                                        <input type="file" name="app_logo" id="app-logo" accept="image/png,image/jpeg,image/webp" @disabled(! $canEdit)
+                                               class="block w-full text-sm text-gray-600 file:mr-3 file:cursor-pointer file:rounded-full file:border-0 file:bg-gray-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-gray-700 disabled:opacity-60 dark:text-gray-300 dark:file:bg-mist dark:file:text-ink">
 
-                            <div class="min-w-0 flex-1">
-                                <input type="file" name="app_logo" id="app-logo" accept="image/png,image/jpeg,image/webp" @disabled(! $canEdit)
-                                       class="block w-full text-sm text-gray-600 file:mr-3 file:cursor-pointer file:rounded-full file:border-0 file:bg-gray-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-gray-700 disabled:opacity-60 dark:text-gray-300 dark:file:bg-mist dark:file:text-ink">
-                                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                    {{ __('JPG, PNG or WebP, up to 2 MB. A square picture with a transparent background works best: it is shown small, in the menu and on light and dark panels.') }}
-                                </p>
+                                        @if ($brand['logo'])
+                                            <label for="remove-app-logo" class="mt-3 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                                <input type="checkbox" name="remove_app_logo" id="remove-app-logo" value="1" @disabled(! $canEdit)
+                                                       class="rounded border-gray-300 text-gray-900 focus:ring-gray-400 dark:border-gray-600 dark:bg-gray-700">
+                                                {{ __('Remove the logo and use the built-in one') }}
+                                            </label>
+                                        @endif
+                                    </div>
+                                </div>
+                            </x-settings.field>
+                        </x-settings.section>
+                    </x-settings.panel>
 
-                                @if ($brand['logo'])
-                                    <label for="remove-app-logo" class="mt-3 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                                        <input type="checkbox" name="remove_app_logo" id="remove-app-logo" value="1" @disabled(! $canEdit)
-                                               class="rounded border-gray-300 text-gray-900 focus:ring-gray-400 dark:border-gray-600 dark:bg-gray-700">
-                                        {{ __('Remove the logo and use the built-in one') }}
-                                    </label>
-                                @endif
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
-                <div class="border-b border-gray-100 px-6 py-4 dark:border-gray-700">
-                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ __('Order sessions') }}</h3>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {{ __('The start and end time a new order session is created with. They are only a starting point: each session can still be given its own times.') }}
-                    </p>
-                </div>
-
-                <div class="p-6">
-                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                        <div>
-                            <label for="session-start-time" class="{{ $label }}">{{ __('Default Start Time') }}</label>
-                            <div class="mt-1">
+                    <x-settings.panel id="ordering" :title="__('Ordering')"
+                        :description="__('How order sessions, orders and pre-orders behave.')">
+                        <x-settings.section :title="__('Order sessions')"
+                            :description="__('The times a new order session is created with. Only a starting point: each session can still be given its own times.')">
+                            <x-settings.field :label="__('Default Start Time')" for="session-start-time">
                                 <input type="time" name="session_start_time" id="session-start-time" required
                                        value="{{ $sessionWindow['start_time'] }}" @disabled(! $canEdit)
                                        class="{{ $input }}">
-                            </div>
-                        </div>
+                            </x-settings.field>
 
-                        <div>
-                            <label for="session-end-time" class="{{ $label }}">{{ __('Default End Time') }}</label>
-                            <div class="mt-1">
+                            <x-settings.field :label="__('Default End Time')" for="session-end-time">
                                 <input type="time" name="session_end_time" id="session-end-time" required
                                        value="{{ $sessionWindow['end_time'] }}" @disabled(! $canEdit)
                                        class="{{ $input }}">
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                            </x-settings.field>
+                        </x-settings.section>
 
-            </section>
+                        <x-settings.section :title="__('Orders')" :description="__('What customers may do with an order they placed.')">
+                            <x-settings.field :label="__('Customers can cancel their own order')" for="customer-cancel" switch
+                                :hint="__('A Cancel button appears on a customer\'s pending order in My Orders. Cancelling gives the plates back to the menu and rejects a payment that was still waiting. Once staff verified the payment only staff can cancel. Staff can always cancel.')">
+                                <x-settings.switch name="customer_cancel" id="customer-cancel" :checked="$customerCancel" :disabled="! $canEdit" />
+                            </x-settings.field>
+                        </x-settings.section>
 
-            {{-- What a customer may do with their own order. Saved with the rest of the form. --}}
-            <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
-                <div class="border-b border-gray-100 px-6 py-4 dark:border-gray-700">
-                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ __('Orders') }}</h3>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {{ __('What customers may do with an order they placed.') }}
-                    </p>
-                </div>
-
-                <div class="p-6">
-                    {{-- A 0 is always sent first, so un-ticking is saved. --}}
-                    <div class="flex items-start justify-between gap-4">
-                        <div>
-                            <label for="customer-cancel" class="{{ $label }}">{{ __('Customers can cancel their own order') }}</label>
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                {{ __('A Cancel button appears on a customer\'s pending order in My Orders. Cancelling gives the plates back to the menu and rejects a payment that was still waiting. Once staff verified the payment only staff can cancel. Staff can always cancel.') }}
-                            </p>
-                        </div>
-                        <input type="hidden" name="customer_cancel" value="0">
-                        <label class="relative mt-1 inline-flex shrink-0 cursor-pointer items-center">
-                            <input type="checkbox" role="switch" name="customer_cancel" id="customer-cancel" value="1"
-                                   class="peer sr-only" @checked($customerCancel) @disabled(! $canEdit)>
-                            <span class="h-6 w-11 rounded-full bg-gray-300 transition peer-checked:bg-indigo-600 peer-focus-visible:ring-4 peer-focus-visible:ring-gray-300 peer-disabled:opacity-60 dark:bg-gray-600 dark:peer-focus-visible:ring-gray-600"></span>
-                            <span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5 motion-reduce:transition-none"></span>
-                        </label>
-                    </div>
-                </div>
-            </section>
-
-            {{-- Where customers are offered a discount. The discounts themselves are on the Discounts page. --}}
-            <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
-                <div class="border-b border-gray-100 px-6 py-4 dark:border-gray-700">
-                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ __('Discounts') }}</h3>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {{ __('Where customers can pick a discount at checkout. The discounts they can pick (name, percent, proof) are managed on the Discounts page.') }}
-                    </p>
-                </div>
-
-                <div class="p-6">
-                    <label for="discount-mode" class="{{ $label }}">{{ __('Offer discounts on') }}</label>
-                    <div class="mt-1">
-                        <select name="discount_mode" id="discount-mode" @disabled(! $canEdit) class="{{ $input }}">
-                            <option value="off" @selected($discountMode === 'off')>{{ __('Nothing (discounts are off)') }}</option>
-                            <option value="orders" @selected($discountMode === 'orders')>{{ __('Regular orders only') }}</option>
-                            <option value="pre_orders" @selected($discountMode === 'pre_orders')>{{ __('Pre-orders only') }}</option>
-                            <option value="both" @selected($discountMode === 'both')>{{ __('Regular orders and pre-orders') }}</option>
-                        </select>
-                    </div>
-                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        {{ __('Switching this off stops new discounts at once. Orders that already have a discount keep it, and staff can still approve or reject it.') }}
-                    </p>
-                </div>
-            </section>
-
-            {{-- The size of a pre-order, for every pre-order session. Saved with the rest of the form. --}}
-            <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
-                <div class="border-b border-gray-100 px-6 py-4 dark:border-gray-700">
-                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ __('Pre-orders') }}</h3>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {{ __('How many plates one pre-order may hold, whatever the mix of dishes. A pre-order session can ask for more than the minimum, never for less.') }}
-                    </p>
-                </div>
-
-                <div class="p-6">
-                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                        <div>
-                            <label for="pre-order-min-quantity" class="{{ $label }}">{{ __('Minimum plates per order') }}</label>
-                            <div class="mt-1">
+                        {{-- The size of a pre-order, for every pre-order session. --}}
+                        <x-settings.section :title="__('Pre-orders')"
+                            :description="__('How many plates one pre-order may hold, whatever the mix of dishes. A pre-order session can ask for more than the minimum, never for less.')">
+                            <x-settings.field :label="__('Minimum plates per order')" for="pre-order-min-quantity">
                                 <input type="number" name="pre_order_min_quantity" id="pre-order-min-quantity" min="1" max="100000" step="1" required
                                        value="{{ $preOrderLimits['min'] }}" @disabled(! $canEdit)
                                        class="{{ $input }}">
-                            </div>
-                        </div>
+                            </x-settings.field>
 
-                        <div>
-                            <label for="pre-order-max-quantity" class="{{ $label }}">{{ __('Maximum plates per order') }}</label>
-                            <div class="mt-1">
+                            <x-settings.field :label="__('Maximum plates per order')" for="pre-order-max-quantity"
+                                :hint="__('Leave empty for no maximum.')">
                                 <input type="number" name="pre_order_max_quantity" id="pre-order-max-quantity" min="1" max="100000" step="1"
                                        value="{{ $preOrderLimits['max'] }}" placeholder="{{ __('No limit') }}" @disabled(! $canEdit)
                                        class="{{ $input }}">
+                            </x-settings.field>
+                        </x-settings.section>
+                    </x-settings.panel>
+
+                    <x-settings.panel id="pricing" :title="__('Pricing')"
+                        :description="__('Ways a customer can pay less than the menu price.')">
+                        {{-- Where customers are offered a discount. The discounts themselves are on the Discounts page. --}}
+                        <x-settings.section :title="__('Discounts')"
+                            :description="__('The discounts they can pick (name, percent, proof) are managed on the Discounts page.')">
+                            <x-settings.field :label="__('Offer discounts on')" for="discount-mode"
+                                :hint="__('Switching this off stops new discounts at once. Orders that already have a discount keep it, and staff can still approve or reject it.')">
+                                <select name="discount_mode" id="discount-mode" @disabled(! $canEdit) class="{{ $input }}">
+                                    <option value="off" @selected($discountMode === 'off')>{{ __('Nothing (discounts are off)') }}</option>
+                                    <option value="orders" @selected($discountMode === 'orders')>{{ __('Regular orders only') }}</option>
+                                    <option value="pre_orders" @selected($discountMode === 'pre_orders')>{{ __('Pre-orders only') }}</option>
+                                    <option value="both" @selected($discountMode === 'both')>{{ __('Regular orders and pre-orders') }}</option>
+                                </select>
+                            </x-settings.field>
+                        </x-settings.section>
+
+                        {{-- Ala carte: a plate without its rice, for less. Which dishes come with rice is ticked on the Dish Masterlist. --}}
+                        <x-settings.section :title="__('Ala carte (no rice)')"
+                            :description="__('Let customers order a plate without its rice for less. Only dishes marked \'Comes with rice\' on the Dish Masterlist can be ordered this way.')">
+                            <x-settings.field :label="__('Offer ala carte on')" for="ala-carte-mode">
+                                <select name="ala_carte_mode" id="ala-carte-mode" @disabled(! $canEdit) class="{{ $input }}">
+                                    <option value="off" @selected($alaCarteMode === 'off')>{{ __('Nothing (ala carte is off)') }}</option>
+                                    <option value="orders" @selected($alaCarteMode === 'orders')>{{ __('Regular orders only') }}</option>
+                                    <option value="pre_orders" @selected($alaCarteMode === 'pre_orders')>{{ __('Pre-orders only') }}</option>
+                                    <option value="both" @selected($alaCarteMode === 'both')>{{ __('Regular orders and pre-orders') }}</option>
+                                </select>
+                            </x-settings.field>
+
+                            <x-settings.field :label="__('Rice price (taken off each plate)')" for="ala-carte-rice-price"
+                                :hint="__('A plate ordered without rice costs the dish price minus this amount. A dish that costs no more than the rice is not offered without it. Switching this off stops new ala carte plates at once; orders that already have them keep their price.')">
+                                <input type="number" name="ala_carte_rice_price" id="ala-carte-rice-price" min="0" max="100000" step="0.01" required
+                                       value="{{ number_format($ricePrice, 2, '.', '') }}" @disabled(! $canEdit)
+                                       class="{{ $input }}">
+                            </x-settings.field>
+                        </x-settings.section>
+                    </x-settings.panel>
+
+                    {{--
+                        Who receives a copy of EVERY notification. Customers always get their own
+                        (order placed, payment verified / rejected, order completed or cancelled);
+                        the users picked here also get everyone's, plus staff-only ones (a customer
+                        sent a new proof, a dish sold out).
+                    --}}
+                    <x-settings.panel id="notifications" :title="__('Notifications')"
+                        :description="__('Customers are always told about their own orders, in the bell. Here: what else is sent, and who else is told.')">
+                        <x-settings.section :title="__('Copies')" :description="__('Both need a running queue worker.')">
+                            <x-settings.field :label="__('Send notifications by email')" for="email-notifications" switch
+                                :hint="__('Everyone who gets a notification also gets it by email, at the address of their account. Needs the mail settings of the server and a running queue worker.')">
+                                <x-slot:note>
+                                    @if ($emailNotifications && in_array($mailer, ['log', 'array'], true))
+                                        <p class="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
+                                            {{ __('The server mailer is ":mailer": emails are only written to the log, not delivered.', ['mailer' => $mailer]) }}
+                                        </p>
+                                    @endif
+                                </x-slot:note>
+                                <x-settings.switch name="email_notifications" id="email-notifications" :checked="$emailNotifications" :disabled="! $canEdit" />
+                            </x-settings.field>
+
+                            <x-settings.field :label="__('Send notifications to Google Chat')" for="google-chat-notifications" switch
+                                :hint="__('Everyone who gets a notification also gets it as a Google Chat direct message. Only people who signed in with Google and added the Chat app can be reached; the others still get the bell. Needs a running queue worker.')">
+                                <x-slot:note>
+                                    @if ($googleChatNotifications && ! $googleChatReady)
+                                        <p class="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
+                                            {{ __('The Chat app key is not set up on the server (GOOGLE_CHAT_CREDENTIALS), so nothing is sent.') }}
+                                        </p>
+                                    @endif
+                                </x-slot:note>
+                                <x-settings.switch name="google_chat_notifications" id="google-chat-notifications" :checked="$googleChatNotifications" :disabled="! $canEdit" />
+                            </x-settings.field>
+                        </x-settings.section>
+
+                        <x-settings.section :title="__('Also notify')"
+                            :description="__('Pick the users who should also receive every notification of every customer.')">
+                            <x-settings.field :label="__('Users')" for="notification-watchers" stacked
+                                :hint="__('They see them under Notifications in the menu. Whoever causes an event is not told about their own action.')">
+                                {{-- An empty entry is always sent, so un-picking everybody is saved as "nobody". --}}
+                                <input type="hidden" name="notification_watchers[]" value="">
+                                <select multiple name="notification_watchers[]" id="notification-watchers" @disabled(! $canEdit)
+                                        data-placeholder="{{ __('Nobody') }}" data-count-label="{{ __('{n} users') }}"
+                                        class="{{ $input }}">
+                                    @foreach ($users as $user)
+                                        <option value="{{ $user->id }}" @selected(in_array((int) $user->id, $watchers, true))>
+                                            {{ $user->name }} · {{ $user->email }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </x-settings.field>
+                        </x-settings.section>
+                    </x-settings.panel>
+
+                    {{-- The three public text pages. Each is a collapsible block (Markdown; empty = the built-in text). --}}
+                    <x-settings.panel id="public-pages" :title="__('Public pages')"
+                        :description="__('The texts anyone can read, signed in or not. Open one to edit it.')">
+                        {{-- The public Help and Support page: contact details + a Markdown help text. --}}
+                        @include('settings.partials.support-card', ['support' => $support])
+
+                        @include('settings.partials.legal-card', [
+                            'page' => 'privacy-policy',
+                            'heading' => __('Privacy policy'),
+                            'description' => __('The public page customers read before they sign up: what is collected and why. Linked from the home page, the sign in and sign up pages and the account menu.'),
+                            'legal' => $legal['privacy-policy'],
+                        ])
+
+                        @include('settings.partials.legal-card', [
+                            'page' => 'terms-of-service',
+                            'heading' => __('Terms of service'),
+                            'description' => __('The public page with the rules of ordering: payment, pick up, cancelling. Linked from the same places as the privacy policy.'),
+                            'legal' => $legal['terms-of-service'],
+                        ])
+                    </x-settings.panel>
+
+                    @if ($canEdit)
+                        {{-- Always in reach, whichever tab is open or however far it is scrolled. Any refused save shows
+                             its reasons right above the button (filled in by settings.js). --}}
+                        <div class="sticky bottom-4 z-30 mt-6 space-y-2">
+                            <div id="settings-errors" class="hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 shadow-card dark:border-red-900 dark:bg-red-950 dark:text-red-300" role="alert"></div>
+
+                            <div class="flex items-center justify-end gap-3 rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 shadow-card-lift backdrop-blur dark:border-gray-700 dark:bg-gray-800/95">
+                                {{-- How many fields differ from what is saved, over every tab (filled in by settings.js). --}}
+                                <p id="settings-changes" class="mr-auto text-sm text-gray-500 dark:text-gray-400" aria-live="polite">{{ __('No unsaved changes') }}</p>
+                                <button type="submit" id="settings-submit" data-loading-label="{{ __('Saving...') }}" class="{{ $submitButton }}">
+                                    {{ __('Save Configuration') }}
+                                </button>
                             </div>
-                            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('Leave empty for no maximum.') }}</p>
                         </div>
-                    </div>
+                    @endif
                 </div>
-            </section>
-
-            {{-- The public Help and Support page: contact details + a Markdown help text. --}}
-            @include('settings.partials.support-card', ['support' => $support])
-
-            {{-- The two public legal pages (privacy policy, terms of service). Markdown; empty = the built-in text. --}}
-            @include('settings.partials.legal-card', [
-                'page' => 'privacy-policy',
-                'heading' => __('Privacy policy'),
-                'description' => __('The public page customers read before they sign up: what is collected and why. Linked from the home page, the sign in and sign up pages and the account menu.'),
-                'legal' => $legal['privacy-policy'],
-            ])
-
-            @include('settings.partials.legal-card', [
-                'page' => 'terms-of-service',
-                'heading' => __('Terms of service'),
-                'description' => __('The public page with the rules of ordering: payment, pick up, cancelling. Linked from the same places as the privacy policy.'),
-                'legal' => $legal['terms-of-service'],
-            ])
-
-            {{--
-                Who receives a copy of EVERY notification. Customers always get their own
-                (order placed, payment verified / rejected, order completed or cancelled);
-                the users picked here also get everyone's, plus staff-only ones (a customer
-                sent a new proof, a dish sold out). Saved with the rest of the form.
-            --}}
-            <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
-                <div class="border-b border-gray-100 px-6 py-4 dark:border-gray-700">
-                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ __('Notifications') }}</h3>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {{ __('Customers are always told about their own orders. Pick the users who should also receive every notification of every customer.') }}
-                    </p>
-                </div>
-
-                <div class="p-6">
-                    {{-- On / off for the email copy. A 0 is always sent first, so un-ticking is saved. --}}
-                    <div class="mb-6 flex items-start justify-between gap-4">
-                        <div>
-                            <label for="email-notifications" class="{{ $label }}">{{ __('Send notifications by email') }}</label>
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                {{ __('Everyone who gets a notification also gets it by email, at the address of their account. Needs the mail settings of the server and a running queue worker.') }}
-                            </p>
-                            @if ($emailNotifications && in_array($mailer, ['log', 'array'], true))
-                                <p class="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
-                                    {{ __('The server mailer is ":mailer": emails are only written to the log, not delivered.', ['mailer' => $mailer]) }}
-                                </p>
-                            @endif
-                        </div>
-                        <input type="hidden" name="email_notifications" value="0">
-                        <label class="relative mt-1 inline-flex shrink-0 cursor-pointer items-center">
-                            <input type="checkbox" role="switch" name="email_notifications" id="email-notifications" value="1"
-                                   class="peer sr-only" @checked($emailNotifications) @disabled(! $canEdit)>
-                            <span class="h-6 w-11 rounded-full bg-gray-300 transition peer-checked:bg-indigo-600 peer-focus-visible:ring-4 peer-focus-visible:ring-gray-300 peer-disabled:opacity-60 dark:bg-gray-600 dark:peer-focus-visible:ring-gray-600"></span>
-                            <span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5 motion-reduce:transition-none"></span>
-                        </label>
-                    </div>
-
-                    {{-- On / off for the Google Chat copy (a direct message from the Chat app). --}}
-                    <div class="mb-6 flex items-start justify-between gap-4">
-                        <div>
-                            <label for="google-chat-notifications" class="{{ $label }}">{{ __('Send notifications to Google Chat') }}</label>
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                {{ __('Everyone who gets a notification also gets it as a Google Chat direct message. Only people who signed in with Google and added the Chat app can be reached; the others still get the bell. Needs a running queue worker.') }}
-                            </p>
-                            @if ($googleChatNotifications && ! $googleChatReady)
-                                <p class="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
-                                    {{ __('The Chat app key is not set up on the server (GOOGLE_CHAT_CREDENTIALS), so nothing is sent.') }}
-                                </p>
-                            @endif
-                        </div>
-                        <input type="hidden" name="google_chat_notifications" value="0">
-                        <label class="relative mt-1 inline-flex shrink-0 cursor-pointer items-center">
-                            <input type="checkbox" role="switch" name="google_chat_notifications" id="google-chat-notifications" value="1"
-                                   class="peer sr-only" @checked($googleChatNotifications) @disabled(! $canEdit)>
-                            <span class="h-6 w-11 rounded-full bg-gray-300 transition peer-checked:bg-indigo-600 peer-focus-visible:ring-4 peer-focus-visible:ring-gray-300 peer-disabled:opacity-60 dark:bg-gray-600 dark:peer-focus-visible:ring-gray-600"></span>
-                            <span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5 motion-reduce:transition-none"></span>
-                        </label>
-                    </div>
-
-                    <label for="notification-watchers" class="{{ $label }}">{{ __('Also notify') }}</label>
-                    <div class="mt-1">
-                        {{-- An empty entry is always sent, so un-picking everybody is saved as "nobody". --}}
-                        <input type="hidden" name="notification_watchers[]" value="">
-                        <select multiple name="notification_watchers[]" id="notification-watchers" @disabled(! $canEdit)
-                                data-placeholder="{{ __('Nobody') }}" data-count-label="{{ __('{n} users') }}"
-                                class="{{ $input }}">
-                            @foreach ($users as $user)
-                                <option value="{{ $user->id }}" @selected(in_array((int) $user->id, $watchers, true))>
-                                    {{ $user->name }} · {{ $user->email }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        {{ __('They see them under Notifications in the menu. Whoever causes an event is not told about their own action.') }}
-                    </p>
-                </div>
-
-                @if ($canEdit)
-                    <div class="flex items-center justify-end gap-3 border-t border-gray-100 bg-gray-50/70 px-6 py-4 dark:border-gray-700 dark:bg-gray-900/40">
-                        {{-- How many fields differ from what is saved (filled in by settings.js). --}}
-                        <p id="settings-changes" class="mr-auto hidden text-sm font-medium text-gray-700 dark:text-gray-300" aria-live="polite"></p>
-                        <button type="submit" id="settings-submit" data-loading-label="{{ __('Saving...') }}" class="{{ $submitButton }}">
-                            {{ __('Save Configuration') }}
-                        </button>
-                    </div>
-                @endif
-            </section>
+            </div>
         </form>
     </div>
 

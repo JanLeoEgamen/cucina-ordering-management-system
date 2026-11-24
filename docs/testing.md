@@ -1,7 +1,7 @@
 # Testing
 
 ```
-php artisan test                      # all (baseline 2026-11-24: 770 passed)
+php artisan test                      # all (baseline 2026-11-24: 805 passed)
 php artisan test --filter=DishTest    # one class
 php scripts/harness.php               # docs drift check + full suite
 ```
@@ -81,7 +81,7 @@ php scripts/harness.php               # docs drift check + full suite
 | Google sign-in (off by default, button, redirect, create / link / returning user, refusals: unverified, deleted, other Google id, failed exchange; Google is mocked through Socialite's `Provider`) | `Auth/GoogleAuthTest` |
 | Landing page and signed-out pages (session status, payment methods, links, brand panel, the dish collage on the sign-in panel and the landing hero: available dishes only, no prices, photo spread, plain fallback; the live-menu and pre-order preview: prices, sold-out chip, no stock number, 8-card cap with "and N more", guest vs signed-in buttons, login then back to the menu, register returning to the intended page) | `WelcomeTest` |
 | Export menu + `data-no-export` / title on every table toolbar | `TableExportTest` |
-| System configuration (defaults, permissions, validation, the discount mode: default off, saved, validated, damaged value reads as off, the create session drawer starts from the saved times, the pre-order minimum / maximum: saved, cleared, validated, damaged values, the unsaved-change indicator's markup for editors only) | `SettingTest` |
+| System configuration (defaults, permissions, validation, the discount mode: default off, saved, validated, damaged value reads as off, the create session drawer starts from the saved times, the pre-order minimum / maximum: saved, cleared, validated, damaged values, the unsaved-change indicator's markup for editors only, the five tabs and their panels are all inside the one `novalidate` form for viewers and editors alike) | `SettingTest` |
 | Orders page (permission, feed across sessions, per-user action URLs, shared popup, nav / dashboard link) | `OrdersPageTest` |
 | Pre-orders data layer: session status + live + end once, overlap guard (back to back is fine, ended sessions ignored, editing ignores itself), dish list replace / restore, menu + prices only for dishes on offer, own `PRE-` order numbers, order feeds with lines, payment decision stamped / cleared / resubmitted, locked state, permissions seeded + the Customer role's three | `PreOrderModelsTest` |
 | Pre-order sessions page (staff): guests, a 403 per action, page + drawers (minimum field, no stock boxes), feed (counts, status, escaped title, buttons per permission, End only for the creator), show page (facts, dishes, no stock column, End button), create / title optional, validation (minimum, dishes, times, date, title length), overlap (back to back and other days fine, ended sessions ignored, edit keeps its own window but cannot move onto another), update replaces dishes + 404s, edit JSON, End (creator only, once), delete (refused with orders), nav + dashboard link by permission, order sessions unaffected | `PreOrderSessionTest` |
