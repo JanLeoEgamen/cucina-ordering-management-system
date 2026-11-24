@@ -21,6 +21,7 @@ class UserNameTest extends TestCase
             'first_name' => 'Jan Leo',
             'last_name' => 'Egamen',
             'company_id' => \App\Models\Company::factory()->create()->company_id,
+            'employee_id' => 'E-1001',
             'email' => 'jan@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',

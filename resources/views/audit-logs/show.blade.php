@@ -7,7 +7,7 @@
             </div>
 
             <a href="{{ route('audit-logs.index') }}"
-               class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+               class="inline-flex w-full items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 sm:w-auto dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
                 {{ __('Back to the list') }}
             </a>
         </div>
@@ -64,7 +64,7 @@
                 @if ($entry->method)
                     <div>
                         <dt class="{{ $dt }}">{{ __('Request') }}</dt>
-                        <dd class="{{ $dd }} font-mono text-xs">{{ $entry->method }} {{ $entry->path }}</dd>
+                        <dd class="{{ $dd }} break-all font-mono text-xs">{{ $entry->method }} {{ $entry->path }}</dd>
                     </div>
                 @endif
                 <div>
@@ -81,7 +81,23 @@
         @if ($entry->changes)
             <div class="{{ $card }}">
                 <h3 class="px-5 pt-4 text-base font-semibold text-gray-900 dark:text-white">{{ __('What changed') }}</h3>
-                <div class="overflow-x-auto p-2">
+                {{-- Phones: each field is a small block (Field, then Before and After under it), because three
+                     columns of values only scroll sideways there. From sm up it is the table below. --}}
+                <div class="divide-y divide-gray-100 px-5 pb-2 sm:hidden dark:divide-gray-700">
+                    @foreach ($entry->changes as $name => $pair)
+                        <div class="py-3">
+                            <p class="break-all font-mono text-xs font-semibold text-gray-900 dark:text-white">{{ $name }}</p>
+                            <dl class="mt-1.5 grid grid-cols-[4rem_1fr] gap-x-3 gap-y-1 text-sm">
+                                <dt class="{{ $dt }} pt-0.5">{{ __('Before') }}</dt>
+                                <dd class="break-words text-gray-600 dark:text-gray-300">{{ $text($pair[0] ?? null) }}</dd>
+                                <dt class="{{ $dt }} pt-0.5">{{ __('After') }}</dt>
+                                <dd class="break-words text-gray-900 dark:text-white">{{ $text($pair[1] ?? null) }}</dd>
+                            </dl>
+                        </div>
+                    @endforeach
+                </div>
+
+                <div class="hidden overflow-x-auto p-2 sm:block">
                     <table class="min-w-full">
                         <thead>
                             <tr>
@@ -108,7 +124,7 @@
             <div class="{{ $card }}">
                 <h3 class="px-5 pt-4 text-base font-semibold text-gray-900 dark:text-white">{{ __('What was sent') }}</h3>
                 <p class="px-5 text-xs text-gray-500 dark:text-gray-400">{{ __('Passwords and tokens are never stored; uploads show only their name.') }}</p>
-                <pre class="m-4 overflow-x-auto rounded-lg bg-gray-50 p-3 text-xs text-gray-800 dark:bg-gray-900/50 dark:text-gray-200">{{ json_encode($entry->input, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</pre>
+                <pre class="m-4 max-h-96 overflow-auto rounded-lg bg-gray-50 p-3 text-xs text-gray-800 dark:bg-gray-900/50 dark:text-gray-200">{{ json_encode($entry->input, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</pre>
             </div>
         @endif
     </div>

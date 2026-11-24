@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\AlaCarte;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -34,6 +35,7 @@ class PreOrderItem extends Model
         'quantity',
         'unit_price',
         'sub_total',
+        'no_rice',
         'is_active',
     ];
 
@@ -46,6 +48,7 @@ class PreOrderItem extends Model
             'quantity' => 'integer',
             'unit_price' => 'decimal:2',
             'sub_total' => 'decimal:2',
+            'no_rice' => 'boolean',
             'is_active' => 'boolean',
         ];
     }
@@ -73,12 +76,15 @@ class PreOrderItem extends Model
                 self::TABLE . '.quantity',
                 self::TABLE . '.unit_price',
                 self::TABLE . '.sub_total',
+                self::TABLE . '.no_rice',
                 self::TABLE_DISH . '.dish_name',
             ])
             ->map(fn (object $item) => [
                 'pre_order_id' => (int) $item->pre_order_id,
                 'pre_order_session_dish_id' => (int) $item->pre_order_session_dish_id,
-                'dish_name' => $item->dish_name,
+                // "Adobo (no rice)": see OrderItem::itemsByOrder.
+                'dish_name' => $item->dish_name . ($item->no_rice ? AlaCarte::suffix() : ''),
+                'no_rice' => (bool) $item->no_rice,
                 'quantity' => (int) $item->quantity,
                 'unit_price' => (float) $item->unit_price,
                 'sub_total' => (float) $item->sub_total,
@@ -97,7 +103,8 @@ class PreOrderItem extends Model
         $rows = [];
 
         foreach ($lines as $line) {
-            $rows[] = Arr::only($line, self::COLUMNS) + [
+            // Every row of the one INSERT needs the same columns, so no_rice is always written.
+            $rows[] = array_merge(Arr::only($line, self::COLUMNS), ['no_rice' => (int) ($line['no_rice'] ?? 0)]) + [
                 'pre_order_id' => $preOrderOrderId,
                 'is_active' => 1,
                 'created_at' => $now,

@@ -73,6 +73,9 @@
          data-discount-now-note="{{ __('This discount is applied right away.') }}"
          data-discount-waiting-label="{{ __('Your discount is waiting for staff to check your ID.') }}"
          data-dishes='@json($dishData)'
+         data-ala-carte='@json($alaCarte)'
+         data-rice-none-label="{{ __('no rice') }}"
+         data-rice-each-label="{{ __('each') }}"
          data-plates-one="{{ __('plate') }}"
          data-plates-many="{{ __('plates') }}"
          data-need-more="{{ __('Add :n more plates to reach the minimum.') }}"
@@ -173,6 +176,27 @@
                                 <button type="button" data-step="10"
                                         class="h-10 rounded-full border border-gray-200 px-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700 dark:focus:ring-gray-700">+10</button>
                             </div>
+
+                            {{-- Ala carte: how many of these plates go without rice, for less. Hidden until the script
+                                 sees the choice is on for this dish and the dish is in the order. --}}
+                            @if ($dish->includes_rice)
+                                <div data-rice-row class="mt-2 hidden flex-wrap items-center gap-1.5"> {{-- the script swaps `hidden` for `flex` --}}
+                                    <span class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('Without rice') }}</span>
+                                    <button type="button" data-rice-step="-1" aria-label="{{ __('One less without rice') }}" disabled
+                                            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:focus:ring-gray-700">
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+                                    </button>
+                                    <input type="number" data-rice-qty min="0" max="10000" step="1" value="0" inputmode="numeric"
+                                           aria-label="{{ __('Plates of :dish without rice', ['dish' => $dish->dish_name]) }}"
+                                           class="h-8 w-16 rounded-lg border border-gray-200 bg-gray-50 px-2 text-center text-sm font-semibold tabular-nums text-gray-900 focus:border-gray-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-gray-300 dark:focus:ring-gray-600">
+                                    <button type="button" data-rice-step="1" aria-label="{{ __('One more without rice') }}"
+                                            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:focus:ring-gray-700">
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                                    </button>
+                                    {{-- "−₱20.00 each": filled by the script from the rice price it holds now. --}}
+                                    <span class="text-xs text-gray-400 dark:text-gray-500" data-rice-hint></span>
+                                </div>
+                            @endif
 
                             {{-- The dish's share of the total, once it is in the order. --}}
                             <p data-line-total class="mt-1 hidden text-xs font-medium tabular-nums text-gray-500 dark:text-gray-400"></p>

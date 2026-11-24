@@ -11,6 +11,7 @@ use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 // System configuration: the values the rest of the app starts from: the app's name and logo,
@@ -46,6 +47,8 @@ class SettingController extends Controller implements HasMiddleware
             'googleChatReady' => GoogleChat::configured(),
             'customerCancel' => Setting::customerCancel(),
             'discountMode' => Setting::discountMode(),
+            'alaCarteMode' => Setting::alaCarteMode(),
+            'ricePrice' => Setting::ricePrice(),
             // Mail is sent through the mailer of .env; `log` / `array` only record it.
             'mailer' => (string) config('mail.default'),
             // Who can be picked to receive every notification, and who is picked now.
@@ -87,6 +90,11 @@ class SettingController extends Controller implements HasMiddleware
             'customer_cancel' => ['sometimes', 'boolean'],
             // Where customers are offered a discount. A caller that leaves it out changes nothing.
             'discount_mode' => ['sometimes', 'required', Rule::in(Setting::DISCOUNT_MODES)],
+            // Where customers may order a plate WITHOUT rice, and how much less it costs (pesos, up to 2
+            // decimals). A caller that leaves them out changes nothing. A price of 0 is only allowed while
+            // the choice is off (checked below, because it depends on the other field).
+            'ala_carte_mode' => ['sometimes', 'required', Rule::in(Setting::ALA_CARTE_MODES)],
+            'ala_carte_rice_price' => ['sometimes', 'required', 'numeric', 'decimal:0,2', 'min:0', 'max:100000'],
             // The plates one pre-order may hold. Sent together by the form; an older
             // caller that sends neither changes nothing. An empty maximum = no limit.
             'pre_order_min_quantity' => ['sometimes', 'required', 'integer', 'min:1', 'max:100000'],
@@ -113,6 +121,8 @@ class SettingController extends Controller implements HasMiddleware
             'app_logo.max' => 'The logo can be at most 2 MB.',
             'session_end_time.after' => 'The end time must be after the start time.',
             'notification_watchers.*.exists' => 'One of the picked users does not exist any more.',
+            'ala_carte_rice_price.decimal' => 'The rice price can have at most 2 decimals.',
+            'ala_carte_rice_price.required' => 'Enter how much a plate costs less without rice.',
             'pre_order_min_quantity.min' => 'The minimum pre-order must be at least 1 plate.',
             'pre_order_max_quantity.gte' => 'The maximum pre-order cannot be lower than the minimum.',
             'support_content.max' => 'The support page can have at most :max characters.',
@@ -125,6 +135,17 @@ class SettingController extends Controller implements HasMiddleware
             'terms_of_service_content.max' => 'The terms of service can have at most :max characters.',
             'terms_of_service_contact_email.email' => 'The terms of service contact must be a valid email address.',
         ]);
+
+        // Ala carte on with a rice price of 0 would offer a "discount" of nothing: ask for a real price.
+        // Judged on what the setting will be after this save (a field left out keeps its saved value).
+        $alaCarteMode = $validated['ala_carte_mode'] ?? Setting::alaCarteMode();
+        $ricePrice = (float) ($validated['ala_carte_rice_price'] ?? Setting::ricePrice());
+
+        if ($alaCarteMode !== 'off' && $ricePrice <= 0) {
+            throw ValidationException::withMessages([
+                'ala_carte_rice_price' => 'Enter how much a plate costs less without rice (more than 0), or switch ala carte off.',
+            ]);
+        }
 
         // The new logo is written BEFORE the transaction (a file cannot be rolled back) and the
         // old one is deleted only AFTER the row points at the new one, so a failed save never
@@ -179,6 +200,13 @@ class SettingController extends Controller implements HasMiddleware
 
             if (array_key_exists('discount_mode', $validated)) {
                 Setting::setDiscountMode($validated['discount_mode']);
+            }
+
+            if (array_key_exists('ala_carte_mode', $validated) || array_key_exists('ala_carte_rice_price', $validated)) {
+                Setting::setAlaCarte(
+                    $validated['ala_carte_mode'] ?? Setting::alaCarteMode(),
+                    (float) ($validated['ala_carte_rice_price'] ?? Setting::ricePrice()),
+                );
             }
 
             if ($request->has('pre_order_min_quantity')) {

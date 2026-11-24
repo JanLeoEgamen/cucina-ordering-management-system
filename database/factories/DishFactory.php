@@ -37,7 +37,15 @@ class DishFactory extends Factory
             'price' => fake()->randomFloat(2, 5, 50),
             'calories' => fake()->numberBetween(100, 800),
             'main_ingredients' => fake()->sentence(6),
+            // No rice flagged until a test (or staff) says so: see the `withRice()` state.
+            'includes_rice' => false,
             'is_active' => true,
         ];
+    }
+
+    // A dish that normally comes with rice (the only kind that can be ordered ala carte).
+    public function withRice(): static
+    {
+        return $this->state(fn () => ['includes_rice' => true]);
     }
 }

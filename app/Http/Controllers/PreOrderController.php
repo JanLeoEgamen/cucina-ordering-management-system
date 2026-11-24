@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\AlaCarteRefusedException;
 use App\Exceptions\DiscountRefusedException;
 use App\Models\PreOrder;
 use App\Models\PreOrderItem;
@@ -9,6 +10,8 @@ use App\Models\PreOrderSession;
 use App\Models\PreOrderSessionDish;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
+use App\Models\Setting;
+use App\Support\AlaCarte;
 use App\Support\OrderDiscount;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -46,11 +49,14 @@ class PreOrderController extends Controller implements HasMiddleware
     public function index()
     {
         $session = PreOrderSession::live();
+        $dishes = $session ? PreOrderSessionDish::offeredForSession($session->pre_order_session_id) : collect();
 
         return view('pre-order-menu.index', [
             'session' => $session,
             // A dish that is turned off, or left the session, is not offered.
-            'dishes' => $session ? PreOrderSessionDish::offeredForSession($session->pre_order_session_id) : collect(),
+            'dishes' => $dishes,
+            // Whether a plate can be ordered without rice, the deduction, and which dishes (see AlaCarte).
+            'alaCarte' => AlaCarte::state('pre_orders', $dishes, 'pre_order_session_dish_id'),
             // The fewest / most plates one order may hold (System Configuration + the session).
             'limits' => $session ? $this->limitsFor($session) : ['min' => 0, 'max' => null],
             // The same two ways to pay as the regular checkout: cash on pickup, and
@@ -182,6 +188,16 @@ class PreOrderController extends Controller implements HasMiddleware
             return $this->reviewResponse($session, 'The price changed: ' . implode(', ', $changed) . '.');
         }
 
+        // The plates the customer wants WITHOUT rice (ala carte), judged from the settings and the dish
+        // flags found now; the server prices them itself (see AlaCarte).
+        try {
+            $withoutRice = AlaCarte::judge('pre_orders', $validated, $offered);
+        } catch (AlaCarteRefusedException $refused) {
+            return $this->reviewResponse($session, $refused->getMessage());
+        }
+
+        $rice = Setting::ricePrice();
+
         $lines = [];
         $total = 0.0;
         $plates = 0;
@@ -193,17 +209,14 @@ class PreOrderController extends Controller implements HasMiddleware
                 return $this->reviewResponse($session, 'One of the dishes is no longer on the pre-order menu.');
             }
 
-            // Cents, not floats: 3 x 0.10 must be 0.30 and not 0.30000000000000004.
-            $subTotal = round((float) $dish->price * $quantity, 2);
+            // One line per kind of plate: with rice at the dish's price, without at the price less the
+            // rice. Cents, not floats: 3 x 0.10 must be 0.30 and not 0.30000000000000004.
+            foreach (AlaCarte::lines((float) $dish->price, (int) $quantity, $withoutRice[(int) $preOrderSessionDishId] ?? 0, $rice) as $split) {
+                $lines[] = ['pre_order_session_dish_id' => (int) $dish->pre_order_session_dish_id] + $split;
 
-            $lines[] = [
-                'pre_order_session_dish_id' => (int) $dish->pre_order_session_dish_id,
-                'quantity' => $quantity,
-                'unit_price' => (float) $dish->price,
-                'sub_total' => $subTotal,
-            ];
+                $total = round($total + $split['sub_total'], 2);
+            }
 
-            $total = round($total + $subTotal, 2);
             $plates += $quantity;
         }
 
@@ -332,7 +345,22 @@ class PreOrderController extends Controller implements HasMiddleware
             'max_quantity' => $limits['max'],
             // The discounts on offer now: the page drops the one that went away and takes the new percent.
             'discounts' => OrderDiscount::offered('pre_orders'),
+            // Ala carte as it is now: the page takes the new rice price and drops "no rice" from a dish
+            // that can no longer go without it.
+            'ala_carte' => $this->alaCarteState((int) $session->pre_order_session_id),
         ], 422);
+    }
+
+    // AlaCarte::state() for the session's menu; the menu is only read while the choice is on.
+    protected function alaCarteState(int $preOrderSessionId): array
+    {
+        $settings = AlaCarte::settings('pre_orders');
+
+        if (! $settings['enabled']) {
+            return $settings + ['dishes' => []];
+        }
+
+        return AlaCarte::state('pre_orders', PreOrderSessionDish::offeredForSession($preOrderSessionId), 'pre_order_session_dish_id');
     }
 
     // The plates one order of this session may hold. The minimum is the larger of the
@@ -368,6 +396,7 @@ class PreOrderController extends Controller implements HasMiddleware
         $request->merge([
             'pre_order_session_id' => (int) $request->input('pre_order_session_id'),
             'items' => $items,
+            'ala_carte' => AlaCarte::clean($request->input('ala_carte')),
         ]);
 
         // Cash on pickup is paid at the counter, so it sends no proof. Any other
@@ -387,6 +416,8 @@ class PreOrderController extends Controller implements HasMiddleware
             'expected_prices.*' => ['numeric', 'min:0'],
             // The discount the customer picked, the percent the cart showed, and the ID (judged in placeOrder()).
             ...OrderDiscount::rules(),
+            // How many plates are WITHOUT rice, and the rice price the cart showed (judged in placeOrder()).
+            ...AlaCarte::rules(),
             'reference_number' => ['nullable', 'string', 'max:255'],
             'proof_of_payment' => [$proofRule, 'file', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:2048'],
             'items' => ['required', 'array', 'min:1'],

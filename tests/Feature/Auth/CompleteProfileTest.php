@@ -51,7 +51,7 @@ class CompleteProfileTest extends TestCase
         $company = Company::factory()->create(['company_name' => 'Acme Foods']);
 
         $this->actingAs($user)
-            ->post(route('profile.complete.store'), ['first_name' => 'Ana Marie', 'last_name' => 'Reyes', 'company_id' => $company->company_id])
+            ->post(route('profile.complete.store'), ['first_name' => 'Ana Marie', 'last_name' => 'Reyes', 'company_id' => $company->company_id, 'employee_id' => 'E-2002'])
             ->assertRedirect(route('dashboard', absolute: false));
 
         $user->refresh();
@@ -113,7 +113,7 @@ class CompleteProfileTest extends TestCase
         $company = Company::factory()->create();
 
         $this->post('/register', [
-            'first_name' => 'Test', 'last_name' => 'User', 'company_id' => $company->company_id, 'email' => 'reg@example.com',
+            'first_name' => 'Test', 'last_name' => 'User', 'company_id' => $company->company_id, 'employee_id' => 'E-1001', 'email' => 'reg@example.com',
             'password' => 'Password123!', 'password_confirmation' => 'Password123!',
         ]);
         $this->assertNotNull(User::where('email', 'reg@example.com')->value('profile_completed_at'));
@@ -134,5 +134,25 @@ class CompleteProfileTest extends TestCase
         $migration->up();
 
         $this->assertNotNull(DB::table('users')->where('email', 'old@example.com')->value('profile_completed_at'));
+    }
+
+    public function test_the_employee_id_is_required_unless_the_company_is_guest(): void
+    {
+        $user = $this->incomplete();
+        $acme = Company::factory()->create(['company_name' => 'Acme Foods']);
+        $guest = Company::factory()->create(['company_name' => Company::GUEST]);
+
+        $this->actingAs($user)
+            ->post(route('profile.complete.store'), ['first_name' => 'Ana', 'last_name' => 'Reyes', 'company_id' => $acme->company_id])
+            ->assertSessionHasErrors('employee_id');
+        $this->assertNull($user->fresh()->profile_completed_at);
+
+        $this->actingAs($user)
+            ->post(route('profile.complete.store'), ['first_name' => 'Ana', 'last_name' => 'Reyes', 'company_id' => $guest->company_id, 'employee_id' => 'E-5'])
+            ->assertSessionHasNoErrors();
+
+        $user->refresh();
+        $this->assertNotNull($user->profile_completed_at);
+        $this->assertNull($user->employee_id);
     }
 }

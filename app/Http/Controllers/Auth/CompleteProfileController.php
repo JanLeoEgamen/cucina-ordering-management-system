@@ -35,7 +35,11 @@ class CompleteProfileController extends Controller
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
             'company_id' => Company::rules(),
+            // Required for every company except Guest.
+            'employee_id' => Company::employeeIdRules($request->input('company_id')),
         ]);
+
+        $validated['employee_id'] = Company::employeeIdFor((int) $validated['company_id'], $validated['employee_id'] ?? null);
 
         $user->forceFill($validated + ['profile_completed_at' => now()])->save();
 

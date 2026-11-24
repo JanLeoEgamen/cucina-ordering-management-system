@@ -41,6 +41,36 @@ class SettingTest extends TestCase
         $this->actingAs($this->userWith('view order-sessions'))->get(route('settings.index'))->assertForbidden();
     }
 
+    // The page is five tabs inside ONE form: every panel must be in the HTML (a hidden panel is still posted by Save),
+    // and the form must not let the browser refuse a submit over a field in a hidden tab.
+    public function test_the_page_is_tabs_in_one_form_and_every_panel_is_in_it(): void
+    {
+        $tabs = ['branding', 'ordering', 'pricing', 'notifications', 'public-pages'];
+
+        foreach ([$this->userWith('view settings'), $this->userWith('view settings', 'edit settings')] as $user) {
+            $html = $this->actingAs($user)->get(route('settings.index'))->assertOk()->getContent();
+
+            foreach ($tabs as $tab) {
+                $this->assertStringContainsString('data-settings-tab="' . $tab . '"', $html);
+                $this->assertStringContainsString('data-settings-panel="' . $tab . '"', $html);
+            }
+
+            // Only the first tab starts selected; the other four panels start hidden.
+            $this->assertSame(1, substr_count($html, 'aria-selected="true"'));
+            $this->assertSame(count($tabs) - 1, preg_match_all('/role="tabpanel"[^>]*class="[^"]*\bhidden\b/', $html));
+            $this->assertStringContainsString('novalidate', $html);
+        }
+
+        // Fields from every tab live in the same form, so one Save sends them all.
+        $html = $this->actingAs($this->superAdmin())->get(route('settings.index'))->getContent();
+        $start = strpos($html, '<form id="settings-form"');
+        $form = substr($html, $start, strpos($html, '</form>', $start) - $start);
+
+        foreach (['app_name', 'session_start_time', 'customer_cancel', 'discount_mode', 'ala_carte_rice_price', 'email_notifications', 'notification_watchers[]', 'support_content', 'privacy_policy_content', 'terms_of_service_content'] as $field) {
+            $this->assertStringContainsString('name="' . $field . '"', $form);
+        }
+    }
+
     public function test_saving_replaces_the_times_and_needs_edit_settings(): void
     {
         $this->actingAs($this->userWith('view settings'))

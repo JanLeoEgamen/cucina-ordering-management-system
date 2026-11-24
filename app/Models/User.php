@@ -32,6 +32,7 @@ class User extends Authenticatable
         'first_name',
         'last_name',
         'company_id',
+        'employee_id',
         'email',
         'password',
         'profile_completed_at',
@@ -98,6 +99,7 @@ class User extends Authenticatable
                 DB::raw(self::fullNameSql() . ' as name'),
                 self::TABLE . '.company_id',
                 'companies.company_name as company',
+                self::TABLE . '.employee_id',
                 self::TABLE . '.email',
             ])
             ->orderBy(self::TABLE . '.first_name')
@@ -206,6 +208,7 @@ class User extends Authenticatable
             'first_name' => $attributes['first_name'],
             'last_name' => $attributes['last_name'],
             'company_id' => $attributes['company_id'] ?? null,
+            'employee_id' => $attributes['employee_id'] ?? null,
             'email' => $attributes['email'],
             'password' => Hash::make($attributes['password']),
             // An admin typed the details in: nothing left to ask this person (see EnsureProfileIsComplete).
@@ -226,6 +229,7 @@ class User extends Authenticatable
             'first_name' => $attributes['first_name'],
             'last_name' => $attributes['last_name'],
             'company_id' => $attributes['company_id'] ?? null,
+            'employee_id' => $attributes['employee_id'] ?? null,
             'email' => $attributes['email'],
             'updated_at' => now(),
         ];

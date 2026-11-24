@@ -31,6 +31,7 @@ class ProfileTest extends TestCase
                 'first_name' => 'Test',
                 'last_name' => 'User',
                 'company_id' => $user->company_id,
+                'employee_id' => 'E-1001',
                 'email' => 'test@example.com',
             ]);
 
@@ -55,6 +56,7 @@ class ProfileTest extends TestCase
                 'first_name' => 'Test',
                 'last_name' => 'User',
                 'company_id' => $user->company_id,
+                'employee_id' => 'E-1001',
                 'email' => $user->email,
             ]);
 

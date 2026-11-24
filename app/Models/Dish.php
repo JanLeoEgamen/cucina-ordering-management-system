@@ -37,6 +37,7 @@ class Dish extends Model
         'price',
         'calories',
         'main_ingredients',
+        'includes_rice',
         'is_active',
     ];
 
@@ -48,6 +49,7 @@ class Dish extends Model
         return [
             'price' => 'decimal:2',
             'calories' => 'integer',
+            'includes_rice' => 'boolean',
             'is_active' => 'boolean',
         ];
     }
@@ -290,13 +292,15 @@ class Dish extends Model
         ])->values()->all();
     }
 
-    // Keep only the writable columns, and store is_active as 0 or 1.
+    // Keep only the writable columns, and store the two flags (is_active, includes_rice) as 0 or 1.
     protected static function values(array $attributes): array
     {
         $values = Arr::only($attributes, self::COLUMNS);
 
-        if (array_key_exists('is_active', $values)) {
-            $values['is_active'] = (int) (bool) $values['is_active'];
+        foreach (['is_active', 'includes_rice'] as $flag) {
+            if (array_key_exists($flag, $values)) {
+                $values[$flag] = (int) (bool) $values[$flag];
+            }
         }
 
         return $values;

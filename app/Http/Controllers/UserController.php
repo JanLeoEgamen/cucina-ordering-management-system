@@ -107,6 +107,8 @@ class UserController extends Controller implements HasMiddleware
             'last_name' => ['required', 'string', 'max:255'],
             // The user being edited keeps their own company valid even if it was switched off since.
             'company_id' => Company::rules($userId ? User::findById((int) $userId)->company_id ?? null : null),
+            // Required for every company except Guest (the drawer says so; the server decides).
+            'employee_id' => Company::employeeIdRules($request->input('company_id')),
             'email' => [
                 'required',
                 'string',
@@ -140,6 +142,7 @@ class UserController extends Controller implements HasMiddleware
     public function store(Request $request)
     {
         $validated = $this->validateUser($request);
+        $validated['employee_id'] = Company::employeeIdFor((int) $validated['company_id'], $validated['employee_id'] ?? null);
 
         User::createUser($validated, $validated['roles']);
 
@@ -154,6 +157,7 @@ class UserController extends Controller implements HasMiddleware
         }
 
         $validated = $this->validateUser($request);
+        $validated['employee_id'] = Company::employeeIdFor((int) $validated['company_id'], $validated['employee_id'] ?? null);
 
         User::updateUser((int) $id, $validated, $validated['roles']);
 

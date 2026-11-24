@@ -73,8 +73,13 @@ class ProfileController extends Controller
             'last_name' => ['required', 'string', 'max:255'],
             // The person's current company stays valid even if it was switched off since.
             'company_id' => Company::rules($request->user()->company_id),
+            // Required for every company except Guest (an old account without one is asked on its next save).
+            'employee_id' => Company::employeeIdRules($request->input('company_id')),
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)->ignore($request->user()->id)],
         ]);
+
+        // A Guest has none: moving to Guest clears it.
+        $validated['employee_id'] = Company::employeeIdFor((int) $validated['company_id'], $validated['employee_id'] ?? null);
 
         $request->user()->fill($validated);
 

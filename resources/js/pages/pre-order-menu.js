@@ -49,6 +49,17 @@ const start = () => {
     // id -> plates ordered of that dish.
     const quantities = new Map();
 
+    // id -> how many of those plates go WITHOUT rice (ala carte; never more than the plates).
+    const noRice = new Map();
+
+    // { enabled, rice_price, dishes: [id that can go without rice] }. The server judges and prices it;
+    // this only shows the customer what to expect, and follows what the server sends back.
+    let alaCarte = parse(root.dataset.alaCarte, {});
+
+    const ricePrice = () => Number(alaCarte.rice_price ?? 0);
+
+    const canGoWithoutRice = (id) => Boolean(alaCarte.enabled) && (alaCarte.dishes ?? []).includes(Number(id));
+
     const copy = (name) => root.dataset[name] ?? '';
 
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
@@ -79,7 +90,17 @@ const start = () => {
     const platesWord = (count) => (count === 1 ? copy('platesOne') : copy('platesMany'));
 
     // Cents, not floats: a total is a sum of rounded line totals.
-    const lineTotal = (id) => Math.round((dishes.get(id)?.price ?? 0) * (quantities.get(id) ?? 0) * 100) / 100;
+    const cents = (value) => Math.round(value * 100) / 100;
+
+    // What one plate costs without its rice: the price less the rice, never below 0.
+    const noRicePrice = (id) => Math.max(0, cents((dishes.get(id)?.price ?? 0) - ricePrice()));
+
+    const lineTotal = (id) => {
+        const quantity = quantities.get(id) ?? 0;
+        const without = noRice.get(id) ?? 0;
+
+        return cents((dishes.get(id)?.price ?? 0) * (quantity - without) + noRicePrice(id) * without);
+    };
 
     const plates = () => [...quantities.values()].reduce((sum, quantity) => sum + quantity, 0);
 
@@ -99,7 +120,7 @@ const start = () => {
 
     const cardOf = (id) => document.querySelector('[data-dish-card="' + id + '"]');
 
-    const renderCard = (id, { writeInput = true } = {}) => {
+    const renderCard = (id, { writeInput = true, writeRice = true } = {}) => {
         const card = cardOf(id);
 
         if (!card) {
@@ -107,6 +128,8 @@ const start = () => {
         }
 
         const quantity = quantities.get(id) ?? 0;
+        const without = noRice.get(id) ?? 0;
+        const riceRow = card.querySelector('[data-rice-row]');
         const input = card.querySelector('[data-qty]');
         const less = card.querySelector('[data-step="-1"]');
         const share = card.querySelector('[data-line-total]');
@@ -121,11 +144,47 @@ const start = () => {
 
         card.dataset.inCart = quantity > 0 ? 'true' : 'false';
 
+        // "Without rice": only for a dish that can go without it, and once it is in the order.
+        if (riceRow) {
+            const showRice = canGoWithoutRice(id) && quantity > 0;
+
+            riceRow.classList.toggle('hidden', !showRice);
+            riceRow.classList.toggle('flex', showRice);
+
+            const riceHint = riceRow.querySelector('[data-rice-hint]');
+
+            if (riceHint) {
+                riceHint.textContent = '−' + money(ricePrice()) + ' ' + copy('riceEachLabel');
+            }
+
+            const riceInput = riceRow.querySelector('[data-rice-qty]');
+
+            if (riceInput && writeRice) {
+                riceInput.value = String(without);
+            }
+
+            const riceLess = riceRow.querySelector('[data-rice-step="-1"]');
+            const riceMore = riceRow.querySelector('[data-rice-step="1"]');
+
+            if (riceLess) {
+                riceLess.disabled = without < 1;
+            }
+
+            if (riceMore) {
+                riceMore.disabled = without >= quantity;
+            }
+        }
+
         if (share) {
+            const price = dishes.get(id)?.price ?? 0;
+
             share.classList.toggle('hidden', quantity < 1);
-            share.textContent = quantity > 0
-                ? quantity + ' × ' + money(dishes.get(id)?.price ?? 0) + ' = ' + money(lineTotal(id))
-                : '';
+            share.textContent = quantity < 1
+                ? ''
+                : (without > 0
+                    ? (quantity > without ? (quantity - without) + ' × ' + money(price) + ' + ' : '')
+                        + without + ' × ' + money(noRicePrice(id)) + ' (' + copy('riceNoneLabel') + ') = ' + money(lineTotal(id))
+                    : quantity + ' × ' + money(price) + ' = ' + money(lineTotal(id)));
         }
     };
 
@@ -169,8 +228,34 @@ const start = () => {
             quantities.delete(id);
         }
 
+        // The plates without rice can never be more than the plates.
+        if (noRice.has(id)) {
+            const without = Math.min(noRice.get(id), quantity);
+
+            if (without > 0) {
+                noRice.set(id, without);
+            } else {
+                noRice.delete(id);
+            }
+        }
+
         // Typing "7" on the way to "75": leave the box alone unless it went out of range.
         renderCard(id, { writeInput: !fromInput || String(value) !== String(quantity) });
+        renderSummary();
+    };
+
+    // How many of a dish's plates go without rice (0 .. its plates). Same typing rule as above.
+    const setNoRice = (id, value, { fromInput = false } = {}) => {
+        const plates = quantities.get(id) ?? 0;
+        const without = canGoWithoutRice(id) ? Math.min(plates, Math.max(0, Math.floor(Number(value) || 0))) : 0;
+
+        if (without > 0) {
+            noRice.set(id, without);
+        } else {
+            noRice.delete(id);
+        }
+
+        renderCard(id, { writeRice: !fromInput || String(value) !== String(without) });
         renderSummary();
     };
 
@@ -187,6 +272,18 @@ const start = () => {
         input?.addEventListener('input', () => setQuantity(id, input.value, { fromInput: true }));
         // Leaving the box tidies what was typed ("", "007", "12.5").
         input?.addEventListener('change', () => setQuantity(id, input.value));
+
+        // The plates without rice (ala carte): same stepper and box, on the card.
+        const riceInput = card.querySelector('[data-rice-qty]');
+
+        card.querySelectorAll('[data-rice-step]').forEach((button) => {
+            button.addEventListener('click', () => {
+                setNoRice(id, (noRice.get(id) ?? 0) + Number(button.dataset.riceStep));
+            });
+        });
+
+        riceInput?.addEventListener('input', () => setNoRice(id, riceInput.value, { fromInput: true }));
+        riceInput?.addEventListener('change', () => setNoRice(id, riceInput.value));
     });
 
     search?.addEventListener('input', () => {
@@ -350,6 +447,7 @@ const start = () => {
         const rows = [...quantities.keys()].map((id) => ({
             name: dishes.get(id)?.name ?? '',
             quantity: quantities.get(id),
+            without: noRice.get(id) ?? 0,
             sub: lineTotal(id),
         }));
 
@@ -357,6 +455,7 @@ const start = () => {
             <li class="flex items-center justify-between gap-4 px-4 py-2 text-sm">
                 <span class="min-w-0 flex-1 truncate text-gray-800 dark:text-gray-200">
                     <span class="tabular-nums text-gray-500 dark:text-gray-400">${row.quantity}×</span> ${escapeHtml(row.name)}
+                    ${row.without > 0 ? `<span class="text-xs text-gray-500 dark:text-gray-400">(${row.without} ${escapeHtml(copy('riceNoneLabel'))})</span>` : ''}
                 </span>
                 <span class="tabular-nums text-gray-900 dark:text-white">${money(row.sub)}</span>
             </li>`).join('') + `
@@ -620,7 +719,9 @@ const start = () => {
     // One key per distinct cart + payment method, so a retry of the same order after a
     // lost answer returns the same receipt, while a changed cart is a new order.
     const orderKeyFor = (identifier) => {
-        const fingerprint = [...quantities.keys()].map((id) => id + 'x' + quantities.get(id) + '@' + (dishes.get(id)?.price ?? 0)).sort().join(',') + '|' + identifier
+        // Plates without rice (and the rice price) are part of the order too.
+        const fingerprint = [...quantities.keys()].map((id) => id + 'x' + quantities.get(id) + '@' + (dishes.get(id)?.price ?? 0) + 'n' + (noRice.get(id) ?? 0)).sort().join(',')
+            + '|' + ricePrice() + '|' + identifier
             // Another discount is another order (and another total).
             + '|' + (pickedDiscount() ? pickedDiscount().id + '@' + pickedDiscount().percent : '');
 
@@ -635,6 +736,26 @@ const start = () => {
     // discounts now on offer.
     const applyReview = (payload) => {
         applyDiscounts(payload.discounts);
+
+        // Ala carte as it is now: a new rice price, and dishes that can no longer go without rice
+        // lose their "no rice" plates (the refusal message already told the customer why).
+        if (payload.ala_carte && typeof payload.ala_carte === 'object') {
+            alaCarte = {
+                enabled: Boolean(payload.ala_carte.enabled),
+                rice_price: Number(payload.ala_carte.rice_price ?? 0),
+                dishes: Array.isArray(payload.ala_carte.dishes) ? payload.ala_carte.dishes.map(Number) : [],
+            };
+
+            for (const id of [...noRice.keys()]) {
+                if (!canGoWithoutRice(id)) {
+                    noRice.delete(id);
+                }
+            }
+
+            for (const id of dishes.keys()) {
+                renderCard(id);
+            }
+        }
 
         if (payload.min_quantity !== undefined) {
             minQuantity = Number(payload.min_quantity);
@@ -653,6 +774,7 @@ const start = () => {
                     // Off the pre-order menu: out of the order, and off the page.
                     dishes.delete(id);
                     quantities.delete(id);
+                    noRice.delete(id);
                     cardOf(id)?.remove();
 
                     continue;
@@ -795,6 +917,16 @@ const start = () => {
                 // The price the customer saw (and paid, for a bank order): the server
                 // refuses the order when it is not the price any more.
                 data.append('expected_prices[' + id + ']', String(dishes.get(id)?.price ?? 0));
+
+                // The plates without rice, and (below) the rice price the customer saw: the server
+                // refuses the order when it is not the price any more.
+                if ((noRice.get(id) ?? 0) > 0) {
+                    data.append('ala_carte[' + id + ']', String(noRice.get(id)));
+                }
+            }
+
+            if (noRice.size > 0) {
+                data.append('expected_rice_price', String(ricePrice()));
             }
 
             const response = await fetch(orderUrl, {

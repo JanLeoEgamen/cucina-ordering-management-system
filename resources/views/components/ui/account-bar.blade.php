@@ -11,6 +11,12 @@
     (`data-notif-badge`, a small poll), the list (`data-notif-list`, loaded when the panel
     opens and again when something new arrives) and rings the bell for a new one.
 
+    The panels carry `data-menu-panel` + `data-open` (flipped by Alpine from `open`, nothing else) and app.css animates
+    them IN and OUT with plain CSS (opacity + a small slide, `display` switched at the end of the exit via
+    transition-behavior: allow-discrete). Do not use x-show / x-transition here: an interrupted JS transition left an
+    open menu stuck at its invisible start frame (chevron up, no panel). A browser without allow-discrete just opens
+    and closes instantly.
+
     The component is rendered twice per page (phone bar + desktop bar, only one of them
     visible), so every id carries the `id` prop; the script paints all badges and lists.
 
@@ -46,13 +52,7 @@
         </button>
 
         <div id="{{ $id }}-notifications" data-notif-panel
-             x-show="open" x-cloak
-             x-transition:enter="transition duration-150 ease-out"
-             x-transition:enter-start="opacity-0 -translate-y-1 scale-95"
-             x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-             x-transition:leave="transition duration-100 ease-in"
-             x-transition:leave-start="opacity-100"
-             x-transition:leave-end="opacity-0"
+             data-menu-panel data-open="false" :data-open="open ? 'true' : 'false'" :aria-hidden="open ? 'false' : 'true'"
              class="{{ $panel }} inset-x-4 top-full origin-top-right sm:inset-x-auto sm:right-0 sm:top-auto sm:w-[24rem]">
             <div class="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 dark:border-gray-700">
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Notifications') }}</h3>
@@ -90,13 +90,7 @@
         </button>
 
         <div id="{{ $id }}-account"
-             x-show="open" x-cloak
-             x-transition:enter="transition duration-150 ease-out"
-             x-transition:enter-start="opacity-0 -translate-y-1 scale-95"
-             x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-             x-transition:leave="transition duration-100 ease-in"
-             x-transition:leave-start="opacity-100"
-             x-transition:leave-end="opacity-0"
+             data-menu-panel data-open="false" :data-open="open ? 'true' : 'false'" :aria-hidden="open ? 'false' : 'true'"
              class="{{ $panel }} right-0 w-72 origin-top-right">
             {{-- Who is signed in: the same ink card as the sidebar's, so the two read as one. --}}
             <div class="flex items-center gap-3 bg-ink p-4 text-white dark:bg-gray-900">

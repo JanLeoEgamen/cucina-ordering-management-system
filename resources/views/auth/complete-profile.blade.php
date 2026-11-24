@@ -21,12 +21,8 @@
             </div>
         </div>
 
-        <!-- Company -->
-        <div>
-            <x-input-label for="company_id" :value="__('Company')" />
-            <x-company-select class="mt-1" :companies="$companies" :selected="old('company_id', $user->company_id)" required autofocus autocomplete="organization" />
-            <x-input-error :messages="$errors->get('company_id')" class="mt-2" />
-        </div>
+        <!-- Company + Employee ID (not asked of Guests) -->
+        <x-company-fields :companies="$companies" :selected="old('company_id', $user->company_id)" :employee-id="$user->employee_id" :autofocus="true" />
 
         <x-primary-button class="w-full !py-3">
             {{ __('Continue') }}

@@ -203,6 +203,33 @@ class Company extends Model
         ];
     }
 
+    // Is this company the Guest one (people who belong to no company)? Read from the table by name.
+    public static function isGuest(int $companyId): bool
+    {
+        return DB::table(self::TABLE)
+            ->where('company_id', $companyId)
+            ->whereNull('deleted_at')
+            ->value('company_name') === self::GUEST;
+    }
+
+    // The validation rules of an `employee_id` field, given the company id that was posted. Everyone
+    // except a Guest has to give theirs; a Guest may leave it empty (and it is not kept, see
+    // employeeIdFor). An unknown company id is left to Company::rules() to refuse.
+    public static function employeeIdRules(mixed $companyId): array
+    {
+        $required = ! is_numeric($companyId) || ! self::isGuest((int) $companyId);
+
+        return [$required ? 'required' : 'nullable', 'string', 'max:50'];
+    }
+
+    // What to store: a Guest has no employee id, whatever was typed before the dropdown changed.
+    public static function employeeIdFor(int $companyId, ?string $employeeId): ?string
+    {
+        $employeeId = trim((string) $employeeId);
+
+        return $employeeId === '' || self::isGuest($companyId) ? null : $employeeId;
+    }
+
     /* -------- Writes -------- */
 
     // Create a company and return its id.

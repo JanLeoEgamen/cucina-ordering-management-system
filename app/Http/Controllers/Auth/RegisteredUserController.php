@@ -36,6 +36,8 @@ class RegisteredUserController extends Controller
             'last_name' => ['required', 'string', 'max:255'],
             // Picked from the list staff keep on the Companies page.
             'company_id' => Company::rules(),
+            // Required for every company except Guest.
+            'employee_id' => Company::employeeIdRules($request->input('company_id')),
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
@@ -44,6 +46,7 @@ class RegisteredUserController extends Controller
             'first_name' => $request->first_name,
             'last_name' => $request->last_name,
             'company_id' => (int) $request->company_id,
+            'employee_id' => Company::employeeIdFor((int) $request->company_id, $request->employee_id),
             'email' => $request->email,
             'password' => Hash::make($request->password),
             // They filled the form themselves, so there is nothing more to ask (see EnsureProfileIsComplete).

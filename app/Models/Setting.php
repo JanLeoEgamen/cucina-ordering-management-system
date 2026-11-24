@@ -46,6 +46,14 @@ class Setting
 
     public const DISCOUNT_MODES = ['off', 'orders', 'pre_orders', 'both'];
 
+    // Ala carte (a plate without rice): where customers may order it - off | orders | pre_orders | both -
+    // and how much a plate costs less without its rice (pesos, per plate).
+    public const ALA_CARTE_MODE = 'ala_carte.mode';
+
+    public const ALA_CARTE_RICE_PRICE = 'ala_carte.rice_price';
+
+    public const ALA_CARTE_MODES = ['off', 'orders', 'pre_orders', 'both'];
+
     // The name shown on every page, the title bar and the emails, and the path (on the public
     // disk) of the uploaded logo. An empty logo = the built-in Cucina mark.
     public const APP_NAME = 'app.name';
@@ -111,6 +119,9 @@ class Setting
         self::PRE_ORDER_MAX_QUANTITY => '',
         // Off until an admin turns it on: nobody is offered a discount by surprise.
         self::DISCOUNT_MODE => 'off',
+        // Off until an admin turns it on: staff must first mark which dishes come with rice.
+        self::ALA_CARTE_MODE => 'off',
+        self::ALA_CARTE_RICE_PRICE => '0',
     ];
 
     /* -------- Reads -------- */
@@ -231,6 +242,31 @@ class Setting
         return $mode === 'both' || $mode === $kind;
     }
 
+    // The ala carte switch: one of ALA_CARTE_MODES. A damaged value reads as "off".
+    public static function alaCarteMode(): string
+    {
+        $mode = (string) self::get(self::ALA_CARTE_MODE);
+
+        return in_array($mode, self::ALA_CARTE_MODES, true) ? $mode : 'off';
+    }
+
+    // How much one plate costs less without its rice, in pesos with cents. A damaged or negative
+    // value reads as 0.
+    public static function ricePrice(): float
+    {
+        return max(0.0, round((float) self::get(self::ALA_CARTE_RICE_PRICE), 2));
+    }
+
+    // Can customers order a plate without rice for this kind of order? $kind: 'orders' or
+    // 'pre_orders'. It needs the switch AND a rice price above 0 (a deduction of nothing is not an
+    // offer). Read fresh on every checkout, so switching it off stops the very next order.
+    public static function alaCarteFor(string $kind): bool
+    {
+        $mode = self::alaCarteMode();
+
+        return ($mode === 'both' || $mode === $kind) && self::ricePrice() > 0;
+    }
+
     // The plates one pre-order may hold: ['min' => int >= 1, 'max' => ?int]. A max of
     // null means "no limit". A damaged value reads as the default, and a maximum below
     // the minimum is ignored, so an order is never impossible to place.
@@ -346,6 +382,15 @@ class Setting
     public static function setDiscountMode(string $mode): void
     {
         self::set(self::DISCOUNT_MODE, $mode);
+    }
+
+    // Save where ala carte is offered and the rice price (the caller has validated both).
+    public static function setAlaCarte(string $mode, float $ricePrice): void
+    {
+        DB::transaction(function () use ($mode, $ricePrice) {
+            self::set(self::ALA_CARTE_MODE, $mode);
+            self::set(self::ALA_CARTE_RICE_PRICE, number_format($ricePrice, 2, '.', ''));
+        });
     }
 
     // Save the pre-order limits (a null maximum = no limit).

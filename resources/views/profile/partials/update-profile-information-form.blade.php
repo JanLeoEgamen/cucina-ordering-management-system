@@ -31,11 +31,8 @@
             </div>
         </div>
 
-        <div>
-            <x-input-label for="company_id" :value="__('Company')" />
-            <x-company-select class="mt-1" :companies="$companies" :selected="old('company_id', $user->company_id)" required autocomplete="organization" />
-            <x-input-error class="mt-2" :messages="$errors->get('company_id')" />
-        </div>
+        <!-- Company + Employee ID (not asked of Guests) -->
+        <x-company-fields :companies="$companies" :selected="old('company_id', $user->company_id)" :employee-id="$user->employee_id" />
 
         <div>
             <x-input-label for="email" :value="__('Email')" />

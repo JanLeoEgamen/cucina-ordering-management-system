@@ -78,6 +78,7 @@ class SessionDish extends Model
                 self::TABLE_DISH . '.price',
                 self::TABLE_DISH . '.calories',
                 self::TABLE_DISH . '.main_ingredients',
+                self::TABLE_DISH . '.includes_rice',
             ])
             ->map(function (object $dish) use ($types) {
                 // A stored path becomes a public URL the cards can use.
@@ -85,6 +86,7 @@ class SessionDish extends Model
                     $dish->image = Storage::disk('public')->url($dish->image);
                 }
 
+                $dish->includes_rice = (bool) $dish->includes_rice;
                 $dish->session_dish_id = (int) $dish->session_dish_id;
                 $dish->dish_id = (int) $dish->dish_id;
                 $dish->available_stock = (int) $dish->available_stock;
