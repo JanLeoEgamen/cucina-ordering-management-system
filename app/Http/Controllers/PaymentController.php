@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Support\OrderNotifier;
+use App\Support\ServerTable;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -34,7 +35,12 @@ class PaymentController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            return DataTables::collection(Payment::getAll())
+            // The table asks for ONE page (DataTables serverSide: it sends `draw`); without it the whole
+            // list is answered, as before. See OrderController::all.
+            $serverSide = $request->has('draw');
+            $page = $serverSide ? Payment::staffPage(ServerTable::params($request), ServerTable::filters($request)) : null;
+
+            $feed = DataTables::collection($serverSide ? collect($page['rows']) : Payment::getAll())
                 ->skipPaging()
                 ->addColumn('status', fn (object $payment) => $this->paymentStatusBadge($payment->payment_status))
                 // The popup shows a button for each URL that is not null.
@@ -66,8 +72,18 @@ class PaymentController extends Controller implements HasMiddleware
 
                     return $buttons;
                 })
-                ->rawColumns(['status', 'action'])
-                ->toJson();
+                ->rawColumns(['status', 'action']);
+
+            if ($serverSide) {
+                $feed->setTotalRecords($page['total'])
+                    ->setFilteredRecords($page['filtered'])
+                    // The database already searched and sorted: the package must not do it again on this page.
+                    ->filter(fn () => null)
+                    ->order(fn () => null)
+                    ->with('filters', Order::staffFilterOptions());
+            }
+
+            return $feed->toJson();
         }
 
         return view('payments.index');

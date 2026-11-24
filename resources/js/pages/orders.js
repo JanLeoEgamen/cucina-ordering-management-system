@@ -8,10 +8,12 @@
  * payment verified / rejected - the same popup the order session page uses.
  *
  * Flow:
- *   #orders-table      -> DataTable fed by the AJAX response
- *   [data-view-mode]   -> swap the table for the card grid (and back)
+ *   #orders-table      -> DataTable in serverSide mode: each draw asks the feed for ONE page, and
+ *                         the server does the search, the sort and the filters (F22: the table
+ *                         used to hold every order in the browser)
+ *   [data-view-mode]   -> swap the table for the card grid (and back); the cards are the current page
  *   #orders-*-filter   -> narrow the rows: order status, payment status, method,
- *                         session, and a date range (all in the browser)
+ *                         session, and a date range (sent with every request)
  *   [data-order-view]  -> the order popup
  */
 import DataTable from 'datatables.net-dt';
@@ -57,10 +59,9 @@ const start = () => {
         ? '<a href="' + escapeHtml(order.session_url) + '" class="text-sm text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400">' + escapeHtml(order.session_label ?? '—') + '</a>'
         : '<span class="text-sm text-gray-700 dark:text-gray-300">' + escapeHtml(order.session_label ?? '—') + '</span>';
 
-    let rowIndexes = new Map();
-
+    // The running number continues over the pages: row 11 is the first of page 2.
     const indexCell = (data, type, row, meta) => {
-        const number = String(rowIndexes.get(meta.row) ?? meta.row + 1);
+        const number = String(table.page.info().start + meta.row + 1);
 
         return type === 'display' ? '<span class="tabular-nums text-gray-400 dark:text-gray-500">' + number + '</span>' : number;
     };
@@ -95,9 +96,17 @@ const start = () => {
 
     /* ---- table ----------------------------------------------------------- */
 
+    // The page's own filters. Every request to the feed carries them (see `ajax.data` below).
+    const statusFilter = document.querySelector('#orders-status-filter');
+    const paymentFilter = document.querySelector('#orders-payment-filter');
+    const methodFilter = document.querySelector('#orders-method-filter');
+    const sessionFilter = document.querySelector('#orders-session-filter');
+    const dateFrom = document.querySelector('#orders-date-from');
+    const dateTo = document.querySelector('#orders-date-to');
+
     const table = new DataTable(tableElement, {
         processing: true,
-        serverSide: false,
+        serverSide: true,
         autoWidth: false,
         pageLength: 10,
         lengthMenu: [10, 25, 50, 100],
@@ -120,7 +129,18 @@ const start = () => {
             emptyTable: 'No orders yet.',
             zeroRecords: 'No rows match the search and filters',
         },
-        ajax: tableElement.dataset.endpoint,
+        ajax: {
+            url: tableElement.dataset.endpoint,
+            // What the toolbar's filters hold, next to the page, the search and the sort DataTables sends.
+            data: (request) => {
+                request.status = statusFilter?.value ?? '';
+                request.payment = paymentFilter?.value ?? '';
+                request.method = methodFilter?.value ?? '';
+                request.session = sessionFilter?.value ?? '';
+                request.from = dateFrom?.value ?? '';
+                request.to = dateTo?.value ?? '';
+            },
+        },
         columns: [
             { data: null, orderable: false, searchable: false, className: 'hidden w-12 sm:table-cell', render: indexCell },
             { data: 'order_number', render: numberCell },
@@ -138,43 +158,10 @@ const start = () => {
     // Search, sort and the filter dropdown above the table.
     initTableToolbar(table);
 
-    table.on('preDraw', () => {
-        rowIndexes = new Map(
-            table.rows({ search: 'applied', order: 'applied' }).indexes().toArray()
-                .map((index, position) => [index, position + 1]),
-        );
-    });
-
     /* ---- filters --------------------------------------------------------- */
 
-    // One named search holds every filter, so the table's own search box keeps working
-    // next to them and the card grid (built from the filtered rows) follows. The server
-    // renders both badges, and each carries its state in data-status.
-    const statusFilter = document.querySelector('#orders-status-filter');
-    const paymentFilter = document.querySelector('#orders-payment-filter');
-    const methodFilter = document.querySelector('#orders-method-filter');
-    const sessionFilter = document.querySelector('#orders-session-filter');
-    const dateFrom = document.querySelector('#orders-date-from');
-    const dateTo = document.querySelector('#orders-date-to');
-
-    table.search.fixed('filters', (searchData, rowData) => {
-        const status = statusFilter?.value ?? '';
-        const payment = paymentFilter?.value ?? '';
-        const method = methodFilter?.value ?? '';
-        const session = sessionFilter?.value ?? '';
-        const from = dateFrom?.value ?? '';
-        const to = dateTo?.value ?? '';
-
-        // The day the order was placed (YYYY-MM-DD, compared as text).
-        const day = String(rowData.order_date ?? '').slice(0, 10);
-
-        return (status === '' || String(rowData.status_badge ?? '').includes('data-status="' + status + '"'))
-            && (payment === '' || String(rowData.payment_badge ?? '').includes('data-status="' + payment + '"'))
-            && (method === '' || String(rowData.payment_method_id) === method)
-            && (session === '' || String(rowData.session_id) === session)
-            && (from === '' || (day !== '' && day >= from))
-            && (to === '' || (day !== '' && day <= to));
-    });
+    // The filters are sent with every request (`ajax.data` above): changing one draws the table
+    // again, from page 1, and the server narrows the list.
 
     // 2026-11-10 -> Nov 10, 2026
     const prettyDay = (value) => {
@@ -185,31 +172,21 @@ const start = () => {
             : parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     };
 
-    // The method and session lists offer what the orders hold. They are rebuilt when the
-    // feed changes (an order completed, cancelled), keeping the choice while it still exists.
+    // The method and session lists come with the feed (`filters`: every payment method and the
+    // newest sessions): the browser holds one page of orders, so it cannot build them from the
+    // rows. Rebuilt when they change, keeping the choice while it still exists.
     let optionsKey = '';
 
     const syncFilterOptions = () => {
-        const methods = new Map();
-        const sessions = new Map();
+        const offered = table.ajax.json()?.filters;
 
-        for (const row of table.rows().data().toArray()) {
-            if (row.payment_method_id && !methods.has(String(row.payment_method_id))) {
-                methods.set(String(row.payment_method_id), row.method_name ?? '—');
-            }
-
-            if (row.session_id && !sessions.has(String(row.session_id))) {
-                sessions.set(String(row.session_id), {
-                    date: String(row.session_date ?? '').slice(0, 10),
-                    start: String(row.session_start ?? '').slice(0, 5),
-                    end: String(row.session_end ?? '').slice(0, 5),
-                });
-            }
+        if (!offered) {
+            return;
         }
 
-        const methodList = [...methods.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-        // Newest session first.
-        const sessionList = [...sessions.entries()].sort((a, b) => (b[1].date + b[1].start).localeCompare(a[1].date + a[1].start));
+        const methodList = (offered.methods ?? []).map((method) => [String(method.id), method.name]);
+        // Newest session first (the server sends them that way).
+        const sessionList = (offered.sessions ?? []).map((session) => [String(session.id), session]);
 
         const key = JSON.stringify([methodList, sessionList]);
 

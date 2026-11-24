@@ -14,6 +14,7 @@ use App\Models\SessionDish;
 use App\Models\Setting;
 use App\Support\OrderDiscount;
 use App\Support\OrderNotifier;
+use App\Support\ServerTable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -54,14 +55,32 @@ class OrderController extends Controller implements HasMiddleware
     // so the order popup offers the same Complete / Cancel / Verify / Reject here.
     public function all(Request $request)
     {
-        if ($request->ajax()) {
-            return DataTables::collection(collect(Order::getAll())->map(fn (object $order) => $this->orderRow($order)))
+        if (! $request->ajax()) {
+            return view('orders.index');
+        }
+
+        // The table asks for ONE page (DataTables serverSide: it sends `draw`): the search, sort and
+        // filters are done by the database and only that page is decorated and sent. Without `draw`
+        // (a script, an old client) the whole list is answered, as before.
+        if ($request->has('draw')) {
+            $page = Order::staffPage(ServerTable::params($request), ServerTable::filters($request));
+
+            return DataTables::collection(collect($page['rows'])->map(fn (object $order) => $this->orderRow($order)))
                 ->skipPaging()
+                ->setTotalRecords($page['total'])
+                ->setFilteredRecords($page['filtered'])
+                // The database already searched and sorted: the package must not do it again on this page.
+                ->filter(fn () => null)
+                ->order(fn () => null)
+                ->with('filters', Order::staffFilterOptions())
                 ->rawColumns(['status_badge', 'payment_badge'])
                 ->toJson();
         }
 
-        return view('orders.index');
+        return DataTables::collection(collect(Order::getAll())->map(fn (object $order) => $this->orderRow($order)))
+            ->skipPaging()
+            ->rawColumns(['status_badge', 'payment_badge'])
+            ->toJson();
     }
 
     // The orders the signed-in customer placed, newest first.

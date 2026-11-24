@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\ServerTable;
 use App\Support\TableCache;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -220,6 +221,67 @@ class Payment extends Model
     /* -------- Internals -------- */
 
     // The joins and columns of the list.
+    // ONE PAGE of the staff Payments table (DataTables in serverSide mode); see Order::staffPage().
+    public static function staffPage(array $table, array $filters): array
+    {
+        $total = DB::table(self::TABLE)
+            ->join('orders', 'orders.order_id', '=', self::TABLE . '.order_id')
+            ->whereNull(self::TABLE . '.deleted_at')
+            ->whereNull('orders.deleted_at')
+            ->count();
+
+        $narrowed = fn () => self::staffNarrowed(self::listQuery(), $table['words'], $filters);
+
+        $filtered = ($table['words'] === [] && ! array_filter($filters)) ? $total : $narrowed()->count();
+
+        // What the column index of the table sorts by (see payments.js); anything else = newest first.
+        $sorts = [
+            1 => ['orders.order_number'],
+            2 => [User::fullNameSql('users')],
+            3 => ['payment_methods.method_name'],
+            4 => [self::TABLE . '.reference_number'],
+            5 => [self::TABLE . '.amount'],
+            7 => [self::TABLE . '.payment_status'],
+            8 => [self::TABLE . '.created_at'],
+        ];
+
+        $query = $narrowed();
+
+        foreach ($sorts[$table['column']] ?? [self::TABLE . '.created_at'] as $expression) {
+            $query->orderByRaw($expression . ' ' . $table['dir']);
+        }
+
+        $rows = $query
+            ->orderByDesc(self::TABLE . '.order_id')
+            ->offset($table['start'])
+            ->limit($table['length'])
+            ->get();
+
+        return ['rows' => self::hydrate($rows)->all(), 'total' => $total, 'filtered' => $filtered];
+    }
+
+    protected static function staffNarrowed($query, array $words, array $filters)
+    {
+        $query
+            // The Payments page's one status filter is the PAYMENT's status.
+            ->when($filters['status'] !== '', fn ($q) => $q->where(self::TABLE . '.payment_status', $filters['status']))
+            ->when($filters['method'] > 0, fn ($q) => $q->where(self::TABLE . '.payment_method_id', $filters['method']))
+            ->when($filters['session'] > 0, fn ($q) => $q->where('orders.session_id', $filters['session']))
+            ->when($filters['from'] !== '', fn ($q) => $q->whereDate(self::TABLE . '.created_at', '>=', $filters['from']))
+            ->when($filters['to'] !== '', fn ($q) => $q->whereDate(self::TABLE . '.created_at', '<=', $filters['to']));
+
+        ServerTable::search($query, $words, [
+            'orders.order_number',
+            User::fullNameSql('users'),
+            'payment_methods.method_name',
+            self::TABLE . '.reference_number',
+            self::TABLE . '.payment_status',
+            'CAST(' . self::TABLE . '.amount AS CHAR)',
+        ]);
+
+        return $query;
+    }
+
     protected static function listQuery()
     {
         return DB::table(self::TABLE)

@@ -12,10 +12,21 @@
  * The cell text is the rendered cell with its markup removed (a status badge becomes its
  * label, the lines of an order become one per line), so the file reads like the table.
  *
+ * A table in serverSide mode (Orders, Payments) holds only ONE page, so there the rows are fetched
+ * from the server: the same request the table last made (its search, sort and filters), 500 rows at
+ * a time, up to MAX_EXPORT_ROWS. They are rendered by the table's own column functions, so the file
+ * reads exactly like the table.
+ *
  * The two writers are big and rarely used, so they are imported on demand: a page that
  * never exports never downloads them.
  */
+import DataTable from 'datatables.net-dt';
 import { showToast } from './toast';
+
+// One request = ServerTable::MAX_LENGTH rows on the server; the file stops at MAX_EXPORT_ROWS (a spreadsheet
+// or a PDF of more is hard to open, and every chunk is PHP memory on the server).
+const CHUNK = 500;
+const MAX_EXPORT_ROWS = 5000;
 
 const today = () => new Date().toLocaleDateString('en-CA');
 
@@ -163,25 +174,127 @@ const writePdf = async ({ headers, rows, title, filename }) => {
     doc.save(filename + '.pdf');
 };
 
-export async function exportTable(table, { format = 'xlsx', title = document.title } = {}) {
-    const { headers, rows } = collect(table);
+// jQuery.param style (a[b][0]=1), which Laravel reads back as nested arrays.
+const flatten = (value, prefix, out) => {
+    if (value !== null && typeof value === 'object') {
+        for (const [key, inner] of Object.entries(value)) {
+            flatten(inner, prefix === '' ? key : prefix + '[' + key + ']', out);
+        }
+    } else if (value !== undefined) {
+        out.append(prefix, value === null ? '' : String(value));
+    }
+};
 
-    if (rows.length === 0) {
-        showToast('There is nothing to export.', 'warning');
+// The rows the table's last request matched, chunk after chunk.
+const fetchMatching = async (table) => {
+    const base = { ...table.ajax.params() };
+    // The server never reads the column list, and it is most of the query string.
+    delete base.columns;
 
-        return;
+    const url = table.ajax.url();
+    const rows = [];
+    let matching = Infinity;
+
+    while (rows.length < Math.min(matching, MAX_EXPORT_ROWS)) {
+        const query = new URLSearchParams();
+
+        flatten({ ...base, start: rows.length, length: CHUNK }, '', query);
+
+        const response = await fetch(url + (url.includes('?') ? '&' : '?') + query, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+            credentials: 'same-origin',
+        });
+
+        if (!response.ok) {
+            throw new Error('The server answered ' + response.status + ' while reading the rows.');
+        }
+
+        const json = await response.json();
+
+        matching = Number(json.recordsFiltered ?? json.data.length);
+
+        if (json.data.length === 0) {
+            break;
+        }
+
+        rows.push(...json.data);
     }
 
-    const options = { headers, rows, title, filename: slug(title) + '-' + today() };
+    return { rows: rows.slice(0, MAX_EXPORT_ROWS), matching };
+};
+
+// A hidden throw-away table that holds those rows with the page table's own columns, so every cell is
+// rendered by the very same functions as on the page and collect() can read it like any other table.
+const mirror = (table, rows) => {
+    const node = table.table().node().cloneNode(true);
+
+    node.removeAttribute('id');
+    node.querySelector('tbody')?.replaceChildren();
+
+    const holder = document.createElement('div');
+
+    holder.hidden = true;
+    holder.append(node);
+    document.body.append(holder);
+
+    const copy = new DataTable(node, {
+        data: rows,
+        columns: table.init().columns,
+        paging: false,
+        searching: false,
+        ordering: false,
+        info: false,
+        layout: { topStart: null, topEnd: null, bottomStart: null, bottomEnd: null },
+    });
+
+    return { table: copy, cleanup: () => { copy.destroy(); holder.remove(); } };
+};
+
+export async function exportTable(table, { format = 'xlsx', title = document.title } = {}) {
+    let source = table;
+    let cleanup = () => {};
+    let matching = 0;
+
+    if (table.page.info().serverSide) {
+        try {
+            const loaded = await fetchMatching(table);
+
+            matching = loaded.matching;
+            ({ table: source, cleanup } = mirror(table, loaded.rows));
+        } catch (error) {
+            console.error('The rows to export could not be read.', error);
+            showToast('The export could not be created.', 'error');
+
+            return;
+        }
+    }
 
     try {
-        if (format === 'pdf') {
-            await writePdf(options);
-        } else {
-            await writeXlsx(options);
+        const { headers, rows } = collect(source);
+
+        if (rows.length === 0) {
+            showToast('There is nothing to export.', 'warning');
+
+            return;
         }
-    } catch (error) {
-        console.error('The export failed.', error);
-        showToast('The export could not be created.', 'error');
+
+        const options = { headers, rows, title, filename: slug(title) + '-' + today() };
+
+        try {
+            if (format === 'pdf') {
+                await writePdf(options);
+            } else {
+                await writeXlsx(options);
+            }
+
+            if (matching > MAX_EXPORT_ROWS) {
+                showToast('Only the first ' + MAX_EXPORT_ROWS.toLocaleString() + ' of ' + matching.toLocaleString() + ' rows were exported. Narrow the filters to export the rest.', 'warning');
+            }
+        } catch (error) {
+            console.error('The export failed.', error);
+            showToast('The export could not be created.', 'error');
+        }
+    } finally {
+        cleanup();
     }
 }

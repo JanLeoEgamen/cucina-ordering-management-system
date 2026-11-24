@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\ServerTable;
 use App\Support\TableCache;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -83,46 +84,139 @@ class Order extends Model
     // The queries behind list().
     protected static function loadList(?int $sessionId): array
     {
-        $orders = DB::table(self::TABLE)
+        $orders = self::listQuery()
+            ->when($sessionId !== null, fn ($query) => $query->where(self::TABLE . '.session_id', $sessionId))
+            ->orderByDesc(self::TABLE . '.order_id')
+            ->get(self::listColumns());
+
+        return self::withItems($orders)->all();
+    }
+
+    // The orders with their customer, session and payment (one row each: a payment belongs to one order).
+    protected static function listQuery(): Builder
+    {
+        return DB::table(self::TABLE)
             ->join('users', 'users.id', '=', self::TABLE . '.user_id')
             ->leftJoin('order_sessions', 'order_sessions.session_id', '=', self::TABLE . '.session_id')
             ->leftJoin('payments', 'payments.order_id', '=', self::TABLE . '.order_id')
             ->leftJoin('payment_methods', 'payment_methods.method_id', '=', 'payments.payment_method_id')
             ->leftJoin('users as verifiers', 'verifiers.id', '=', 'payments.verified_by')
-            ->when($sessionId !== null, fn ($query) => $query->where(self::TABLE . '.session_id', $sessionId))
-            ->whereNull(self::TABLE . '.deleted_at')
+            ->whereNull(self::TABLE . '.deleted_at');
+    }
+
+    protected static function listColumns(): array
+    {
+        return [
+            self::TABLE . '.order_id',
+            self::TABLE . '.session_id',
+            'order_sessions.order_date as session_date',
+            'order_sessions.start_time as session_start',
+            'order_sessions.end_time as session_end',
+            self::TABLE . '.order_number',
+            self::TABLE . '.order_date',
+            self::TABLE . '.total_amount',
+            self::TABLE . '.order_status',
+            self::TABLE . '.payment_status',
+            self::TABLE . '.ready_at',
+            ...self::DISCOUNT_COLUMNS,
+            DB::raw(User::fullNameSql('users') . ' as customer_name'),
+            'payments.payment_method_id',
+            'payments.reference_number',
+            'payments.proof_of_payment',
+            'payments.payment_status as payment_state',
+            'payments.verified_at',
+            'payment_methods.method_name',
+            DB::raw(User::fullNameSql('verifiers') . ' as verified_by_name'),
+        ];
+    }
+
+    // ONE PAGE of the staff Orders table (DataTables in serverSide mode): the page's rows after the
+    // filters, the search words and the sort, plus how many orders there are in all and after the
+    // filters. $table is ServerTable::params(), $filters ServerTable::filters(). Never loads more than
+    // one page, so thousands of orders cost the same as ten.
+    public static function staffPage(array $table, array $filters): array
+    {
+        $total = DB::table(self::TABLE)->whereNull('deleted_at')->count();
+
+        $narrowed = fn () => self::staffNarrowed(self::listQuery(), $table['words'], $filters);
+
+        $filtered = ($table['words'] === [] && ! array_filter($filters)) ? $total : $narrowed()->count();
+
+        // What the column index of the table sorts by (see orders.js); anything else = newest first.
+        $sorts = [
+            1 => [self::TABLE . '.order_number'],
+            2 => [User::fullNameSql('users')],
+            3 => ['order_sessions.order_date', 'order_sessions.start_time'],
+            5 => [self::TABLE . '.total_amount'],
+            7 => [self::TABLE . '.order_status'],
+            8 => [self::TABLE . '.order_date'],
+        ];
+
+        $query = $narrowed();
+
+        foreach ($sorts[$table['column']] ?? [self::TABLE . '.order_date'] as $expression) {
+            $query->orderByRaw($expression . ' ' . $table['dir']);
+        }
+
+        $rows = $query
             ->orderByDesc(self::TABLE . '.order_id')
-            ->get([
-                self::TABLE . '.order_id',
-                self::TABLE . '.session_id',
-                'order_sessions.order_date as session_date',
-                'order_sessions.start_time as session_start',
-                'order_sessions.end_time as session_end',
-                self::TABLE . '.order_number',
-                self::TABLE . '.order_date',
-                self::TABLE . '.total_amount',
-                self::TABLE . '.order_status',
-                self::TABLE . '.payment_status',
-                self::TABLE . '.ready_at',
-                ...self::DISCOUNT_COLUMNS,
-                DB::raw(User::fullNameSql('users') . ' as customer_name'),
-                'payments.payment_method_id',
-                'payments.reference_number',
-                'payments.proof_of_payment',
-                'payments.payment_status as payment_state',
-                'payments.verified_at',
-                'payment_methods.method_name',
-                DB::raw(User::fullNameSql('verifiers') . ' as verified_by_name'),
-            ]);
+            ->offset($table['start'])
+            ->limit($table['length'])
+            ->get(self::listColumns());
 
-        // One query for the lines of every order in the list.
-        $items = OrderItem::itemsByOrder($orders->pluck('order_id')->all());
+        return ['rows' => self::withItems($rows)->all(), 'total' => $total, 'filtered' => $filtered];
+    }
 
-        return $orders->map(function (object $order) use ($items) {
-            $order->items = $items[$order->order_id] ?? [];
+    // The search words and the page's filters applied to the staff orders query.
+    protected static function staffNarrowed(Builder $query, array $words, array $filters): Builder
+    {
+        $query
+            ->when($filters['status'] !== '', fn ($q) => $q->where(self::TABLE . '.order_status', $filters['status']))
+            ->when($filters['payment'] !== '', fn ($q) => $q->where(self::TABLE . '.payment_status', $filters['payment']))
+            ->when($filters['method'] > 0, fn ($q) => $q->where('payments.payment_method_id', $filters['method']))
+            ->when($filters['session'] > 0, fn ($q) => $q->where(self::TABLE . '.session_id', $filters['session']))
+            ->when($filters['from'] !== '', fn ($q) => $q->whereDate(self::TABLE . '.order_date', '>=', $filters['from']))
+            ->when($filters['to'] !== '', fn ($q) => $q->whereDate(self::TABLE . '.order_date', '<=', $filters['to']));
 
-            return $order;
-        })->values()->all();
+        ServerTable::search($query, $words, [
+            self::TABLE . '.order_number',
+            User::fullNameSql('users'),
+            'order_sessions.order_date',
+            'payment_methods.method_name',
+            'payments.reference_number',
+            self::TABLE . '.order_status',
+            self::TABLE . '.payment_status',
+            'CAST(' . self::TABLE . '.total_amount AS CHAR)',
+            // A dish in the order's lines.
+            fn ($any, $like) => $any->orWhereExists(fn ($lines) => $lines->selectRaw('1')
+                ->from('order_items')
+                ->join('session_dishes', 'session_dishes.session_dish_id', '=', 'order_items.session_dish_id')
+                ->join('dishes', 'dishes.dish_id', '=', 'session_dishes.dish_id')
+                ->whereColumn('order_items.order_id', self::TABLE . '.order_id')
+                ->whereNull('order_items.deleted_at')
+                ->whereRaw("LOWER(dishes.dish_name) LIKE ? ESCAPE '!'", [$like])),
+        ]);
+
+        return $query;
+    }
+
+    // What the method and session dropdowns of the Orders and Payments tables offer, now that the
+    // browser no longer holds every row to build them from: every payment method, and the newest
+    // sessions. Cached with its tables (no clock, no user in it).
+    public static function staffFilterOptions(): array
+    {
+        return TableCache::remember(['payment_methods', 'order_sessions'], 'staff.filter_options', fn () => [
+            'methods' => DB::table('payment_methods')->whereNull('deleted_at')->orderBy('method_name')->get(['method_id', 'method_name'])
+                ->map(fn (object $method) => ['id' => (int) $method->method_id, 'name' => $method->method_name])->all(),
+            'sessions' => DB::table('order_sessions')->whereNull('deleted_at')->orderByDesc('order_date')->orderByDesc('start_time')->limit(200)
+                ->get(['session_id', 'order_date', 'start_time', 'end_time'])
+                ->map(fn (object $session) => [
+                    'id' => (int) $session->session_id,
+                    'date' => substr((string) $session->order_date, 0, 10),
+                    'start' => substr((string) $session->start_time, 0, 5),
+                    'end' => substr((string) $session->end_time, 0, 5),
+                ])->all(),
+        ]);
     }
 
     // What the lists read about an order's discount. discount_proof is the PRIVATE file path:

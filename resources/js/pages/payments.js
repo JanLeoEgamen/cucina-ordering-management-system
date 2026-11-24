@@ -114,10 +114,9 @@ const start = () => {
 
     /* ---- table ----------------------------------------------------------- */
 
-    let rowIndexes = new Map();
-
+    // The running number continues over the pages: row 11 is the first of page 2.
     const indexCell = (data, type, row, meta) => {
-        const number = String(rowIndexes.get(meta.row) ?? meta.row + 1);
+        const number = String(table.page.info().start + meta.row + 1);
 
         return type === 'display' ? '<span class="tabular-nums text-gray-400 dark:text-gray-500">' + number + '</span>' : number;
     };
@@ -139,9 +138,17 @@ const start = () => {
 
     const actionsCell = (value, type) => (type === 'display' ? rowMenuHtml(value, copy.actionsLabel) : value);
 
+    // The page's own filters. Every request to the feed carries them (see `ajax.data` below); the table
+    // is in serverSide mode (F22): each draw asks for ONE page and the server searches, sorts and filters.
+    const statusFilter = document.querySelector('#payment-status-filter');
+    const methodFilter = document.querySelector('#payment-method-filter');
+    const sessionFilter = document.querySelector('#payment-session-filter');
+    const dateFrom = document.querySelector('#payment-date-from');
+    const dateTo = document.querySelector('#payment-date-to');
+
     const table = new DataTable(tableElement, {
         processing: true,
-        serverSide: false,
+        serverSide: true,
         autoWidth: false,
         pageLength: 10,
         lengthMenu: [10, 25, 50, 100],
@@ -164,7 +171,17 @@ const start = () => {
             emptyTable: 'No data available yet',
             zeroRecords: 'No rows match the search and filters',
         },
-        ajax: tableElement.dataset.endpoint,
+        ajax: {
+            url: tableElement.dataset.endpoint,
+            // What the toolbar's filters hold, next to the page, the search and the sort DataTables sends.
+            data: (request) => {
+                request.status = statusFilter?.value ?? '';
+                request.method = methodFilter?.value ?? '';
+                request.session = sessionFilter?.value ?? '';
+                request.from = dateFrom?.value ?? '';
+                request.to = dateTo?.value ?? '';
+            },
+        },
         columns: [
             { data: null, orderable: false, searchable: false, className: 'hidden w-12 sm:table-cell', render: indexCell },
             { data: 'order_number', render: orderCell },
@@ -187,41 +204,10 @@ const start = () => {
 
     const reload = () => table.ajax.reload(null, false);
 
-    table.on('preDraw', () => {
-        rowIndexes = new Map(
-            table.rows({ search: 'applied', order: 'applied' }).indexes().toArray()
-                .map((index, position) => [index, position + 1]),
-        );
-    });
-
     /* ---- filters --------------------------------------------------------- */
 
-    // One named search holds every filter, so the table's own search box keeps
-    // working next to them, and the card grid (built from the filtered rows)
-    // follows. The server renders the status badge, which carries its state in
-    // data-status; the rest are read from the row's own fields.
-    const statusFilter = document.querySelector('#payment-status-filter');
-    const methodFilter = document.querySelector('#payment-method-filter');
-    const sessionFilter = document.querySelector('#payment-session-filter');
-    const dateFrom = document.querySelector('#payment-date-from');
-    const dateTo = document.querySelector('#payment-date-to');
-
-    table.search.fixed('filters', (searchData, rowData) => {
-        const status = statusFilter?.value ?? '';
-        const method = methodFilter?.value ?? '';
-        const session = sessionFilter?.value ?? '';
-        const from = dateFrom?.value ?? '';
-        const to = dateTo?.value ?? '';
-
-        // The day the payment was made (YYYY-MM-DD, compared as text).
-        const day = String(rowData.created_at ?? '').slice(0, 10);
-
-        return (status === '' || String(rowData.status ?? '').includes('data-status="' + status + '"'))
-            && (method === '' || String(rowData.payment_method_id) === method)
-            && (session === '' || String(rowData.session_id) === session)
-            && (from === '' || (day !== '' && day >= from))
-            && (to === '' || (day !== '' && day <= to));
-    });
+    // The filters are sent with every request (`ajax.data` above): changing one draws the table
+    // again, from page 1, and the server narrows the list.
 
     // 2026-11-10 -> Nov 10, 2026
     const prettyDay = (value) => {
@@ -232,34 +218,21 @@ const start = () => {
             : parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     };
 
-    // The method and session lists offer what the payments hold. They are
-    // rebuilt when the feed changes (a decision, a delete), keeping the choice
-    // while it still exists.
+    // The method and session lists come with the feed (`filters`: every payment method and the
+    // newest sessions): the browser holds one page of payments, so it cannot build them from the
+    // rows. Rebuilt when they change, keeping the choice while it still exists.
     let optionsKey = '';
 
     const syncFilterOptions = () => {
-        const rows = table.rows().data().toArray();
+        const offered = table.ajax.json()?.filters;
 
-        const methods = new Map();
-        const sessions = new Map();
-
-        for (const row of rows) {
-            if (row.payment_method_id && !methods.has(String(row.payment_method_id))) {
-                methods.set(String(row.payment_method_id), row.method_name ?? '—');
-            }
-
-            if (row.session_id && !sessions.has(String(row.session_id))) {
-                sessions.set(String(row.session_id), {
-                    date: String(row.session_date ?? '').slice(0, 10),
-                    start: String(row.start_time ?? '').slice(0, 5),
-                    end: String(row.end_time ?? '').slice(0, 5),
-                });
-            }
+        if (!offered) {
+            return;
         }
 
-        const methodList = [...methods.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-        // Newest session first.
-        const sessionList = [...sessions.entries()].sort((a, b) => (b[1].date + b[1].start).localeCompare(a[1].date + a[1].start));
+        const methodList = (offered.methods ?? []).map((method) => [String(method.id), method.name]);
+        // Newest session first (the server sends them that way).
+        const sessionList = (offered.sessions ?? []).map((session) => [String(session.id), session]);
 
         const key = JSON.stringify([methodList, sessionList]);
 
