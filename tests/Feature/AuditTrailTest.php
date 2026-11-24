@@ -54,6 +54,7 @@ class AuditTrailTest extends TestCase
             'first_name' => 'New',
             'last_name' => 'Name',
             'company_id' => $target->company_id,
+            'employee_id' => 'E-1001',
             'email' => $target->email,
             'roles' => [$this->customerRoleId()],
         ])->assertOk();
@@ -84,6 +85,7 @@ class AuditTrailTest extends TestCase
             'first_name' => 'Pat',
             'last_name' => 'Lee',
             'company_id' => Company::factory()->create()->company_id,
+            'employee_id' => 'E-1001',
             'email' => 'pat@example.com',
             'password' => 'Sup3r-secret-pw',
             'password_confirmation' => 'Sup3r-secret-pw',
@@ -102,12 +104,14 @@ class AuditTrailTest extends TestCase
     public function test_a_password_hash_change_is_not_in_the_diff(): void
     {
         $admin = $this->superAdmin();
-        $target = User::factory()->create();
+        // Already has the employee id the request sends, so only the password differs.
+        $target = User::factory()->create(['employee_id' => 'E-1001']);
 
         $this->actingAs($admin)->putJson(route('users.update', $target->id), [
             'first_name' => $target->first_name,
             'last_name' => $target->last_name,
             'company_id' => $target->company_id,
+            'employee_id' => 'E-1001',
             'email' => $target->email,
             'password' => 'An0ther-pw-123',
             'password_confirmation' => 'An0ther-pw-123',

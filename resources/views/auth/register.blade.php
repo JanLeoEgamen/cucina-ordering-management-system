@@ -17,12 +17,8 @@
             </div>
         </div>
 
-        <!-- Company (picked from the list staff keep) -->
-        <div>
-            <x-input-label for="company_id" :value="__('Company')" />
-            <x-company-select class="mt-1" :companies="$companies" :selected="old('company_id')" required autocomplete="organization" />
-            <x-input-error :messages="$errors->get('company_id')" class="mt-2" />
-        </div>
+        <!-- Company (picked from the list staff keep) + Employee ID (not asked of Guests) -->
+        <x-company-fields :companies="$companies" :selected="old('company_id')" />
 
         <!-- Email Address -->
         <div>

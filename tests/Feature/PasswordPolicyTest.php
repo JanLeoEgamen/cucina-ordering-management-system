@@ -15,7 +15,7 @@ class PasswordPolicyTest extends TestCase
     private function register(string $password): \Illuminate\Testing\TestResponse
     {
         return $this->post('/register', [
-            'first_name' => 'Pat', 'last_name' => 'Cook', 'company_id' => \App\Models\Company::factory()->create()->company_id,
+            'first_name' => 'Pat', 'last_name' => 'Cook', 'company_id' => \App\Models\Company::factory()->create()->company_id, 'employee_id' => 'E-1001',
             'email' => 'pat@example.com',
             'password' => $password, 'password_confirmation' => $password,
         ]);

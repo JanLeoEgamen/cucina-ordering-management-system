@@ -46,6 +46,7 @@
                         <th scope="col" class="{{ $th }}">{{ __('Name') }}</th>
                         <th scope="col" class="{{ $th }}">{{ __('Email') }}</th>
                         <th scope="col" class="{{ $th }}">{{ __('Company') }}</th>
+                        <th scope="col" class="{{ $th }}">{{ __('Employee ID') }}</th>
                         <th scope="col" class="{{ $th }}">{{ __('Roles') }}</th>
                         <th scope="col" data-no-export class="{{ $th }} text-right">{{ __('Actions') }}</th>
                     </tr>
@@ -113,6 +114,15 @@
                                 @endif
                             @endforeach
                         </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="create-user-employee-id" class="{{ $label }}">{{ __('Employee ID') }}</label>
+                    <div class="mt-1">
+                        <input type="text" name="employee_id" id="create-user-employee-id" maxlength="50" autocomplete="off"
+                               class="{{ $input }}" placeholder="{{ __('Enter employee ID') }}">
+                        <p class="{{ $hint }}">{{ __('Required unless the company is Guest.') }}</p>
                     </div>
                 </div>
 
@@ -219,6 +229,15 @@
                 </div>
 
                 <div>
+                    <label for="edit-user-employee-id" class="{{ $label }}">{{ __('Employee ID') }}</label>
+                    <div class="mt-1">
+                        <input type="text" name="employee_id" id="edit-user-employee-id" maxlength="50" autocomplete="off"
+                               class="{{ $input }}" placeholder="{{ __('Enter employee ID') }}">
+                        <p class="{{ $hint }}">{{ __('Required unless the company is Guest. Moving the user to Guest clears it.') }}</p>
+                    </div>
+                </div>
+
+                <div>
                     <label for="edit-user-email" class="{{ $label }}">{{ __('Email') }}</label>
                     <div class="mt-1">
                         <input type="email" name="email" id="edit-user-email" required
@@ -294,6 +313,10 @@
                 <div>
                     <dt class="{{ $label }}">{{ __('Company') }}</dt>
                     <dd id="view-user-company" class="mt-1 text-sm text-gray-900 dark:text-white"></dd>
+                </div>
+                <div>
+                    <dt class="{{ $label }}">{{ __('Employee ID') }}</dt>
+                    <dd id="view-user-employee-id" class="mt-1 text-sm text-gray-900 dark:text-white"></dd>
                 </div>
                 <div>
                     <dt class="{{ $label }}">{{ __('Roles') }}</dt>

@@ -19,6 +19,7 @@ class UserCompanyTest extends TestCase
         return $overrides + [
             'first_name' => 'Test',
             'last_name' => 'User',
+            'employee_id' => 'E-1001',
             'email' => 'test@example.com',
             'password' => 'Password123!',
             'password_confirmation' => 'Password123!',
@@ -32,6 +33,7 @@ class UserCompanyTest extends TestCase
         return $overrides + [
             'first_name' => 'Jan',
             'last_name' => 'Egamen',
+            'employee_id' => 'E-1001',
             'email' => 'jan@example.com',
             'password' => 'Password123!',
             'password_confirmation' => 'Password123!',
@@ -199,6 +201,7 @@ class UserCompanyTest extends TestCase
             'last_name' => $user->last_name,
             'email' => $user->email,
             'company_id' => $umbrella->company_id,
+            'employee_id' => 'E-1001',
         ])->assertSessionHasNoErrors();
 
         $this->assertSame($umbrella->company_id, $user->fresh()->company_id);
@@ -228,8 +231,113 @@ class UserCompanyTest extends TestCase
             'last_name' => $user->last_name,
             'email' => $user->email,
             'company_id' => $company->company_id,
+            'employee_id' => 'E-1001',
         ])->assertSessionHasNoErrors();
 
         $this->assertSame($company->company_id, $user->fresh()->company_id);
+    }
+
+    /* -------- Employee ID: asked of everyone except Guest -------- */
+
+    public function test_the_employee_id_is_required_when_the_company_is_not_guest(): void
+    {
+        $company = Company::factory()->create(['company_name' => 'Acme Foods']);
+
+        foreach ([null, '', '   '] as $value) {
+            $this->post('/register', $this->registration(['company_id' => $company->company_id, 'employee_id' => $value]))
+                ->assertSessionHasErrors('employee_id');
+        }
+
+        $this->post('/register', $this->registration(['company_id' => $company->company_id, 'employee_id' => str_repeat('9', 51)]))
+            ->assertSessionHasErrors('employee_id');
+
+        $this->assertDatabaseMissing('users', ['email' => 'test@example.com']);
+    }
+
+    public function test_registering_stores_the_employee_id(): void
+    {
+        $company = Company::factory()->create(['company_name' => 'Acme Foods']);
+
+        $this->post('/register', $this->registration(['company_id' => $company->company_id, 'employee_id' => ' E-1001 ']))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('E-1001', User::where('email', 'test@example.com')->value('employee_id'));
+    }
+
+    public function test_a_guest_does_not_need_an_employee_id_and_none_is_kept(): void
+    {
+        $guest = Company::factory()->create(['company_name' => Company::GUEST]);
+
+        $this->post('/register', $this->registration(['company_id' => $guest->company_id, 'employee_id' => null]))
+            ->assertSessionHasNoErrors();
+        $this->assertNull(User::where('email', 'test@example.com')->value('employee_id'));
+
+        // One typed before switching the dropdown to Guest is dropped, not stored.
+        $this->post('/logout');
+        $this->post('/register', $this->registration(['company_id' => $guest->company_id, 'email' => 'other@example.com', 'employee_id' => 'E-77']))
+            ->assertSessionHasNoErrors();
+        $this->assertNull(User::where('email', 'other@example.com')->value('employee_id'));
+    }
+
+    public function test_the_registration_form_asks_for_the_employee_id(): void
+    {
+        $this->get('/register')->assertOk()->assertSee('name="employee_id"', false);
+    }
+
+    public function test_the_users_page_stores_requires_and_shows_the_employee_id(): void
+    {
+        $admin = $this->superAdmin();
+        $acme = Company::factory()->create(['company_name' => 'Acme Foods']);
+        $guest = Company::factory()->create(['company_name' => Company::GUEST]);
+
+        // Required for a real company, on create and on edit.
+        $this->actingAs($admin)
+            ->postJson(route('users.store'), $this->userPayload(['company_id' => $acme->company_id, 'employee_id' => '']))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('employee_id');
+
+        $this->actingAs($admin)
+            ->postJson(route('users.store'), $this->userPayload(['company_id' => $acme->company_id, 'employee_id' => ' E-77 ']))
+            ->assertOk();
+
+        $user = User::where('email', 'jan@example.com')->firstOrFail();
+        $this->assertSame('E-77', $user->employee_id);
+
+        $this->actingAs($admin)
+            ->putJson(route('users.update', $user->id), $this->userPayload(['company_id' => $acme->company_id, 'employee_id' => '', 'password' => null, 'password_confirmation' => null]))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('employee_id');
+
+        // The edit record and the table feed carry it.
+        $this->actingAs($admin)->getJson(route('users.edit', $user->id))->assertOk()->assertJsonPath('employee_id', 'E-77');
+
+        $rows = $this->actingAs($admin)->getJson(route('users.index'), ['X-Requested-With' => 'XMLHttpRequest'])->assertOk()->json('data');
+        $this->assertSame('E-77', collect($rows)->firstWhere('email', 'jan@example.com')['employee_id']);
+
+        // A Guest needs none, and moving someone to Guest clears theirs.
+        $this->actingAs($admin)
+            ->putJson(route('users.update', $user->id), $this->userPayload(['company_id' => $guest->company_id, 'employee_id' => 'E-77', 'password' => null, 'password_confirmation' => null]))
+            ->assertOk();
+        $this->assertNull($user->fresh()->employee_id);
+    }
+
+    public function test_the_profile_shows_and_saves_the_employee_id_and_clears_it_for_guest(): void
+    {
+        $acme = Company::factory()->create(['company_name' => 'Acme Foods']);
+        $guest = Company::factory()->create(['company_name' => Company::GUEST]);
+        $user = User::factory()->create(['company_id' => $acme->company_id, 'employee_id' => 'E-1001']);
+        $base = ['first_name' => $user->first_name, 'last_name' => $user->last_name, 'email' => $user->email];
+
+        $this->actingAs($user)->get('/profile')->assertOk()->assertSee('name="employee_id"', false)->assertSee('value="E-1001"', false);
+
+        // Required for a real company, so an old account without one is asked on its next save.
+        $this->actingAs($user)->patch('/profile', $base + ['company_id' => $acme->company_id])->assertSessionHasErrors('employee_id');
+
+        $this->actingAs($user)->patch('/profile', $base + ['company_id' => $acme->company_id, 'employee_id' => ' E-2002 '])->assertSessionHasNoErrors();
+        $this->assertSame('E-2002', $user->fresh()->employee_id);
+
+        // Moving to Guest drops it.
+        $this->actingAs($user)->patch('/profile', $base + ['company_id' => $guest->company_id, 'employee_id' => 'E-2002'])->assertSessionHasNoErrors();
+        $this->assertNull($user->fresh()->employee_id);
     }
 }
