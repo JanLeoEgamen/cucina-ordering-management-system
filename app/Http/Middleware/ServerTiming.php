@@ -12,8 +12,10 @@ use Symfony\Component\HttpFoundation\Response;
 // It adds a `Server-Timing` header that Chrome / Edge DevTools print in the Network tab, under
 // Timing -> Server Timing:
 //
+//   boot   = time to boot the framework, before the request reached the app (config, routes, providers)
 //   total  = PHP time from the start of the script to the finished response
 //   db     = time inside SQL statements, with how many ran
+//   php    = how PHP runs the website (fpm-fcgi, litespeed, cgi-fcgi, apache2handler...) and whether OPcache is on
 //
 // The request's "Waiting for server response" minus `total` is time spent BEFORE PHP started (the web
 // server's queue, TLS, a busy PHP pool): a big gap means the host, not this code.
@@ -31,6 +33,8 @@ class ServerTiming
             return $next($request);
         }
 
+        $started = defined('LARAVEL_START') ? LARAVEL_START : (float) $request->server('REQUEST_TIME_FLOAT', microtime(true));
+        $bootMs = (microtime(true) - $started) * 1000;
         $queries = 0;
         $dbMs = 0.0;
 
@@ -42,11 +46,10 @@ class ServerTiming
         $response = $next($request);
 
         $ready = microtime(true);
-        $started = defined('LARAVEL_START') ? LARAVEL_START : (float) $request->server('REQUEST_TIME_FLOAT', $ready);
         $total = ($ready - $started) * 1000;
 
         if ($request->user()?->can('view audit-logs')) {
-            $response->headers->set('Server-Timing', sprintf('total;dur=%.0f, db;dur=%.0f;desc="%d queries"', $total, $dbMs, $queries));
+            $response->headers->set('Server-Timing', sprintf('boot;dur=%.0f, total;dur=%.0f, db;dur=%.0f;desc="%d queries", php;desc="%s, opcache %s"', $bootMs, $total, $dbMs, $queries, PHP_SAPI, $this->opcacheOn() ? 'on' : 'OFF'));
         }
 
         app()->terminating(function () use ($ready, $request, $total) {
@@ -58,5 +61,15 @@ class ServerTiming
         });
 
         return $response;
+    }
+
+    // Is OPcache really on for THIS kind of request (the web server's PHP, not the command line's)?
+    private function opcacheOn(): bool
+    {
+        try {
+            return function_exists('opcache_get_status') && (bool) (@opcache_get_status(false)['opcache_enabled'] ?? false);
+        } catch (\Throwable) {
+            return false;
+        }
     }
 }
