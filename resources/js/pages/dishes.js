@@ -35,6 +35,7 @@ const start = () => {
     const viewType = document.querySelector('#view-dish-type');
     const viewPrice = document.querySelector('#view-dish-price');
     const viewCalories = document.querySelector('#view-dish-calories');
+    const viewRice = document.querySelector('#view-dish-rice');
     const viewStatus = document.querySelector('#view-dish-status');
     const viewDescription = document.querySelector('#view-dish-description');
     const viewIngredients = document.querySelector('#view-dish-ingredients');
@@ -420,6 +421,8 @@ const start = () => {
         }
         fillText(viewPrice, money(record.price));
         fillText(viewCalories, record.calories);
+        // Whether the plate comes with rice (what ala carte can take off).
+        fillText(viewRice, record.includes_rice ? viewRice?.dataset.yes : viewRice?.dataset.no);
         fillText(viewDescription, record.description);
         fillText(viewIngredients, record.main_ingredients);
 

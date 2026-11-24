@@ -210,6 +210,14 @@
                     </div>
                 </div>
 
+                <div>
+                    <span class="{{ $label }}">{{ __('Rice') }}</span>
+                    <div class="mt-2">
+                        <x-ui.toggle name="includes_rice" id="create-includes_rice" :on-label="__('Comes with rice')" :off-label="__('No rice')" />
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Only a dish that comes with rice can be ordered ala carte (without rice, for less). See System Configuration.') }}</p>
+                </div>
+
                 <div class="flex justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
                     <button type="button" class="{{ $cancelButton }}" x-on:click="show = false">{{ __('Cancel') }}</button>
                     <button type="submit" id="create-dish-submit" class="{{ $submitButton }}">{{ __('Create Dish') }}</button>
@@ -347,6 +355,14 @@
                     </div>
                 </div>
 
+                <div>
+                    <span class="{{ $label }}">{{ __('Rice') }}</span>
+                    <div class="mt-2">
+                        <x-ui.toggle name="includes_rice" id="edit-includes_rice" :on-label="__('Comes with rice')" :off-label="__('No rice')" />
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Only a dish that comes with rice can be ordered ala carte (without rice, for less). See System Configuration.') }}</p>
+                </div>
+
                 <div class="flex justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
                     <button type="button" class="{{ $cancelButton }}" x-on:click="show = false">{{ __('Cancel') }}</button>
                     <button type="submit" id="edit-dish-submit" class="{{ $submitButton }}">{{ __('Update Dish') }}</button>
@@ -401,6 +417,11 @@
                 <div>
                     <dt class="{{ $label }}">{{ __('Calories') }}</dt>
                     <dd id="view-dish-calories" class="mt-1 text-sm text-gray-900 dark:text-white"></dd>
+                </div>
+                <div>
+                    <dt class="{{ $label }}">{{ __('Rice') }}</dt>
+                    <dd id="view-dish-rice" class="mt-1 text-sm text-gray-900 dark:text-white"
+                        data-yes="{{ __('Comes with rice') }}" data-no="{{ __('No rice') }}"></dd>
                 </div>
                 <div>
                     <dt class="{{ $label }}">{{ __('Description') }}</dt>

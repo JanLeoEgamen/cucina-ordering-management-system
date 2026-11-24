@@ -149,8 +149,30 @@ const start = () => {
 
     const money = (value) => '₱' + Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+    /* ---- ala carte (a plate without rice, for less) ----------------------- */
+
+    // { enabled, rice_price, dishes: [session_dish_id that can go without rice] }. The server judges and
+    // prices it; this only shows the customer what to expect, and follows what the server sends back.
+    let alaCarte = JSON.parse(root.dataset.alaCarte ?? '{}');
+
+    const ricePrice = () => Number(alaCarte.rice_price ?? 0);
+
+    const canGoWithoutRice = (id) => Boolean(alaCarte.enabled) && (alaCarte.dishes ?? []).includes(Number(id));
+
+    // Cents, not floats. A plate without rice costs the price less the rice, never below 0.
+    const cents = (value) => Math.round(value * 100) / 100;
+
+    const lineTotal = (line) => cents(
+        line.price * (line.quantity - line.noRice) + Math.max(0, cents(line.price - ricePrice())) * line.noRice,
+    );
+
+    // The plates without rice can never be more than the plates, nor outlive the choice.
+    const clampNoRice = (line) => {
+        line.noRice = canGoWithoutRice(line.id) ? Math.max(0, Math.min(Math.floor(Number(line.noRice) || 0), line.quantity)) : 0;
+    };
+
     // The dishes before any discount.
-    const total = () => [...lines.values()].reduce((sum, line) => sum + line.price * line.quantity, 0);
+    const total = () => cents([...lines.values()].reduce((sum, line) => sum + lineTotal(line), 0));
 
     const pickedDiscount = () => discounts.find((discount) => Number(discount.id) === Number(discountId)) ?? null;
 
@@ -247,7 +269,7 @@ const start = () => {
                 fields.push(discountOptions);
             } else if (key === 'payment_method_id') {
                 fields.push(...paymentOptions());
-            } else if (key === 'items' || key.startsWith('items.') || key.startsWith('expected_prices')) {
+            } else if (key === 'items' || key.startsWith('items.') || key.startsWith('expected_prices') || key.startsWith('ala_carte') || key === 'expected_rice_price') {
                 fields.push(...cartRows());
             }
         }
@@ -340,44 +362,69 @@ const start = () => {
 
     /* ---- the cart lines -------------------------------------------------- */
 
-    const lineTemplate = (line) => `
-        <div class="flex items-center gap-4 rounded-2xl bg-gray-50 p-3 dark:bg-gray-700/40" data-line-id="${line.id}">
-            <div class="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-700">
-                <svg class="h-6 w-6 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z" />
-                </svg>
-                ${line.image ? `<img src="${escapeHtml(line.image)}" alt="" class="absolute inset-0 h-full w-full object-cover" onerror="this.remove()">` : ''}
-            </div>
+    // One dish of the order. Two short rows instead of three crowded columns: the dish and its line price on
+    // top, and below a hairline the amount (stepper) and Remove. "Without rice" is its own quiet strip.
+    const stepButton = 'flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-lg leading-none text-gray-500 transition hover:bg-gray-100 disabled:opacity-40 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:hover:bg-gray-700 dark:hover:text-white';
+    const riceButton = 'flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 text-sm leading-none text-gray-500 transition hover:bg-gray-100 disabled:opacity-40 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:hover:bg-gray-700 dark:hover:text-white';
 
-            <div class="min-w-0 flex-1">
-                <p class="truncate text-base font-semibold text-gray-900 dark:text-white">${escapeHtml(line.name)}</p>
-                ${line.types ? `<p class="mt-0.5 truncate text-sm text-gray-500 dark:text-gray-400">${escapeHtml(line.types)}</p>` : ''}
-            </div>
+    const lineTemplate = (line) => {
+        // "Beef", or "Beef · ₱165.00 each" once there is more than one at the full price.
+        const eachNote = line.quantity > 1 && line.noRice === 0
+            ? ` · ${money(line.price)} ${escapeHtml(root.dataset.eachLabel ?? '')}`
+            : '';
+        const meta = (line.types ? escapeHtml(line.types) : '') + eachNote;
 
-            <div class="flex shrink-0 flex-col items-end gap-2">
-                <span class="text-base font-bold tabular-nums text-indigo-600 dark:text-indigo-400">${money(line.price * line.quantity)}</span>
-
-                <div class="flex items-center rounded-full bg-white shadow-sm dark:bg-gray-800">
-                    <button type="button" data-step="-1" aria-label="${escapeHtml(root.dataset.lessLabel ?? '')}"
-                            class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-lg leading-none text-gray-500 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:hover:bg-gray-700 dark:hover:text-white">−</button>
-
-                    <input type="text" inputmode="numeric" data-qty value="${line.quantity}"
-                           class="w-9 border-0 bg-transparent p-0 text-center text-sm font-medium tabular-nums text-gray-900 focus:outline-none focus:ring-0 dark:text-white">
-
-                    <button type="button" data-step="1" aria-label="${escapeHtml(root.dataset.moreLabel ?? '')}"
-                            class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-lg leading-none text-gray-500 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:hover:bg-gray-700 dark:hover:text-white">+</button>
+        return `
+        <div class="rounded-2xl border border-gray-200 bg-white p-3 sm:p-4 dark:border-gray-700 dark:bg-gray-800/60" data-line-id="${line.id}">
+            <div class="flex items-start gap-3">
+                <div class="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gray-100 sm:h-16 sm:w-16 dark:bg-gray-700">
+                    <svg class="h-6 w-6 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z" />
+                    </svg>
+                    ${line.image ? `<img src="${escapeHtml(line.image)}" alt="" class="absolute inset-0 h-full w-full object-cover" onerror="this.remove()">` : ''}
                 </div>
 
-                ${line.quantity > 1 ? `<span class="text-xs tabular-nums text-gray-500 dark:text-gray-400">× ${money(line.price)} ${escapeHtml(root.dataset.eachLabel ?? '')}</span>` : ''}
+                <div class="min-w-0 flex-1">
+                    <p class="line-clamp-2 text-[15px] font-semibold leading-snug text-gray-900 dark:text-white">${escapeHtml(line.name)}</p>
+                    ${meta ? `<p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">${meta}</p>` : ''}
+                </div>
+
+                <span class="shrink-0 text-base font-bold tabular-nums text-gray-900 dark:text-white">${money(lineTotal(line))}</span>
             </div>
 
-            <button type="button" data-remove aria-label="${escapeHtml(root.dataset.removeLabel ?? '')}"
-                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-300 transition hover:bg-red-50 hover:text-red-600 focus:outline-none dark:hover:bg-red-900/30 dark:hover:text-red-400">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-                    <path d="M6 6l12 12M18 6L6 18" />
-                </svg>
-            </button>
+            ${canGoWithoutRice(line.id) ? `
+                <div class="mt-3 flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2 dark:bg-gray-700/40" data-rice-row>
+                    <span class="min-w-0 text-xs text-gray-600 dark:text-gray-300">${escapeHtml(root.dataset.riceLabel ?? '')}
+                        <span class="text-gray-400 dark:text-gray-500">(−${money(ricePrice())} ${escapeHtml(root.dataset.eachLabel ?? '')})</span></span>
+                    <div class="flex shrink-0 items-center gap-0.5 rounded-full bg-white shadow-sm dark:bg-gray-800">
+                        <button type="button" data-rice-step="-1" aria-label="${escapeHtml(root.dataset.riceLessLabel ?? '')}" ${line.noRice < 1 ? 'disabled' : ''}
+                                class="${riceButton}">−</button>
+                        <span class="w-6 text-center text-xs font-medium tabular-nums text-gray-900 dark:text-white" data-rice-count>${line.noRice}</span>
+                        <button type="button" data-rice-step="1" aria-label="${escapeHtml(root.dataset.riceMoreLabel ?? '')}" ${line.noRice >= line.quantity ? 'disabled' : ''}
+                                class="${riceButton}">+</button>
+                    </div>
+                </div>` : ''}
+
+            <div class="mt-3 flex items-center justify-between gap-3 border-t border-gray-100 pt-3 dark:border-gray-700">
+                <div class="flex items-center rounded-full bg-white shadow-sm dark:bg-gray-800">
+                    <button type="button" data-step="-1" aria-label="${escapeHtml(root.dataset.lessLabel ?? '')}" class="${stepButton}">−</button>
+
+                    <input type="text" inputmode="numeric" data-qty value="${line.quantity}" aria-label="${escapeHtml(root.dataset.qtyLabel ?? '')}"
+                           class="w-9 border-0 bg-transparent p-0 text-center text-sm font-medium tabular-nums text-gray-900 focus:outline-none focus:ring-0 dark:text-white">
+
+                    <button type="button" data-step="1" aria-label="${escapeHtml(root.dataset.moreLabel ?? '')}" class="${stepButton}">+</button>
+                </div>
+
+                <button type="button" data-remove aria-label="${escapeHtml(root.dataset.removeLabel ?? '')}"
+                        class="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium text-gray-500 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-200 dark:text-gray-400 dark:hover:bg-red-900/30 dark:hover:text-red-400">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                    </svg>
+                    ${escapeHtml(root.dataset.removeLabel ?? '')}
+                </button>
+            </div>
         </div>`;
+    };
 
     const renderCart = () => {
         const rows = [...lines.values()];
@@ -597,6 +644,20 @@ const start = () => {
         }
 
         line.quantity = wanted;
+        clampNoRice(line);
+        renderCart();
+    };
+
+    // How many of a dish's plates go without rice (0 .. its quantity).
+    const setNoRice = (id, count) => {
+        const line = lines.get(id);
+
+        if (! line) {
+            return;
+        }
+
+        line.noRice = count;
+        clampNoRice(line);
         renderCart();
     };
 
@@ -619,6 +680,14 @@ const start = () => {
         if (event.target.closest('[data-remove]')) {
             lines.delete(id);
             renderCart();
+
+            return;
+        }
+
+        const riceButton = event.target.closest('[data-rice-step]');
+
+        if (riceButton) {
+            setNoRice(id, line.noRice + Number(riceButton.dataset.riceStep));
 
             return;
         }
@@ -753,6 +822,8 @@ const start = () => {
                 price: Number(dish.price),
                 stock,
                 quantity: Math.min(wanted, stock),
+                // How many of the plates go without rice (ala carte); the customer sets it in the cart.
+                noRice: 0,
             });
         }
 
@@ -1151,7 +1222,10 @@ const start = () => {
         }
 
         if (stepsNav) {
-            stepsNav.style.gridTemplateColumns = 'repeat(' + list.length + ', minmax(0, 1fr))';
+            // Equal columns where every name is printed; on a phone only the current one is, so it gets the room.
+            stepsNav.style.gridTemplateColumns = window.matchMedia('(min-width: 640px)').matches
+                ? 'repeat(' + list.length + ', minmax(0, 1fr))'
+                : list.map((key) => 'minmax(0, ' + (key === step ? '2.6fr' : '1fr') + ')').join(' ');
         }
 
         for (const dot of document.querySelectorAll('[data-step-dot]')) {
@@ -1182,7 +1256,8 @@ const start = () => {
             const caption = document.querySelector('[data-step-caption="' + key + '"]');
 
             if (caption) {
-                caption.className = 'truncate text-xs font-medium ' + (
+                // On a phone only the current step keeps its name (three names do not fit and truncated).
+                caption.className = (state === 'active' ? '' : 'hidden sm:block ') + 'truncate text-xs font-medium ' + (
                     state === 'todo' ? 'text-gray-400 dark:text-gray-500' : 'text-indigo-700 dark:text-indigo-300'
                 );
             }
@@ -1195,7 +1270,7 @@ const start = () => {
         if (stepProgress) {
             // "Step 2 of 4" — the receipt is not one of the counted steps.
             stepProgress.textContent = step === 'placed'
-                ? ''
+                ? (stepLabels.placed ?? '')
                 : (root.dataset.stepProgress ?? '').replace(':current', String(currentIndex + 1)).replace(':total', String(list.length));
         }
 
@@ -1562,8 +1637,9 @@ const start = () => {
                         <li class="flex items-center justify-between gap-4 px-4 py-2 text-sm">
                             <span class="min-w-0 flex-1 truncate text-gray-800 dark:text-gray-200">
                                 <span class="tabular-nums text-gray-500 dark:text-gray-400">${line.quantity}×</span> ${escapeHtml(line.name)}
+                                ${line.noRice > 0 ? `<span class="text-xs text-gray-500 dark:text-gray-400">(${line.noRice} ${escapeHtml(root.dataset.riceNoneLabel ?? '')})</span>` : ''}
                             </span>
-                            <span class="tabular-nums text-gray-900 dark:text-white">${money(line.price * line.quantity)}</span>
+                            <span class="tabular-nums text-gray-900 dark:text-white">${money(lineTotal(line))}</span>
                         </li>`).join('')}
                 </ul>
                 ${pickedDiscount() ? `
@@ -1663,6 +1739,7 @@ const start = () => {
                 changes.push((root.dataset.stockGone ?? '').replace(':dish', line.name));
             } else if (line.quantity > left) {
                 line.quantity = left;
+                clampNoRice(line);
                 changes.push((root.dataset.stockReduced ?? '').replace(':dish', line.name).replace(':left', String(left)));
             }
         }
@@ -1672,6 +1749,41 @@ const start = () => {
         renderCart();
 
         return changes;
+    };
+
+    // The ala carte state the server sent (the live poll sends the switch and the rice price; a refused
+    // order also lists the dishes that can go without rice). Takes "no rice" off a line that can no longer
+    // have it and warns about a moved rice price. The caller redraws the cart (applyStock does).
+    const applyAlaCarte = (next) => {
+        if (! next || typeof next !== 'object') {
+            return [];
+        }
+
+        const before = ricePrice();
+
+        alaCarte = {
+            enabled: Boolean(next.enabled),
+            rice_price: Number(next.rice_price ?? 0),
+            // The poll sends no list of dishes: keep the one the page has.
+            dishes: Array.isArray(next.dishes) ? next.dishes.map(Number) : (alaCarte.dishes ?? []),
+        };
+
+        const changes = [];
+
+        for (const line of lines.values()) {
+            if (line.noRice < 1) {
+                continue;
+            }
+
+            if (! canGoWithoutRice(line.id)) {
+                line.noRice = 0;
+                changes.push((root.dataset.riceGone ?? '').replace(':dish', line.name));
+            } else if (ricePrice() !== before) {
+                changes.push((root.dataset.riceChanged ?? '').replace(':price', money(ricePrice())));
+            }
+        }
+
+        return [...new Set(changes)];
     };
 
     // The prices the server sent (live refresh, or a refused order), keyed by
@@ -1802,8 +1914,10 @@ const start = () => {
 
             // Prices first: applyStock() redraws the cart, which then shows them.
             const priceChanges = applyPrices(payload.prices);
+            // Ala carte before the stock: applyStock() redraws the cart with whatever it changed.
+            const riceChanges = applyAlaCarte(payload.ala_carte);
 
-            reportCartChanges([...priceChanges, ...applyStock(payload.stock ?? {})]);
+            reportCartChanges([...priceChanges, ...riceChanges, ...applyStock(payload.stock ?? {})]);
         } catch (error) {
             setLive(false);
         } finally {
@@ -1846,7 +1960,9 @@ const start = () => {
 
     const orderKeyFor = (methodIdentifier) => {
         // The price is part of the order: the same cart at another price is another order.
-        const fingerprint = [...lines.values()].map((line) => line.id + 'x' + line.quantity + '@' + line.price).sort().join(',') + '|' + methodIdentifier
+        // Plates without rice (and the rice price) are part of the order too.
+        const fingerprint = [...lines.values()].map((line) => line.id + 'x' + line.quantity + '@' + line.price + 'n' + line.noRice).sort().join(',')
+            + '|' + ricePrice() + '|' + methodIdentifier
             // Another discount is another order (and another total).
             + '|' + (pickedDiscount() ? pickedDiscount().id + '@' + pickedDiscount().percent : '');
 
@@ -1922,6 +2038,16 @@ const start = () => {
                 // The price the customer saw (and paid, for a bank order): the server
                 // refuses the order when it is not the price any more.
                 data.append('expected_prices[' + line.id + ']', String(line.price));
+
+                // The plates without rice, and (below) the rice price the customer saw: the server
+                // refuses the order when it is not the price any more.
+                if (line.noRice > 0) {
+                    data.append('ala_carte[' + line.id + ']', String(line.noRice));
+                }
+            }
+
+            if ([...lines.values()].some((line) => line.noRice > 0)) {
+                data.append('expected_rice_price', String(ricePrice()));
             }
 
             const response = await fetch(orderUrl, {
@@ -1940,6 +2066,7 @@ const start = () => {
                     // out. The answer carries the real numbers: show them, fix the
                     // cart, and go back to it instead of to the payment step.
                     applyPrices(payload.prices);
+                    applyAlaCarte(payload.ala_carte);
                     applyStock(payload.stock);
                     // A discount that went away, or whose percent moved, is dealt with too.
                     applyDiscounts(payload.discounts);

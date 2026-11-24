@@ -166,6 +166,8 @@ class DishController extends Controller implements HasMiddleware
     {
         $request->merge([
             'is_active' => $request->boolean('is_active'),
+            // Does the plate normally come with rice? (Ala carte can only take rice off such a dish.)
+            'includes_rice' => $request->boolean('includes_rice'),
             'remove_image' => $request->boolean('remove_image'),
         ]);
 
@@ -180,6 +182,7 @@ class DishController extends Controller implements HasMiddleware
             'calories' => ['nullable', 'integer', 'min:0'],
             'main_ingredients' => ['nullable', 'string'],
             'is_active' => ['required', 'boolean'],
+            'includes_rice' => ['required', 'boolean'],
         ], [
             'dish_types.required' => 'Pick at least one dish type.',
             'dish_types.min' => 'Pick at least one dish type.',

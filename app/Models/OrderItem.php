@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\AlaCarte;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -34,6 +35,7 @@ class OrderItem extends Model
         'quantity',
         'unit_price',
         'sub_total',
+        'no_rice',
         'is_active',
     ];
 
@@ -46,6 +48,7 @@ class OrderItem extends Model
             'quantity' => 'integer',
             'unit_price' => 'decimal:2',
             'sub_total' => 'decimal:2',
+            'no_rice' => 'boolean',
             'is_active' => 'boolean',
         ];
     }
@@ -74,12 +77,16 @@ class OrderItem extends Model
                 self::TABLE . '.quantity',
                 self::TABLE . '.unit_price',
                 self::TABLE . '.sub_total',
+                self::TABLE . '.no_rice',
                 self::TABLE_DISH . '.dish_name',
             ])
             ->map(fn (object $item) => [
                 'order_id' => (int) $item->order_id,
                 'session_dish_id' => (int) $item->session_dish_id,
-                'dish_name' => $item->dish_name,
+                // A plate sold without rice reads "Adobo (no rice)" everywhere a line is printed
+                // (popups, exports, notifications, Chat), so no screen needs to know about it.
+                'dish_name' => $item->dish_name . ($item->no_rice ? AlaCarte::suffix() : ''),
+                'no_rice' => (bool) $item->no_rice,
                 'quantity' => (int) $item->quantity,
                 'unit_price' => (float) $item->unit_price,
                 'sub_total' => (float) $item->sub_total,
@@ -103,11 +110,13 @@ class OrderItem extends Model
                 self::TABLE . '.quantity',
                 self::TABLE . '.unit_price',
                 self::TABLE . '.sub_total',
+                self::TABLE . '.no_rice',
                 self::TABLE_DISH . '.dish_name',
             ])
             ->map(fn (object $item) => [
                 'session_dish_id' => (int) $item->session_dish_id,
-                'dish_name' => $item->dish_name,
+                'dish_name' => $item->dish_name . ($item->no_rice ? AlaCarte::suffix() : ''),
+                'no_rice' => (bool) $item->no_rice,
                 'quantity' => (int) $item->quantity,
                 'unit_price' => (float) $item->unit_price,
                 'sub_total' => (float) $item->sub_total,
@@ -117,14 +126,17 @@ class OrderItem extends Model
     }
 
     // How much of each session dish an order takes, keyed by session_dish_id
-    // (a cancelled order gives it all back).
+    // (a cancelled order gives it all back). A dish can have two lines (with and without rice):
+    // they are added up, never overwritten.
     public static function takenByOrder(int $orderId): array
     {
         return DB::table(self::TABLE)
             ->where('order_id', $orderId)
             ->whereNull('deleted_at')
             ->get(['session_dish_id', 'quantity'])
-            ->mapWithKeys(fn (object $item) => [(int) $item->session_dish_id => (int) $item->quantity])
+            ->groupBy('session_dish_id')
+            ->map(fn (Collection $rows) => (int) $rows->sum('quantity'))
+            ->mapWithKeys(fn (int $quantity, $sessionDishId) => [(int) $sessionDishId => $quantity])
             ->all();
     }
 
@@ -138,7 +150,8 @@ class OrderItem extends Model
         $rows = [];
 
         foreach ($lines as $line) {
-            $rows[] = Arr::only($line, self::COLUMNS) + [
+            // Every row of the one INSERT needs the same columns, so no_rice is always written.
+            $rows[] = array_merge(Arr::only($line, self::COLUMNS), ['no_rice' => (int) ($line['no_rice'] ?? 0)]) + [
                 'order_id' => $orderId,
                 'is_active' => 1,
                 'created_at' => $now,

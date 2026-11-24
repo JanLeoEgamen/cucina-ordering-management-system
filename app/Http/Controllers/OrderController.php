@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\AlaCarteRefusedException;
 use App\Exceptions\DiscountRefusedException;
 use App\Exceptions\StockRanOutException;
 use App\Models\Discount;
@@ -12,6 +13,7 @@ use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\SessionDish;
 use App\Models\Setting;
+use App\Support\AlaCarte;
 use App\Support\OrderDiscount;
 use App\Support\OrderNotifier;
 use App\Support\ServerTable;
@@ -601,11 +603,15 @@ class OrderController extends Controller implements HasMiddleware
     {
         $session = OrderSession::live();
 
+        $dishes = $session ? SessionDish::offeredForSession($session->session_id) : collect();
+
         return view('menu.index', [
             'session' => $session,
             // A dish that is turned off, or left the session, is not offered.
             // One with no stock left stays, so the menu shows it as sold out.
-            'dishes' => $session ? SessionDish::offeredForSession($session->session_id) : collect(),
+            'dishes' => $dishes,
+            // Whether a plate can be ordered without rice, the deduction, and which dishes (see AlaCarte).
+            'alaCarte' => AlaCarte::state('orders', $dishes, 'session_dish_id'),
             // Checkout offers two ways to pay: cash on pickup (one method, paid
             // when the order is collected) and bank / e-wallet (the list below).
             'cash' => PaymentMethod::cashOption(),
@@ -631,6 +637,9 @@ class OrderController extends Controller implements HasMiddleware
                 'stock' => $live ? SessionDish::stockOfSession($sessionId) : [],
                 // Prices too: an admin may change one while customers browse.
                 'prices' => $live ? SessionDish::pricesOfSession($sessionId) : [],
+                // The rice deduction and the switch too (cached settings: no query). Which dishes
+                // can go without rice only comes with a refused order, to keep this poll cheap.
+                'ala_carte' => AlaCarte::settings('orders'),
             ])
             // A cached answer would show yesterday's plates.
             ->header('Cache-Control', 'no-store');
@@ -719,6 +728,17 @@ class OrderController extends Controller implements HasMiddleware
             return $this->stockShortResponse($session, 'The price changed: ' . implode(', ', $changed) . '.');
         }
 
+        // How many plates of each dish the customer wants WITHOUT rice (ala carte). The server judges
+        // it from the settings and the dish flags found now, and prices it itself: the rice price the
+        // cart showed must still be the one in System Configuration, like a dish price.
+        try {
+            $withoutRice = AlaCarte::judge('orders', $validated, $offered);
+        } catch (AlaCarteRefusedException $refused) {
+            return $this->stockShortResponse($session, $refused->getMessage());
+        }
+
+        $rice = Setting::ricePrice();
+
         $lines = [];
         $total = 0.0;
 
@@ -737,18 +757,16 @@ class OrderController extends Controller implements HasMiddleware
                 return $this->stockShortResponse($session, 'Only ' . $dish->available_stock . ' left of ' . $dish->dish_name . '.');
             }
 
-            // Cents, not floats: 3 x 0.10 must be 0.30 and not 0.30000000000000004.
-            $subTotal = round((float) $dish->price * $quantity, 2);
+            // One line per kind of plate: with rice at the dish's price, without at the price less the
+            // rice. Cents, not floats: 3 x 0.10 must be 0.30 and not 0.30000000000000004.
+            foreach (AlaCarte::lines((float) $dish->price, (int) $quantity, $withoutRice[(int) $sessionDishId] ?? 0, $rice) as $split) {
+                $lines[] = [
+                    'session_dish_id' => (int) $dish->session_dish_id,
+                    'name' => $dish->dish_name,
+                ] + $split;
 
-            $lines[] = [
-                'session_dish_id' => (int) $dish->session_dish_id,
-                'name' => $dish->dish_name,
-                'quantity' => $quantity,
-                'unit_price' => (float) $dish->price,
-                'sub_total' => $subTotal,
-            ];
-
-            $total = round($total + $subTotal, 2);
+                $total = round($total + $split['sub_total'], 2);
+            }
         }
 
         // The discount the customer picked (System Configuration decides whether any is offered).
@@ -802,7 +820,8 @@ class OrderController extends Controller implements HasMiddleware
         // Tell the customer (and the watchers). A queued job does the work and it can
         // never fail the order: see OrderNotifier.
         OrderNotifier::placed($orderId);
-        OrderNotifier::soldOut(array_column($lines, 'session_dish_id'), (int) $session->session_id);
+        // A dish ordered both with and without rice has two lines: tell about it once.
+        OrderNotifier::soldOut(array_values(array_unique(array_column($lines, 'session_dish_id'))), (int) $session->session_id);
 
         return response()->json([
             'status' => 'success',
@@ -895,7 +914,22 @@ class OrderController extends Controller implements HasMiddleware
             'prices' => SessionDish::pricesOfSession((int) $session->session_id),
             // The discounts on offer now: the menu drops the one that went away and takes the new percent.
             'discounts' => $this->offeredDiscounts(),
+            // Ala carte as it is now: the menu takes the new rice price and drops "no rice" from a dish
+            // that can no longer go without it.
+            'ala_carte' => $this->alaCarteState((int) $session->session_id),
         ], 422);
+    }
+
+    // AlaCarte::state() for the session's menu; the menu is only read while the choice is on.
+    protected function alaCarteState(int $sessionId): array
+    {
+        $settings = AlaCarte::settings('orders');
+
+        if (! $settings['enabled']) {
+            return $settings + ['dishes' => []];
+        }
+
+        return AlaCarte::state('orders', SessionDish::offeredForSession($sessionId), 'session_dish_id');
     }
 
     // The discounts a customer can pick on the menu right now (none while System Configuration has them off).
@@ -927,6 +961,7 @@ class OrderController extends Controller implements HasMiddleware
         $request->merge([
             'session_id' => (int) $request->input('session_id'),
             'items' => $items,
+            'ala_carte' => AlaCarte::clean($request->input('ala_carte')),
         ]);
 
         // Cash on pickup is paid at the counter, so it sends no proof. Any other
@@ -948,6 +983,8 @@ class OrderController extends Controller implements HasMiddleware
             // The discount the customer picked, the percent the cart showed, and the ID. Whether the
             // discount may be used (on, in its dates, needs proof) is judged in placeOrder().
             ...OrderDiscount::rules(),
+            // How many plates are WITHOUT rice, and the rice price the cart showed (judged in placeOrder()).
+            ...AlaCarte::rules(),
             'reference_number' => ['nullable', 'string', 'max:255'],
             // The screenshot a bank or e-wallet customer sends as proof. It is
             // required for every method but cash on pickup; the payment stays
