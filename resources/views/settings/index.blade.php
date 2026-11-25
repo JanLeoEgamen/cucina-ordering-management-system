@@ -232,8 +232,10 @@
                         the users picked here also get everyone's, plus staff-only ones (a customer
                         sent a new proof, a dish sold out).
                     --}}
-                    <x-settings.panel id="notifications" :title="__('Notifications')"
+                    <x-settings.panel id="notifications" :title="__('Notifications')" cards
                         :description="__('Customers are always told about their own orders, in the bell. Here: what else is sent, and who else is told.')">
+                      <x-settings.card :title="__('Order notifications')"
+                          :description="__('Placed, paid, ready, completed or cancelled orders.')">
                         <x-settings.section :title="__('Copies')" :description="__('Both need a running queue worker.')">
                             <x-settings.field :label="__('Send notifications by email')" for="email-notifications" switch
                                 :hint="__('Also email each notification to its recipient.')"
@@ -280,10 +282,60 @@
                                 </select>
                             </x-settings.field>
                         </x-settings.section>
+                      </x-settings.card>
+
+                      {{-- Its own card, one plain block of fields (no section titles): who is told, then how. --}}
+                      <x-settings.card :title="__('New dish alerts')"
+                          :description="__('When a dish is added to the Dish Masterlist with the Add Dish form.')">
+                        <x-settings.section>
+                            <x-settings.field :label="__('Who is told')" for="new-dish-watchers" stacked
+                                :hint="__('They are told each time a dish is added.')"
+                                :detail="__('Only dishes added with the Add Dish form count (not the Excel import, not edits). Whoever adds the dish is not told about their own action. They always get it in the bell; the switches below add email and Google Chat.')">
+                                {{-- An empty entry is always sent, so un-picking everybody is saved as "nobody". --}}
+                                <input type="hidden" name="new_dish_watchers[]" value="">
+                                <select multiple name="new_dish_watchers[]" id="new-dish-watchers" @disabled(! $canEdit)
+                                        data-placeholder="{{ __('Nobody') }}" data-count-label="{{ __('{n} users') }}"
+                                        class="{{ $input }}">
+                                    @foreach ($users as $user)
+                                        <option value="{{ $user->id }}" @selected(in_array((int) $user->id, $newDishWatchers, true))>
+                                            {{ $user->name }} · {{ $user->email }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </x-settings.field>
+
+                            {{-- Their own switches: independent of the "Copies" switches above, which are for order notifications. --}}
+                            <x-settings.field :label="__('Send by email')" for="new-dish-email" switch
+                                :hint="__('Also email the alert to these users (the bell they always get).')"
+                                :detail="__('Only the new dish alert, whatever the order notification switch above says. Sent to the address of each picked user. Needs the mail settings of the server and a running queue worker.')">
+                                <x-slot:note>
+                                    @if ($newDishEmail && in_array($mailer, ['log', 'array'], true))
+                                        <p class="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
+                                            {{ __('The server mailer is ":mailer": emails are only written to the log, not delivered.', ['mailer' => $mailer]) }}
+                                        </p>
+                                    @endif
+                                </x-slot:note>
+                                <x-settings.switch name="new_dish_email" id="new-dish-email" :checked="$newDishEmail" :disabled="! $canEdit" />
+                            </x-settings.field>
+
+                            <x-settings.field :label="__('Send to Google Chat')" for="new-dish-google-chat" switch
+                                :hint="__('Also send the alert as a Google Chat message.')"
+                                :detail="__('Only the new dish alert, whatever the order notification switch above says. Only people who signed in with Google and added the Chat app can be reached; the others still get the bell. Needs a running queue worker.')">
+                                <x-slot:note>
+                                    @if ($newDishGoogleChat && ! $googleChatReady)
+                                        <p class="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
+                                            {{ __('The Chat app key is not set up on the server (GOOGLE_CHAT_CREDENTIALS), so nothing is sent.') }}
+                                        </p>
+                                    @endif
+                                </x-slot:note>
+                                <x-settings.switch name="new_dish_google_chat" id="new-dish-google-chat" :checked="$newDishGoogleChat" :disabled="! $canEdit" />
+                            </x-settings.field>
+                        </x-settings.section>
+                      </x-settings.card>
                     </x-settings.panel>
 
                     {{-- The three public text pages. Each is a collapsible block (Markdown; empty = the built-in text). --}}
-                    <x-settings.panel id="public-pages" :title="__('Public pages')"
+                    <x-settings.panel id="public-pages" :title="__('Public pages')" cards="compact"
                         :description="__('The texts anyone can read, signed in or not. Open one to edit it.')">
                         {{-- The public Help and Support page: contact details + a Markdown help text. --}}
                         @include('settings.partials.support-card', ['support' => $support])

@@ -3,6 +3,7 @@
     'title',
     'description' => null,
     'active' => false,
+    'cards' => false,
 ])
 
 {{--
@@ -13,6 +14,9 @@
         title        the panel's heading
         description  one line under it
         active       the panel drawn first (the others start hidden)
+        cards        the slot is several cards (<x-settings.card>s with a heading, or collapsible
+                     blocks that are cards themselves) instead of one card of sections;
+                     "compact" puts them closer together
 
     The card holds <x-settings.section>s, separated by a thin rule.
 --}}
@@ -25,7 +29,14 @@
         @endif
     </div>
 
-    <div class="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:divide-gray-700 dark:border-gray-700 dark:bg-gray-800">
-        {{ $slot }}
-    </div>
+    @if ($cards)
+        {{-- `cards="compact"` = closer together, for cards that are only a folded header each. --}}
+        <div @class(['space-y-8' => $cards !== 'compact', 'space-y-4' => $cards === 'compact'])>
+            {{ $slot }}
+        </div>
+    @else
+        <div class="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:divide-gray-700 dark:border-gray-700 dark:bg-gray-800">
+            {{ $slot }}
+        </div>
+    @endif
 </div>

@@ -89,6 +89,7 @@ The pre-order permissions were called `… bulk-sessions` / `… bulk-menu` / `�
 - Notifications (`/notifications*`) have **no permission on purpose**, like the profile: every query is scoped by `user_id = auth id`, an id
   that is not yours answers 404, and *open* only follows a local path (a url not starting with a single `/` is ignored: no open redirect).
   The text is written by the app (order number, dish name, customer name, the reviewer's rejection reason), always printed escaped.
+  **New dish alerts** (System Configuration → Notifications, behind `edit settings`, setting `notifications.new_dish_watchers`): the picked users get "New dish added" (name, price, types, who added it) from the Add Dish form. It carries nothing about customers or orders; its link opens the Dish Masterlist only for a person with `view dishes`. Email and Google Chat are two switches of their own (`notifications.new_dish_email`, `notifications.new_dish_google_chat`, off by default, same `edit settings` gate), so the order notification switches never send it. No new permission.
   **Privacy:** a watcher (System Configuration → Notifications, behind `edit settings`) receives every customer's name, order total,
   payment method and rejection reasons, so pick them like you would grant `view orders` + `view payments`; a notification's link is
   only set when the watcher holds the permission for the page it opens. The poll is not throttled (a count and an indexed range read).

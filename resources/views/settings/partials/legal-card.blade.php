@@ -10,7 +10,7 @@
         input, canEdit   the settings page's shared classes and permission flag
 --}}
 @php($field = str_replace('-', '_', $page))
-<details class="group" data-settings-details>
+<details class="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800" data-settings-details>
     <summary class="flex cursor-pointer list-none items-center gap-3 px-5 py-4 transition hover:bg-gray-50 focus:outline-none focus-visible:bg-gray-50 sm:px-6 dark:hover:bg-gray-700/40 dark:focus-visible:bg-gray-700/40 [&::-webkit-details-marker]:hidden">
         <div class="min-w-0 flex-1">
             <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ $heading }}</h4>

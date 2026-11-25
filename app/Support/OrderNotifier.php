@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Jobs\DeliverNotification;
 use App\Jobs\SendGoogleChatMessages;
 use App\Jobs\SendNotificationEmails;
+use App\Models\Dish;
 use App\Models\Order;
 use App\Models\PaymentMethod;
 use App\Models\Setting;
@@ -63,6 +64,8 @@ class OrderNotifier
     public const DISCOUNT_RESENT = 'discount_resent';
 
     public const SESSION_OPENED = 'session_opened';
+
+    public const DISH_ADDED = 'dish_added';
 
     // Events the customer does not need a notification about (they just did it,
     // or it is about the kitchen).
@@ -150,6 +153,16 @@ class OrderNotifier
     {
         rescue(fn () => Bus::dispatch(new DeliverNotification('session-opened', [
             'session_id' => $sessionId,
+        ], auth()->id())));
+    }
+
+    // Staff added a dish to the Dish Masterlist with the Add Dish form: the users picked in
+    // System Configuration -> Notifications -> New dish alerts are told. (The Excel import
+    // deliberately does not call this.) Call it after the dish was saved.
+    public static function dishAdded(int $dishId): void
+    {
+        rescue(fn () => Bus::dispatch(new DeliverNotification('dish-added', [
+            'dish_id' => $dishId,
         ], auth()->id())));
     }
 
@@ -362,6 +375,47 @@ class OrderNotifier
         self::copies($mails);
     }
 
+    // Run by the queue worker for dishAdded(): the users picked for new dish alerts, except whoever
+    // added the dish (they know). One query for the dish, one for its types, one for the people,
+    // ONE bulk insert.
+    public static function deliverDishAdded(int $dishId, ?int $actorId): void
+    {
+        $watchers = array_values(array_diff(Setting::newDishWatchers(), [(int) $actorId]));
+
+        if ($watchers === []) {
+            return;
+        }
+
+        $dish = DB::table('dishes')->where('dish_id', $dishId)->whereNull('deleted_at')->first();
+
+        if (! $dish) {
+            return;
+        }
+
+        $types = implode(', ', array_column(Dish::typesOfDish($dishId), 'type_name'));
+        $actor = $actorId ? User::query()->find($actorId) : null;
+
+        $title = __('New dish added: :dish', ['dish' => $dish->dish_name]);
+        $body = self::money($dish->price)
+            . ($types !== '' ? ' · ' . $types : '')
+            . ($actor ? ' · ' . __('added by :who', ['who' => $actor->name]) : '')
+            . ($dish->is_active ? '' : ' · ' . __('not available yet (switched off)'));
+
+        $rows = [];
+        $mails = [];
+
+        foreach (User::query()->whereIn('id', $watchers)->get() as $person) {
+            $url = $person->can('view dishes') ? route('dishes.index', [], false) : null;
+
+            $rows[] = ['user_id' => $person->id, 'type' => self::DISH_ADDED, 'title' => $title, 'body' => $body, 'url' => $url, 'order_id' => null];
+            $mails[] = self::mailRow($person, $title, $body, $url, null, self::DISH_ADDED);
+        }
+
+        UserNotification::insertMany($rows);
+        // Its own email / Google Chat switches, not the ones of the order notifications.
+        self::copies($mails, fn () => Setting::newDishEmail(), fn () => Setting::newDishGoogleChat());
+    }
+
     public static function deliverSoldOut(array $sessionDishIds, int $sessionId, ?int $actorId): void
     {
         $watchers = Setting::notificationWatchers();
@@ -445,24 +499,29 @@ class OrderNotifier
 
     // The copies of what the bell shows, on the other channels: email, then Google Chat. Each is
     // its own job inside its own rescue(), so one channel failing cannot stop the other.
-    protected static function copies(array $mails): void
+    //
+    // `$emailOn` / `$chatOn` are functions that say whether the channel is on for THIS event; left
+    // out they read the switches for order notifications. They are functions, not booleans, so the
+    // switch is read inside the rescue() of each channel (a setting that cannot be read must not
+    // fail the delivery job, whose retry would write the bell rows twice).
+    protected static function copies(array $mails, ?callable $emailOn = null, ?callable $chatOn = null): void
     {
-        self::email($mails);
-        self::chat($mails);
+        self::email($mails, $emailOn);
+        self::chat($mails, $chatOn);
     }
 
     // The Google Chat copy (System Configuration -> Notifications, off by default): ONE job for
     // everybody told, like email. Same rules as email(): AFTER the in-app rows were saved and
     // inside rescue(), because a throw here would make DeliverNotification retry and write the
     // bell rows twice.
-    protected static function chat(array $mails): void
+    protected static function chat(array $mails, ?callable $enabled = null): void
     {
         if ($mails === []) {
             return;
         }
 
-        rescue(function () use ($mails) {
-            if (Setting::googleChatNotifications() && GoogleChat::configured()) {
+        rescue(function () use ($mails, $enabled) {
+            if (($enabled ? $enabled() : Setting::googleChatNotifications()) && GoogleChat::configured()) {
                 Bus::dispatch(new SendGoogleChatMessages(array_map(fn (array $mail) => [
                     'user_id' => $mail['user_id'],
                     'title' => $mail['title'],
@@ -483,7 +542,7 @@ class OrderNotifier
     // AFTER the in-app rows were saved, and inside rescue(): whatever goes wrong here
     // (the setting cannot be read, the job cannot be pushed) must not fail the
     // notification job, because its retry would write the bell rows a second time.
-    protected static function email(array $mails): void
+    protected static function email(array $mails, ?callable $enabled = null): void
     {
         $mails = array_values(array_filter($mails, fn (array $mail) => $mail['email'] !== ''));
 
@@ -491,8 +550,8 @@ class OrderNotifier
             return;
         }
 
-        rescue(function () use ($mails) {
-            if (Setting::emailNotifications()) {
+        rescue(function () use ($mails, $enabled) {
+            if ($enabled ? $enabled() : Setting::emailNotifications()) {
                 Bus::dispatch(new SendNotificationEmails($mails));
             }
         });

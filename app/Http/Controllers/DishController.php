@@ -6,6 +6,7 @@ use App\Exceptions\DishGoneException;
 use App\Models\Dish;
 use App\Models\DishType;
 use App\Support\DishImport;
+use App\Support\OrderNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -119,7 +120,10 @@ class DishController extends Controller implements HasMiddleware
         $validated = $this->validateDish($request);
         $validated['image'] = $this->storeUploadedImage($request->file('image'));
 
-        Dish::createDish($validated);
+        $dishId = Dish::createDish($validated);
+
+        // After the save; the people picked in System Configuration (New dish alerts) are told.
+        OrderNotifier::dishAdded($dishId);
 
         return $this->successResponse('Dish created successfully.');
     }

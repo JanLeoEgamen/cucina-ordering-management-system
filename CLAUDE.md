@@ -21,7 +21,7 @@ cp .env.example .env && php artisan key:generate
 php artisan migrate --seed          # seeds test@example.com / password as Super Admin (dev only)
 php artisan storage:link            # needed for uploaded images
 composer dev                        # server + queue worker (notifications,default) + pail logs + vite
-php artisan test                    # PHPUnit (baseline: 877 passing)
+php artisan test                    # PHPUnit (baseline: 903 passing)
 php artisan schedule:work           # optional locally: runs the daily notifications:prune + audit:prune (server: cron `schedule:run`)
 php artisan audit:prune [--days=N]  # delete audit trail entries past AUDIT_RETENTION_DAYS (365); 0 keeps all
 php scripts/harness.php             # docs-drift check + tests;  --docs = drift only

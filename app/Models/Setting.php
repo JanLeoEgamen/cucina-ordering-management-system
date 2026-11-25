@@ -26,6 +26,16 @@ class Setting
     // The users who receive a copy of EVERY notification (a JSON list of user ids).
     public const NOTIFICATION_WATCHERS = 'notifications.watchers';
 
+    // The users told when a dish is added to the Dish Masterlist (a JSON list of user ids). Not the
+    // same list as the watchers: these people only need to know about new dishes.
+    public const NEW_DISH_WATCHERS = 'notifications.new_dish_watchers';
+
+    // '1' = the new dish alert is also emailed / sent as a Google Chat message. Their own switches,
+    // apart from the ones above (those are for the order notifications): '0' = in-app only.
+    public const NEW_DISH_EMAIL = 'notifications.new_dish_email';
+
+    public const NEW_DISH_GOOGLE_CHAT = 'notifications.new_dish_google_chat';
+
     // '1' = every notification is also sent by email; '0' = in-app only.
     public const EMAIL_NOTIFICATIONS = 'notifications.email_enabled';
 
@@ -114,6 +124,9 @@ class Setting
         self::SESSION_START_TIME => '09:00',
         self::SESSION_END_TIME => '17:00',
         self::NOTIFICATION_WATCHERS => '[]',
+        self::NEW_DISH_WATCHERS => '[]',
+        self::NEW_DISH_EMAIL => '0',
+        self::NEW_DISH_GOOGLE_CHAT => '0',
         // Off until an admin turns it on: mail has to be set up in .env first.
         self::EMAIL_NOTIFICATIONS => '0',
         // Off until an admin turns it on: the Chat app's key has to be set up in .env first.
@@ -344,7 +357,31 @@ class Setting
     // value reads as "nobody" rather than breaking an order.
     public static function notificationWatchers(): array
     {
-        $ids = json_decode((string) self::get(self::NOTIFICATION_WATCHERS), true);
+        return self::userIdList(self::NOTIFICATION_WATCHERS);
+    }
+
+    // The ids of the users told about every new dish, as ints (a damaged value reads as "nobody").
+    public static function newDishWatchers(): array
+    {
+        return self::userIdList(self::NEW_DISH_WATCHERS);
+    }
+
+    // Is the new dish alert also emailed? (Independent of the switch for order notifications.)
+    public static function newDishEmail(): bool
+    {
+        return self::get(self::NEW_DISH_EMAIL) === '1';
+    }
+
+    // Is the new dish alert also sent as a Google Chat message? (Independent of the other switch.)
+    public static function newDishGoogleChat(): bool
+    {
+        return self::get(self::NEW_DISH_GOOGLE_CHAT) === '1';
+    }
+
+    // A setting that holds a JSON list of user ids.
+    protected static function userIdList(string $key): array
+    {
+        $ids = json_decode((string) self::get($key), true);
 
         return is_array($ids)
             ? array_values(array_unique(array_filter(array_map('intval', $ids))))
@@ -470,6 +507,24 @@ class Setting
     public static function setNotificationWatchers(array $userIds): void
     {
         self::set(self::NOTIFICATION_WATCHERS, json_encode(array_values(array_unique(array_filter(array_map('intval', $userIds))))));
+    }
+
+    // Save who is told about every new dish.
+    public static function setNewDishWatchers(array $userIds): void
+    {
+        self::set(self::NEW_DISH_WATCHERS, json_encode(array_values(array_unique(array_filter(array_map('intval', $userIds))))));
+    }
+
+    // Switch the email / Google Chat copy of the new dish alert on or off.
+    public static function setNewDishChannels(?bool $email, ?bool $googleChat): void
+    {
+        if ($email !== null) {
+            self::set(self::NEW_DISH_EMAIL, $email ? '1' : '0');
+        }
+
+        if ($googleChat !== null) {
+            self::set(self::NEW_DISH_GOOGLE_CHAT, $googleChat ? '1' : '0');
+        }
     }
 
     // Save one setting (insert, or replace the value of the existing key).
