@@ -7,7 +7,7 @@
  */
 import { showToast } from '../ui/toast';
 
-const start = () => {
+const start = ({ signal } = {}) => {
     const form = document.querySelector('#settings-form');
 
     /* ---- tabs ----------------------------------------------------------------
@@ -210,7 +210,7 @@ const start = () => {
         const controlBox = field?.querySelector('[data-control]');
 
         const badge = document.createElement('span');
-        badge.className = 'ml-2 hidden rounded-full bg-gray-900 px-2 py-0.5 align-middle text-[11px] font-semibold leading-4 text-white dark:bg-mist dark:text-ink';
+        badge.className = 'ml-2 hidden rounded-full bg-accent px-2 py-0.5 align-middle text-[11px] font-semibold leading-4 text-accent-on';
         badge.textContent = copy('labelEdited', 'Edited');
         label?.append(badge);
 
@@ -348,6 +348,69 @@ const start = () => {
         logoPreview.replaceChildren(image);
     });
 
+    /* ---- the colour theme, previewed before it is saved ---------------------------
+     *
+     * The server printed the saved theme as CSS variables (<style id="theme-vars">) and put the CSS of
+     * EVERY theme in the swatches' data-themes. Picking one (a swatch, the dropdown, or Undo) lays that
+     * theme's CSS in a second <style>, placed after the first so it wins: the whole page, menu included,
+     * changes colour at once. Nothing is stored; leaving the page without saving removes it again, and a
+     * save reloads the page (see below), which brings the saved theme in the normal way.
+     */
+    const swatchBox = form.querySelector('[data-theme-swatches]');
+    const themeSelect = form.querySelector('#theme-accent');
+
+    if (swatchBox && themeSelect) {
+        let themes = {};
+
+        try {
+            themes = JSON.parse(swatchBox.dataset.themes || '{}');
+        } catch (error) {
+            // No preview then; the dropdown still saves.
+        }
+
+        const swatches = [...swatchBox.querySelectorAll('[data-theme-swatch]')];
+        const themeName = form.querySelector('[data-theme-name]');
+        const saved = baseline.get(themeSelect)?.value ?? themeSelect.value;
+        let previewStyle = null;
+
+        const showTheme = () => {
+            const slug = themeSelect.value;
+
+            swatches.forEach((swatch) => swatch.setAttribute('aria-pressed', swatch.dataset.themeSwatch === slug ? 'true' : 'false'));
+
+            if (themeName) {
+                themeName.textContent = themeSelect.selectedOptions[0]?.textContent.trim() ?? '';
+            }
+
+            if (slug === saved || !themes[slug]) {
+                previewStyle?.remove();
+                previewStyle = null;
+
+                return;
+            }
+
+            if (!previewStyle) {
+                previewStyle = document.createElement('style');
+                previewStyle.id = 'theme-preview';
+                document.head.appendChild(previewStyle);
+            }
+
+            previewStyle.textContent = themes[slug];
+        };
+
+        swatches.forEach((swatch) => swatch.addEventListener('click', () => {
+            themeSelect.value = swatch.dataset.themeSwatch;
+            themeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }));
+
+        themeSelect.addEventListener('change', showTheme);
+        // A reload can bring a typed choice back: draw it straight away.
+        showTheme();
+
+        // Leaving without saving (soft navigation): the saved colours come back.
+        signal?.addEventListener('abort', () => previewStyle?.remove());
+    }
+
     form.addEventListener('input', refreshChanges);
     form.addEventListener('change', refreshChanges);
     // A reload can bring typed values back: show them as edits straight away.
@@ -410,9 +473,9 @@ const start = () => {
                 return;
             }
 
-            // The name and the logo are drawn on every page (sidebar, title, sign in): when
-            // either changed, reload once so this page shows the saved brand too.
-            const brandChanged = ['app-name', 'app-logo', 'remove-app-logo'].some((id) => {
+            // The name, the logo and the colour theme are drawn on every page (sidebar, title, sign in, the
+            // <head>'s colour variables): when one changed, reload once so every page shows the saved brand.
+            const brandChanged = ['app-name', 'app-logo', 'remove-app-logo', 'theme-accent'].some((id) => {
                 const control = form.querySelector('#' + id);
 
                 return control && snapshot(control).key !== baseline.get(control).key;

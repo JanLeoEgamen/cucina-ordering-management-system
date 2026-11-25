@@ -10,7 +10,7 @@
 
         // The tabs, in the order they are drawn. The first one is open until settings.js reads the URL hash.
         $tabs = [
-            'branding' => [__('Branding'), __('Name and logo')],
+            'branding' => [__('Branding'), __('Name, logo and colours')],
             'ordering' => [__('Ordering'), __('Sessions, orders, pre-orders')],
             'pricing' => [__('Pricing'), __('Discounts and ala carte')],
             'notifications' => [__('Notifications'), __('Email, Google Chat, who is told')],
@@ -50,13 +50,13 @@
                         <button type="button" role="tab" id="settings-tab-{{ $id }}" data-settings-tab="{{ $id }}"
                                 aria-controls="settings-panel-{{ $id }}" aria-selected="{{ $loop->first ? 'true' : 'false' }}"
                                 tabindex="{{ $loop->first ? '0' : '-1' }}"
-                                class="group flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-left text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-4 focus-visible:ring-gray-300 aria-selected:bg-gray-900 aria-selected:text-white aria-selected:hover:bg-gray-900 lg:px-4 lg:py-2.5 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white dark:focus-visible:ring-gray-600 dark:aria-selected:bg-mist dark:aria-selected:text-ink dark:aria-selected:hover:bg-mist">
+                                class="group flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-left text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-4 focus-visible:ring-gray-300 aria-selected:bg-accent aria-selected:text-accent-on aria-selected:hover:bg-accent lg:px-4 lg:py-2.5 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white dark:focus-visible:ring-gray-600 ">
                             <span class="min-w-0">
                                 <span class="block whitespace-nowrap lg:whitespace-normal">{{ $title }}</span>
-                                <span class="hidden text-xs font-normal text-gray-500 group-aria-selected:text-white/70 lg:block dark:text-gray-400 dark:group-aria-selected:text-ink/70">{{ $subtitle }}</span>
+                                <span class="hidden text-xs font-normal text-gray-500 group-aria-selected:text-accent-on/70 lg:block dark:text-gray-400">{{ $subtitle }}</span>
                             </span>
                             {{-- How many fields of this tab differ from what is saved (filled in by settings.js). --}}
-                            <span data-tab-count class="ml-auto hidden min-w-5 rounded-full bg-gray-900 px-1.5 text-center text-[11px] font-semibold leading-5 text-white group-aria-selected:bg-white group-aria-selected:text-gray-900 dark:bg-mist dark:text-ink dark:group-aria-selected:bg-ink dark:group-aria-selected:text-mist" aria-hidden="true"></span>
+                            <span data-tab-count class="ml-auto hidden min-w-5 rounded-full bg-accent px-1.5 text-center text-[11px] font-semibold leading-5 text-accent-on group-aria-selected:bg-accent-on group-aria-selected:text-accent" aria-hidden="true"></span>
                         </button>
                     @endforeach
                 </nav>
@@ -64,7 +64,7 @@
                 <div class="min-w-0">
                     {{-- The name and logo every page, error page and email shows (Setting::brand()). --}}
                     <x-settings.panel id="branding" :title="__('Branding')" active
-                        :description="__('The name and logo shown in the menu, on the sign in pages, in the browser tab and in emails.')">
+                        :description="__('The name and logo shown in the menu, on the sign in pages, in the browser tab and in emails, and the colour theme of the whole app.')">
                         <x-settings.section>
                             <x-settings.field :label="__('App name')" for="app-name">
                                 <input type="text" name="app_name" id="app-name" required maxlength="60"
@@ -84,7 +84,7 @@
 
                                     <div class="min-w-0 flex-1">
                                         <input type="file" name="app_logo" id="app-logo" accept="image/png,image/jpeg,image/webp" @disabled(! $canEdit)
-                                               class="block w-full text-sm text-gray-600 file:mr-3 file:cursor-pointer file:rounded-full file:border-0 file:bg-gray-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-gray-700 disabled:opacity-60 dark:text-gray-300 dark:file:bg-mist dark:file:text-ink">
+                                               class="block w-full text-sm text-gray-600 file:mr-3 file:cursor-pointer file:rounded-full file:border-0 file:bg-accent file:px-4 file:py-2 file:text-sm file:font-semibold file:text-accent-on hover:file:bg-accent-hover disabled:opacity-60 dark:text-gray-300 ">
 
                                         @if ($brand['logo'])
                                             <label for="remove-app-logo" class="mt-3 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
@@ -95,6 +95,45 @@
                                         @endif
                                     </div>
                                 </div>
+                            </x-settings.field>
+                        </x-settings.section>
+
+                        {{-- The colour of the whole app (App\Support\Theme, config/themes.php). Picking one previews it on
+                             this page at once (settings.js); it is only saved with the rest of the form. --}}
+                        <x-settings.section :title="__('Colour theme')"
+                            :description="__('The colour of buttons, links, the page you are on in the menu and the highlights, on every page, in light and dark mode. Pick one to see it here before you save.')">
+                            <x-settings.field :label="__('Theme')" for="theme-accent" stacked>
+                                {{-- The swatches ARE the picker. The dropdown below is the real form field (settings.js tracks it for
+                                     Edited / Undo and posts it) but is hidden: two controls for one choice was clutter. --}}
+                                <div class="space-y-4" role="group" aria-label="{{ __('Colour theme') }}"
+                                     data-theme-swatches data-themes='@json($themePreviews)'>
+                                    {{-- Two rows: plain colours, then gradients (a theme with a `gradient` in config/themes.php). --}}
+                                    @foreach ([false => __('Colours'), true => __('Gradients')] as $isGradient => $groupTitle)
+                                        <div>
+                                            <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ $groupTitle }}</p>
+                                            <div class="flex flex-wrap items-center gap-x-2.5 gap-y-3">
+                                                @foreach ($themes as $slug => $label)
+                                                    @continue($swatches[$slug]['gradient'] !== (bool) $isGradient)
+                                                    <button type="button" data-theme-swatch="{{ $slug }}" title="{{ $label }}" @disabled(! $canEdit)
+                                                aria-label="{{ $label }}" aria-pressed="{{ $slug === $themeAccent ? 'true' : 'false' }}"
+                                                class="group relative h-8 w-8 rounded-full border-2 border-white shadow-sm ring-1 ring-gray-300 transition hover:scale-110 focus:outline-none focus-visible:ring-4 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-60 aria-pressed:ring-2 aria-pressed:ring-gray-900 dark:border-gray-800 dark:ring-gray-600 dark:aria-pressed:ring-white"
+                                                style="background: {{ $swatches[$slug]['paint'] }}">
+                                            <svg class="absolute inset-0 m-auto hidden h-4 w-4 text-white group-aria-pressed:block" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0L3.3 9.7a1 1 0 1 1 1.4-1.4l3.8 3.8 6.8-6.8a1 1 0 0 1 1.4 0Z" clip-rule="evenodd" /></svg>
+                                        </button>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+
+                                {{-- The name of the picked theme, kept up to date by settings.js. --}}
+                                <p data-theme-name class="mt-3 text-sm font-medium text-gray-700 dark:text-gray-200">{{ $themes[$themeAccent] ?? '' }}{{ $themeAccent === $themeDefault ? ' (' . __('default') . ')' : '' }}</p>
+
+                                <select name="theme_accent" id="theme-accent" @disabled(! $canEdit) tabindex="-1" aria-hidden="true" class="sr-only">
+                                    @foreach ($themes as $slug => $label)
+                                        <option value="{{ $slug }}" @selected($slug === $themeAccent)>{{ __($label) }}{{ $slug === $themeDefault ? ' (' . __('default') . ')' : '' }}</option>
+                                    @endforeach
+                                </select>
                             </x-settings.field>
                         </x-settings.section>
                     </x-settings.panel>

@@ -11,7 +11,7 @@
 --}}
 @php
     $pill = 'inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold leading-5 text-gray-700 dark:bg-gray-700 dark:text-gray-200';
-    $mockButton = 'inline-flex items-center rounded-full bg-gray-900 px-5 py-1.5 text-sm font-medium text-white transition-all duration-500 motion-reduce:transition-none dark:bg-mist dark:text-ink';
+    $mockButton = 'inline-flex items-center rounded-full bg-accent px-5 py-1.5 text-sm font-medium text-accent-on transition-all duration-500 motion-reduce:transition-none';
     $stage = 'relative flex h-48 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40';
     $fade = 'transition-all duration-500 motion-reduce:transition-none';
 @endphp
@@ -69,7 +69,7 @@
                 <div class="{{ $stage }} mt-4">
                     <div class="w-64 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                         <div class="flex items-center gap-3">
-                            <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-900 text-sm font-semibold text-white dark:bg-mist dark:text-ink">CF</span>
+                            <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-sm font-semibold text-accent-on">CF</span>
                             <div>
                                 <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $app }}</p>
                                 <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Google Chat app') }}</p>
@@ -102,7 +102,7 @@
                         <div class="mt-2 h-2 w-32 rounded bg-gray-200 dark:bg-gray-600"></div>
                         <div class="mt-4 flex justify-end gap-2">
                             <span class="rounded-full border border-gray-300 px-4 py-1 text-xs font-medium text-gray-600 dark:border-gray-600 dark:text-gray-300">{{ __('Cancel') }}</span>
-                            <span class="rounded-full bg-gray-900 px-4 py-1 text-xs font-medium text-white transition-all duration-500 motion-reduce:transition-none dark:bg-mist dark:text-ink"
+                            <span class="rounded-full bg-accent px-4 py-1 text-xs font-medium text-accent-on transition-all duration-500 motion-reduce:transition-none"
                                   x-bind:class="tick >= 2 ? 'scale-105 ring-4 ring-gray-300 dark:ring-gray-600' : ''">
                                 <span x-show="tick < 3">{{ __('Continue') }}</span>
                                 <span x-show="tick >= 3" x-cloak>✓</span>
@@ -138,7 +138,7 @@
             <div class="flex items-center gap-2" aria-hidden="true">
                 <template x-for="n in 3" x-bind:key="n">
                     <span class="h-2 rounded-full transition-all duration-300 motion-reduce:transition-none"
-                          x-bind:class="step === n - 1 ? 'w-6 bg-gray-900 dark:bg-mist' : 'w-2 bg-gray-300 dark:bg-gray-600'"></span>
+                          x-bind:class="step === n - 1 ? 'w-6 bg-accent' : 'w-2 bg-gray-300 dark:bg-gray-600'"></span>
                 </template>
             </div>
 

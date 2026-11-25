@@ -8,7 +8,7 @@
     // quantity starts at 0 and IS the dish's quantity in the cart.
     $stepButtonClass = 'flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 transition hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-200 dark:hover:bg-gray-700';
     // The + is the one solid button on a card (ink; light gray in dark mode): the eye goes straight to it.
-    $plusButtonClass = 'flex h-11 w-11 items-center justify-center rounded-full border border-gray-900 bg-gray-900 text-white shadow-sm transition hover:bg-gray-700 dark:border-mist focus:outline-none focus:ring-4 focus:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-mist dark:text-ink dark:hover:bg-white dark:focus:ring-gray-600';
+    $plusButtonClass = 'flex h-11 w-11 items-center justify-center rounded-full border border-accent bg-accent text-accent-on shadow-sm transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-40 dark:focus:ring-gray-600';
 
     // The two ways to pay, as the checkout offers them. Cash on pickup is paid
     // when the order is collected; a bank or e-wallet pays is sent first and
@@ -391,7 +391,7 @@
                         </div>
                         <div class="flex items-center justify-between gap-2 px-3 py-3">
                             {{-- Shown while this dish is in the cart (menu.js). --}}
-                            <span data-in-cart class="hidden items-center gap-1.5 rounded-full bg-gray-900 px-2.5 py-1 text-xs font-semibold text-white dark:bg-mist dark:text-ink">
+                            <span data-in-cart class="hidden items-center gap-1.5 rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-accent-on">
                                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                     <path d="m5 13 4 4L19 7" />
                                 </svg>

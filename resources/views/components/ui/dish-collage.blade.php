@@ -10,7 +10,8 @@
     `columns` comes from Dish::collageColumns(): per column, tiles of [name, image|null, type|null].
     Each column holds its tiles twice and moves half its height (the `marquee-up` keyframes in
     tailwind.config.js), so the loop has no seam. A dish with a photo is a photo tile with its
-    name; one without is a typographic tile. Reduced motion stops it (app.css).
+    name; one without is a typographic tile. Both are tinted with the brand scale (`indigo-*`), so the
+    collage follows the colour theme; the default ink theme is grey, so it stays as it was. Reduced motion stops it (app.css).
 --}}
 @props(['columns' => []])
 
@@ -24,12 +25,14 @@
                         @foreach ($column as $i => $tile)
                             @php
                                 $height = ['h-52', 'h-64', 'h-44', 'h-60', 'h-48'][($i + $c * 2) % 5];
-                                $tone = ['bg-white/[0.07]', 'bg-mist/[0.13]', 'bg-white/[0.12]'][($i + $c) % 3];
+                                $tone = ['bg-indigo-400/[0.16]', 'bg-indigo-300/[0.14]', 'bg-indigo-500/[0.28]'][($i + $c) % 3];
                             @endphp
-                            <figure class="relative shrink-0 overflow-hidden rounded-2xl ring-1 ring-white/10 {{ $height }}">
+                            <figure class="relative shrink-0 overflow-hidden rounded-2xl ring-1 ring-indigo-300/20 {{ $height }}">
                                 @if ($tile['image'])
                                     <img src="{{ $tile['image'] }}" alt="" loading="lazy" decoding="async" class="h-full w-full object-cover">
-                                    <figcaption class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/85 to-transparent px-3.5 pb-3 pt-12 text-sm font-semibold leading-tight text-white">
+                                    {{-- A wash of the theme's colour over the photo (overlay blend: near neutral on the default ink theme). --}}
+                                    <div class="absolute inset-0 bg-indigo-500/35 mix-blend-overlay"></div>
+                                    <figcaption class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-hero/85 to-transparent px-3.5 pb-3 pt-12 text-sm font-semibold leading-tight text-white">
                                         {{ $tile['name'] }}
                                     </figcaption>
                                 @else

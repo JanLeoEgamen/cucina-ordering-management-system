@@ -481,7 +481,7 @@ const start = () => {
             <button type="button" role="radio" aria-checked="${picked ? 'true' : 'false'}" data-discount-choice="${value}"
                     class="flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition focus:outline-none focus:ring-4 focus:ring-indigo-200 dark:focus:ring-indigo-900 ${picked ? discountTilePicked : discountTileIdle}">
                 <span class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border ${picked
-                    ? 'border-gray-900 bg-gray-900 text-white dark:border-mist dark:bg-mist dark:text-ink'
+                    ? 'border-accent bg-accent text-accent-on'
                     : 'border-gray-300 dark:border-gray-500'}">
                     ${picked ? '<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>' : ''}
                 </span>

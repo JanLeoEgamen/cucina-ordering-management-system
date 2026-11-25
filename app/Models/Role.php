@@ -36,6 +36,19 @@ class Role extends SpatieRole
         'view audit-logs',
     ];
 
+    // How the roles page groups the permissions: section => the resources in it
+    // (the words after the action in a permission name). Only the picker's layout;
+    // nothing is checked against it.
+    public const PERMISSION_SECTIONS = [
+        'Dish masterlist' => ['dishes', 'dish-types'],
+        'Order sessions and orders' => ['order-sessions', 'menu', 'orders', 'my orders'],
+        'Payments and discounts' => ['payments', 'payment-methods', 'discounts'],
+        'Pre-orders' => [
+            'pre-order-sessions', 'pre-order-menu', 'pre-orders', 'my pre-orders', 'pre-order-payments',
+        ],
+        'Administration' => ['roles', 'users', 'companies', 'settings', 'audit-logs'],
+    ];
+
     // The seeded role that holds every permission.
     public const SUPER_ADMIN = 'Super Admin';
 
@@ -120,6 +133,7 @@ class Role extends SpatieRole
         // view drawer, so both travel with the record.
         $role->permissions = self::permissionIds($roleId);
         $role->permission_names = self::permissionNames($roleId);
+        $role->permission_groups = self::groupsOf($role->permissions);
         $role->users_count = self::countUsers($roleId);
         $role->is_protected = self::isProtectedName($role->name);
 
@@ -191,27 +205,113 @@ class Role extends SpatieRole
             ->count();
     }
 
-    // Every permission as a choice for the picker, in PERMISSIONS order.
-    public static function permissionOptions(): array
+    // The permission picker's layout: sections (the areas of the app) holding one
+    // row per resource ("Dishes", "Payments") with one checkbox per action
+    // (View, Create, Edit ...). Built from the permission NAMES, "<action>
+    // <resource>", so a new permission lands in its resource's row with no change
+    // here; only a brand new resource has to be given a section in
+    // PERMISSION_SECTIONS (until then it is listed under "Other").
+    public static function permissionGroups(): array
     {
-        return TableCache::remember(['permissions'], 'role.permission_options', fn () => self::loadPermissionOptions());
+        return TableCache::remember(['permissions'], 'role.permission_groups', fn () => self::loadPermissionGroups());
     }
 
     // The query behind the cached method above.
-    protected static function loadPermissionOptions(): array
+    protected static function loadPermissionGroups(): array
+    {
+        $sectionOf = [];
+
+        foreach (self::PERMISSION_SECTIONS as $section => $resources) {
+            foreach ($resources as $resource) {
+                $sectionOf[$resource] = $section;
+            }
+        }
+
+        // section => resource => [permission, ...], in PERMISSIONS order.
+        $tree = [];
+
+        foreach (self::permissionOptionsRaw() as $permission) {
+            [$action, $resource] = array_pad(explode(' ', $permission['name'], 2), 2, '');
+
+            if ($resource === '') {
+                [$action, $resource] = ['', $action];
+            }
+
+            $section = $sectionOf[$resource] ?? 'Other';
+
+            $tree[$section][$resource][] = [
+                'id' => $permission['id'],
+                'action' => $action === '' ? Str::headline($resource) : Str::headline($action),
+                'name' => Str::headline($permission['name']),
+            ];
+        }
+
+        $groups = [];
+
+        // Sections in the order of PERMISSION_SECTIONS, "Other" last.
+        foreach ([...array_keys(self::PERMISSION_SECTIONS), 'Other'] as $section) {
+            if (empty($tree[$section])) {
+                continue;
+            }
+
+            $resources = [];
+
+            // Rows in the order the section lists them, strangers after them.
+            $order = array_flip(self::PERMISSION_SECTIONS[$section] ?? []);
+            $names = array_keys($tree[$section]);
+            usort($names, fn ($a, $b) => ($order[$a] ?? 999) <=> ($order[$b] ?? 999));
+
+            foreach ($names as $resource) {
+                $resources[] = [
+                    'label' => Str::headline($resource),
+                    'permissions' => $tree[$section][$resource],
+                ];
+            }
+
+            $groups[] = ['label' => $section, 'resources' => $resources];
+        }
+
+        return $groups;
+    }
+
+    // permissionGroups() narrowed to the given permission ids: only the sections
+    // and rows that hold one, each with only its granted actions. The view drawer
+    // prints it as it is.
+    public static function groupsOf(array $permissionIds): array
+    {
+        $granted = array_flip($permissionIds);
+        $groups = [];
+
+        foreach (self::permissionGroups() as $group) {
+            $rows = [];
+
+            foreach ($group['resources'] as $row) {
+                $actions = array_values(array_filter($row['permissions'], fn (array $permission) => isset($granted[$permission['id']])));
+
+                if ($actions) {
+                    $rows[] = ['label' => $row['label'], 'permissions' => $actions];
+                }
+            }
+
+            if ($rows) {
+                $groups[] = ['label' => __($group['label']), 'resources' => $rows];
+            }
+        }
+
+        return $groups;
+    }
+
+    // Every permission as [id, name] (the raw name), in PERMISSIONS order.
+    protected static function permissionOptionsRaw(): array
     {
         return DB::table(self::TABLE_PERMISSION)
             ->get(['id', 'name'])
             ->sortBy(function (object $permission) {
-                // A permission created outside PERMISSIONS sorts to the end.
                 $position = array_search($permission->name, self::PERMISSIONS, true);
 
                 return $position === false ? count(self::PERMISSIONS) : $position;
             })
-            ->map(fn (object $permission) => [
-                'id' => (int) $permission->id,
-                'name' => Str::headline($permission->name),
-            ])
+            ->map(fn (object $permission) => ['id' => (int) $permission->id, 'name' => $permission->name])
             ->values()
             ->all();
     }

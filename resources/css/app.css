@@ -2,6 +2,60 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------------------
+   Brand variables: the built-in INK theme.
+
+   The real values are printed in every page's <head> by the Theme class (app/Support/Theme.php, picked in
+   System Configuration -> Branding, config/themes.php) and tailwind.config.js reads them (`indigo-*`,
+   `accent`). These are only the fallback for a page that has no such block (a cached copy, a failed
+   database), and the original look. `:where()` gives them no specificity, so the page's own block wins
+   whatever order the two stylesheets are linked in.
+--------------------------------------------------------------------------- */
+:where(:root) {
+    --brand-50: 243 242 238;
+    --brand-100: 233 231 224;
+    --brand-200: 220 217 207;
+    --brand-300: 201 197 184;
+    --brand-400: 168 164 152;
+    --brand-500: 107 106 100;
+    --brand-600: 23 23 15;
+    --brand-700: 43 43 32;
+    --brand-800: 85 84 78;
+    --brand-900: 29 29 20;
+    --brand-950: 15 15 10;
+    --accent: 23 23 15;
+    --accent-hover: 58 57 51;
+    --accent-on: 255 255 255;
+    --hero: 23 23 15;
+    --accent-image: none;
+    --hero-image: none;
+    --accent-hover-filter: none;
+}
+
+:where(html.dark) {
+    --accent: 232 230 225;
+    --accent-hover: 255 255 255;
+    --accent-on: 23 23 15;
+}
+
+/* A GRADIENT theme (config/themes.php `gradient`) is an image laid over the accent colour, so the existing
+   `bg-accent` / `bg-indigo-600` / `bg-hero` classes (and their text colours, borders and rings, which keep the
+   first colour) need no change. A plain theme sets the variables to `none`. The hover has no colour to change
+   under an image, so it brightens instead. */
+.bg-accent,
+.bg-indigo-600 {
+    background-image: var(--accent-image);
+}
+
+.bg-accent:hover,
+.bg-indigo-600:hover {
+    filter: var(--accent-hover-filter);
+}
+
+.bg-hero {
+    background-image: var(--hero-image);
+}
+
 /* Alpine.js: keep x-cloak elements hidden until the component initialises. */
 [x-cloak] {
     display: none !important;
@@ -417,6 +471,9 @@ html.dark .nav-group-inner.nav-tree {
    top level, Dashboard): the ink bar on the line is what anchors it. */
 .nav-tree .sidebar-link[aria-current] {
     background-color: theme('colors.gray.100');
+    /* The link also carries `bg-accent` (the Dashboard pill's class), whose gradient image would paint over this
+       soft background and leave dark text on a gradient. The rail below turns the image back on. */
+    background-image: none;
     color: theme('colors.gray.900');
     box-shadow: none;
     font-weight: 600;
@@ -440,11 +497,7 @@ html.dark .nav-tree .sidebar-link[aria-current] {
     bottom: 20%;
     width: 2px;
     border-radius: 9999px;
-    background-color: theme('colors.gray.900');
-}
-
-html.dark .nav-tree .sidebar-link[aria-current]::before {
-    background-color: theme('colors.white');
+    background-color: theme('colors.accent.DEFAULT');
 }
 
 html[data-nav-closed~='ordering'] [data-nav-group='ordering'] .nav-group-items,
@@ -569,13 +622,9 @@ html.sidebar-switching .app-content {
 
     /* A FOLDED group that holds the current page is the solid ink square (an open one shows the page itself). */
     html.cucina-sidebar-collapsed [data-nav-group]:has(.nav-group-title[aria-expanded='false'])[data-has-active] .nav-group-title {
-        background-color: theme('colors.gray.900');
-        color: theme('colors.white');
-    }
-
-    html.dark.cucina-sidebar-collapsed [data-nav-group]:has(.nav-group-title[aria-expanded='false'])[data-has-active] .nav-group-title {
-        background-color: theme('colors.mist.DEFAULT');
-        color: theme('colors.ink');
+        background-color: theme('colors.accent.DEFAULT');
+        background-image: var(--accent-image);
+        color: theme('colors.accent.on');
     }
 
     /* The flyout: the group's links as a small card, with the group's name on top. */
@@ -653,13 +702,9 @@ html.sidebar-switching .app-content {
 
     /* The current page is the solid ink square, as the rail always showed it. */
     html.cucina-sidebar-collapsed [data-nav-group]:not(:has(.nav-group-title[aria-expanded='false'])) .nav-tree .sidebar-link[aria-current] {
-        background-color: theme('colors.gray.900');
-        color: theme('colors.white');
-    }
-
-    html.dark.cucina-sidebar-collapsed [data-nav-group]:not(:has(.nav-group-title[aria-expanded='false'])) .nav-tree .sidebar-link[aria-current] {
-        background-color: theme('colors.mist.DEFAULT');
-        color: theme('colors.ink');
+        background-color: theme('colors.accent.DEFAULT');
+        background-image: var(--accent-image);
+        color: theme('colors.accent.on');
     }
 
     html.cucina-sidebar-collapsed .nav-tree .sidebar-link::before {
@@ -702,7 +747,8 @@ html.sidebar-switching .app-content {
 
    Light: a warm paper page, white cards, near-black "ink" for primary actions.
    Dark (the sidebar switch; until it is used, the OS setting): the dark page, with `mist` (#e8e6e1) as ink's counterpart.
-   There is no colour accent: emphasis is the contrast between ink and paper.
+   The default theme has no colour accent (emphasis is the contrast between ink and paper); an admin can pick a
+   colour in System Configuration -> Branding and then the brand variables above carry it.
 
    The brand scale is mapped onto Tailwind's `indigo` name, where 600 is INK. An
    ink button on the dark page would be invisible, so in dark mode every solid
@@ -711,8 +757,8 @@ html.sidebar-switching .app-content {
 --------------------------------------------------------------------------- */
 
 ::selection {
-    background-color: #dcd9cf;
-    color: #17170f;
+    background-color: theme('colors.indigo.200');
+    color: theme('colors.indigo.900');
 }
 
 /* Native controls (scrollbars, date pickers, form fields) follow the theme too. */
@@ -726,43 +772,43 @@ html.dark {
 
 /* Dark mode is the `.dark` class on <html> (see tailwind.config.js `darkMode`). */
 html.dark ::selection {
-    background-color: #55544e;
-    color: #f7f6f2;
+    background-color: theme('colors.indigo.800');
+    color: theme('colors.gray.50');
 }
 
-/* Solid brand buttons, badges and chips: mist with ink text. */
+/* Solid brand buttons, badges and chips: the theme's dark accent (mist for ink) with its text colour. */
 html.dark .bg-indigo-600.text-white {
-    background-color: #e8e6e1;
-    color: #17170f;
+    background-color: rgb(var(--accent));
+    color: rgb(var(--accent-on));
 }
 
 html.dark .bg-indigo-600.hover\:bg-indigo-700:hover {
-    background-color: #ffffff;
+    background-color: rgb(var(--accent-hover));
 }
 
 /* The current page of the DataTables pager is styled through @apply above. */
 html.dark .dt-container .dt-paging button.current {
-    background-color: #e8e6e1;
-    color: #17170f;
+    background-color: rgb(var(--accent));
+    color: rgb(var(--accent-on));
 }
 
 html.dark .dt-container .dt-paging button.current:hover {
-    background-color: #ffffff;
+    background-color: rgb(var(--accent-hover));
 }
 
 /* Fills that have no text of their own. */
 html.dark #checkout-progress {
-    background-color: #e8e6e1;
+    background-color: rgb(var(--accent));
 }
 
 /* The forms plugin paints the checked tick white: keep it on a dark enough fill. */
 html.dark input[type='checkbox'].text-indigo-600,
 html.dark input[type='radio'].text-indigo-600 {
-    color: #6b6a64;
+    color: theme('colors.indigo.500');
 }
 
 html.dark .peer:checked ~ .peer-checked\:bg-indigo-600 {
-    background-color: #6b6a64;
+    background-color: theme('colors.indigo.500');
 }
 
 /* While the switch is being used every colour eases over instead of snapping.
@@ -1132,8 +1178,8 @@ html button[data-row-action='end'] {
 }
 
 /* Dark mode: the ink button turns to mist, the paper one to a dark surface. */
-html.dark button[data-row-action='edit'] { background-color: theme('colors.mist.DEFAULT'); color: theme('colors.ink'); }
-html.dark button[data-row-action='edit']:hover { background-color: #fff; }
+html.dark button[data-row-action='edit'] { background-color: theme('colors.accent.DEFAULT'); color: theme('colors.accent.on'); }
+html.dark button[data-row-action='edit']:hover { background-color: theme('colors.accent.hover'); }
 html.dark button[data-row-action='view'],
 html.dark a[data-row-link='view'] { background-color: theme('colors.gray.700'); border-color: theme('colors.gray.500'); color: theme('colors.gray.100'); }
 html.dark button[data-row-action='view']:hover,

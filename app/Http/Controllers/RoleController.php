@@ -69,7 +69,7 @@ class RoleController extends Controller implements HasMiddleware
         }
 
         return view('roles.index', [
-            'permissionOptions' => Role::permissionOptions(),
+            'permissionGroups' => Role::permissionGroups(),
         ]);
     }
 

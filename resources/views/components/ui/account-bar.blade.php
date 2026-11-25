@@ -48,7 +48,7 @@
             <span class="sr-only">{{ __('Notifications') }}</span>
             <svg data-notif-icon class="h-5 w-5 origin-top" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" /></svg>
             <span data-notif-badge data-feed-url="{{ route('notifications.feed') }}" aria-live="polite"
-                  class="absolute -right-1 -top-1 hidden min-w-[1.25rem] rounded-full bg-indigo-600 px-1 text-center text-[11px] font-semibold leading-5 text-white ring-2 ring-gray-50 dark:bg-mist dark:text-ink dark:ring-gray-900">0</span>
+                  class="absolute -right-1 -top-1 hidden min-w-[1.25rem] rounded-full bg-accent px-1 text-center text-[11px] font-semibold leading-5 text-accent-on ring-2 ring-gray-50 dark:ring-gray-900">0</span>
         </button>
 
         <div id="{{ $id }}-notifications" data-notif-panel
@@ -83,7 +83,7 @@
                 aria-controls="{{ $id }}-account"
                 title="{{ $user->name }}"
                 class="flex h-10 items-center gap-2 rounded-full border border-gray-200 bg-white py-1 pl-1 pr-3 text-sm shadow-sm transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700 dark:focus:ring-gray-700 max-sm:pr-1">
-            <span class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-ink text-xs font-bold text-white dark:bg-mist dark:text-ink" aria-hidden="true">{{ $initials }}</span>
+            <span class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-on" aria-hidden="true">{{ $initials }}</span>
             <span class="hidden max-w-[9rem] truncate font-medium text-gray-800 dark:text-gray-100 xl:block">{{ $user->first_name }}</span>
             <svg class="hidden h-4 w-4 flex-shrink-0 text-gray-400 transition-transform duration-200 sm:block" :class="open ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19 9-7 7-7-7" /></svg>
             <span class="sr-only">{{ __('Account menu') }}</span>
@@ -93,7 +93,7 @@
              data-menu-panel data-open="false" :data-open="open ? 'true' : 'false'" :aria-hidden="open ? 'false' : 'true'"
              class="{{ $panel }} right-0 w-72 origin-top-right">
             {{-- Who is signed in: the same ink card as the sidebar's, so the two read as one. --}}
-            <div class="flex items-center gap-3 bg-ink p-4 text-white dark:bg-gray-900">
+            <div class="flex items-center gap-3 bg-hero p-4 text-white dark:bg-gray-900">
                 <span class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-mist text-sm font-bold text-ink" aria-hidden="true">{{ $initials }}</span>
                 <div class="min-w-0 flex-1">
                     <p class="truncate text-sm font-semibold">{{ $user->name }}</p>

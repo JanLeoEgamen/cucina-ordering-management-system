@@ -79,10 +79,7 @@
                 <div>
                     <span class="{{ $label }}">{{ __('Permissions') }}</span>
                     <div class="mt-1">
-                        <x-ui.checkbox-picker id="create-role-permissions" name="permissions[]" :items="$permissionOptions"
-                                              placeholder="{{ __('Select permissions') }}"
-                                              search-placeholder="{{ __('Search permissions') }}"
-                                              empty-text="{{ __('No permissions match that search.') }}" />
+                        <x-ui.permission-picker name="permissions[]" :groups="$permissionGroups" />
                     </div>
                 </div>
 
@@ -133,10 +130,7 @@
                 <div>
                     <span class="{{ $label }}">{{ __('Permissions') }}</span>
                     <div class="mt-1">
-                        <x-ui.checkbox-picker id="edit-role-permissions" name="permissions[]" :items="$permissionOptions"
-                                              placeholder="{{ __('Select permissions') }}"
-                                              search-placeholder="{{ __('Search permissions') }}"
-                                              empty-text="{{ __('No permissions match that search.') }}" />
+                        <x-ui.permission-picker name="permissions[]" :groups="$permissionGroups" />
                     </div>
                 </div>
 

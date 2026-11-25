@@ -5,7 +5,7 @@
 
     // The +/- buttons beside a card's quantity box.
     $stepButtonClass = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:focus:ring-gray-700';
-    $plusButtonClass = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-900 bg-gray-900 text-white shadow-sm transition hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-300 dark:border-mist dark:bg-mist dark:text-ink dark:hover:bg-white dark:focus:ring-gray-600';
+    $plusButtonClass = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-accent bg-accent text-accent-on shadow-sm transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-gray-300 dark:focus:ring-gray-600';
     $qtyInput = 'h-10 w-20 rounded-xl border border-gray-200 bg-gray-50 px-2 text-center text-base font-semibold tabular-nums text-gray-900 focus:border-gray-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-gray-300 dark:focus:ring-gray-600';
 
     $secondaryLink = 'inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 sm:w-auto dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600';
@@ -140,7 +140,7 @@
 
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">
                 @foreach ($dishes as $dish)
-                    <article class="flex gap-4 rounded-2xl bg-white p-3 shadow-card transition dark:bg-gray-800 dark:ring-1 dark:ring-white/5 data-[in-cart=true]:ring-2 data-[in-cart=true]:ring-gray-900 dark:data-[in-cart=true]:ring-mist"
+                    <article class="flex gap-4 rounded-2xl bg-white p-3 shadow-card transition dark:bg-gray-800 dark:ring-1 dark:ring-white/5 data-[in-cart=true]:ring-2 data-[in-cart=true]:ring-accent"
                              data-in-cart="false"
                              data-dish-card="{{ $dish->pre_order_session_dish_id }}"
                              data-name="{{ \Illuminate\Support\Str::lower($dish->dish_name) }}">
@@ -220,7 +220,7 @@
                         </p>
 
                         <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700" role="progressbar" aria-valuemin="0" aria-valuemax="{{ (int) $limits['min'] }}" aria-valuenow="0" id="pre-order-progress-bar">
-                            <div id="pre-order-progress" class="h-full w-0 rounded-full bg-gray-900 transition-all duration-300 ease-out dark:bg-mist"></div>
+                            <div id="pre-order-progress" class="h-full w-0 rounded-full bg-accent transition-all duration-300 ease-out"></div>
                         </div>
                         <p id="pre-order-hint" class="mt-1 text-xs text-gray-500 dark:text-gray-400" aria-live="polite"></p>
                     </div>
@@ -284,7 +284,7 @@
                                     <span class="sr-only">({{ __('required') }})</span>
                                 </label>
                                 <input type="file" id="pre-order-discount-proof" accept="image/png,image/jpeg,image/webp"
-                                       class="mt-1 block w-full text-sm text-gray-700 file:mr-3 file:rounded-full file:border-0 file:bg-gray-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-gray-700 dark:text-gray-300 dark:file:bg-mist dark:file:text-ink">
+                                       class="mt-1 block w-full text-sm text-gray-700 file:mr-3 file:rounded-full file:border-0 file:bg-accent file:px-4 file:py-2 file:text-sm file:font-medium file:text-accent-on hover:file:bg-accent-hover dark:text-gray-300 dark:file:bg-mist dark:file:text-ink">
                                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('A clear picture of your ID (PNG, JPG or WebP, up to 2 MB).') }}</p>
                             </div>
 

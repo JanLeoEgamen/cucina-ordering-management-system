@@ -27,7 +27,7 @@
                     <span class="mr-1">{{ __('Rows per page') }}</span>
                     @foreach ($perPageLinks as $size => $url)
                         @if ((int) $size === (int) ($perPage ?? 0))
-                            <span aria-current="true" class="inline-flex h-8 min-w-[2rem] items-center justify-center rounded-lg border border-transparent bg-indigo-600 px-2 text-xs font-semibold text-white dark:bg-mist dark:text-ink">{{ $size }}</span>
+                            <span aria-current="true" class="inline-flex h-8 min-w-[2rem] items-center justify-center rounded-lg border border-transparent bg-accent px-2 text-xs font-semibold text-accent-on">{{ $size }}</span>
                         @else
                             <a href="{{ $url }}" class="inline-flex h-8 min-w-[2rem] items-center justify-center rounded-lg border border-gray-300 bg-white px-2 text-xs font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:focus:ring-gray-700" aria-label="{{ __(':count rows per page', ['count' => $size]) }}">{{ $size }}</a>
                         @endif
@@ -55,7 +55,7 @@
                     @if (is_array($element))
                         @foreach ($element as $page => $url)
                             @if ($page === $paginator->currentPage())
-                                <span aria-current="page" class="{{ $button }} border-transparent bg-indigo-600 text-white dark:bg-mist dark:text-ink">{{ $page }}</span>
+                                <span aria-current="page" class="{{ $button }} border-transparent bg-accent text-accent-on">{{ $page }}</span>
                             @else
                                 <a href="{{ $url }}" class="{{ $button }} {{ $idle }}" aria-label="{{ __('Go to page :page', ['page' => $page]) }}">{{ $page }}</a>
                             @endif

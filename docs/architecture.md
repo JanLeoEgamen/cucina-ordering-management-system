@@ -130,7 +130,7 @@ When the database is on another machine, **each query is a network round trip** 
 ```
 app/Http/Controllers/   one controller per resource + Auth/ + Controller.php (shared badges/responses)
 app/Models/             query-builder models (+ Role, User Eloquent)
-app/Support/            OrderNotifier (who is told what), AlaCarte (a plate without rice: rules, judging, the line split), OrderDiscount (what an order with a discount needs: rules, the pick judged and the math, the private ID), GoogleChat (Chat API client), Audit (the audit trail's logic), SafeMarkdown (admin Markdown -> safe HTML)
+app/Support/            Theme (the colour theme as CSS variables: config/themes.php, picked in System Configuration), OrderNotifier (who is told what), AlaCarte (a plate without rice: rules, judging, the line split), OrderDiscount (what an order with a discount needs: rules, the pick judged and the math, the private ID), GoogleChat (Chat API client), Audit (the audit trail's logic), SafeMarkdown (admin Markdown -> safe HTML)
 app/Console/Commands/   notifications:prune, audit:prune, users:give-customer-role
 app/Http/Middleware/    AuditTrail (every request), EnsureProfileIsComplete   app/Listeners/  AuditAuthEvents
 config/audit.php        audit trail switches, retention, hidden fields, record map, action names
