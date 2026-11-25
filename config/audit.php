@@ -90,6 +90,8 @@ return [
         'roles.update' => 'Edited a role',
         'roles.destroy' => 'Deleted a role',
         'dishes.store' => 'Created a dish',
+        'dishes.import' => 'Imported dishes from Excel',
+        'dishes.import.template' => 'Downloaded the dish import template',
         'dishes.update' => 'Edited a dish',
         'dishes.destroy' => 'Deleted a dish',
         'dish-types.store' => 'Created a dish type',

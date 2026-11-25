@@ -73,7 +73,8 @@
                             </x-settings.field>
 
                             <x-settings.field :label="__('Logo')" for="app-logo" stacked
-                                :hint="__('JPG, PNG or WebP, up to 2 MB. A square picture with a transparent background works best: it is shown small, in the menu and on light and dark panels.')">
+                                :hint="__('JPG, PNG or WebP, up to 2 MB.')"
+                                :detail="__('A square picture with a transparent background works best: it is shown small, in the menu and on light and dark panels.')">
                                 <div class="flex flex-wrap items-center gap-4">
                                     {{-- What the logo looks like now; settings.js swaps in the picked file. A picture
                                          on the sign in panel and the menu sits on light AND dark backgrounds. --}}
@@ -101,7 +102,8 @@
                         {{-- The colour of the whole app (App\Support\Theme, config/themes.php). Picking one previews it on
                              this page at once (settings.js); it is only saved with the rest of the form. --}}
                         <x-settings.section :title="__('Colour theme')"
-                            :description="__('The colour of buttons, links, the page you are on in the menu and the highlights, on every page, in light and dark mode. Pick one to see it here before you save.')">
+                            :description="__('The colour of buttons, links and highlights on every page.')"
+                            :detail="__('It also colours the page you are on in the menu, in light and dark mode. Pick one to see it here before you save.')">
                             <x-settings.field :label="__('Theme')" for="theme-accent" stacked>
                                 {{-- The swatches ARE the picker. The dropdown below is the real form field (settings.js tracks it for
                                      Edited / Undo and posts it) but is hidden: two controls for one choice was clutter. --}}
@@ -141,7 +143,8 @@
                     <x-settings.panel id="ordering" :title="__('Ordering')"
                         :description="__('How order sessions, orders and pre-orders behave.')">
                         <x-settings.section :title="__('Order sessions')"
-                            :description="__('The times a new order session is created with. Only a starting point: each session can still be given its own times.')">
+                            :description="__('The times a new order session starts with.')"
+                            :detail="__('Only a starting point: each session can still be given its own times.')">
                             <x-settings.field :label="__('Default Start Time')" for="session-start-time">
                                 <input type="time" name="session_start_time" id="session-start-time" required
                                        value="{{ $sessionWindow['start_time'] }}" @disabled(! $canEdit)
@@ -157,14 +160,16 @@
 
                         <x-settings.section :title="__('Orders')" :description="__('What customers may do with an order they placed.')">
                             <x-settings.field :label="__('Customers can cancel their own order')" for="customer-cancel" switch
-                                :hint="__('A Cancel button appears on a customer\'s pending order in My Orders. Cancelling gives the plates back to the menu and rejects a payment that was still waiting. Once staff verified the payment only staff can cancel. Staff can always cancel.')">
+                                :hint="__('Shows a Cancel button on their pending orders.')"
+                                :detail="__('A Cancel button appears on a customer\'s pending order in My Orders. Cancelling gives the plates back to the menu and rejects a payment that was still waiting. Once staff verified the payment only staff can cancel. Staff can always cancel.')">
                                 <x-settings.switch name="customer_cancel" id="customer-cancel" :checked="$customerCancel" :disabled="! $canEdit" />
                             </x-settings.field>
                         </x-settings.section>
 
                         {{-- The size of a pre-order, for every pre-order session. --}}
                         <x-settings.section :title="__('Pre-orders')"
-                            :description="__('How many plates one pre-order may hold, whatever the mix of dishes. A pre-order session can ask for more than the minimum, never for less.')">
+                            :description="__('How many plates one pre-order may hold.')"
+                            :detail="__('Whatever the mix of dishes. A pre-order session can ask for more than the minimum, never for less.')">
                             <x-settings.field :label="__('Minimum plates per order')" for="pre-order-min-quantity">
                                 <input type="number" name="pre_order_min_quantity" id="pre-order-min-quantity" min="1" max="100000" step="1" required
                                        value="{{ $preOrderLimits['min'] }}" @disabled(! $canEdit)
@@ -184,9 +189,11 @@
                         :description="__('Ways a customer can pay less than the menu price.')">
                         {{-- Where customers are offered a discount. The discounts themselves are on the Discounts page. --}}
                         <x-settings.section :title="__('Discounts')"
-                            :description="__('The discounts they can pick (name, percent, proof) are managed on the Discounts page.')">
+                            :description="__('Where customers are offered a discount.')"
+                            :detail="__('The discounts they can pick (name, percent, proof) are managed on the Discounts page.')">
                             <x-settings.field :label="__('Offer discounts on')" for="discount-mode"
-                                :hint="__('Switching this off stops new discounts at once. Orders that already have a discount keep it, and staff can still approve or reject it.')">
+                                :hint="__('Switch it off to stop new discounts.')"
+                                :detail="__('Switching this off stops new discounts at once. Orders that already have a discount keep it, and staff can still approve or reject it.')">
                                 <select name="discount_mode" id="discount-mode" @disabled(! $canEdit) class="{{ $input }}">
                                     <option value="off" @selected($discountMode === 'off')>{{ __('Nothing (discounts are off)') }}</option>
                                     <option value="orders" @selected($discountMode === 'orders')>{{ __('Regular orders only') }}</option>
@@ -198,7 +205,8 @@
 
                         {{-- Ala carte: a plate without its rice, for less. Which dishes come with rice is ticked on the Dish Masterlist. --}}
                         <x-settings.section :title="__('Ala carte (no rice)')"
-                            :description="__('Let customers order a plate without its rice for less. Only dishes marked \'Comes with rice\' on the Dish Masterlist can be ordered this way.')">
+                            :description="__('Let customers order a plate without its rice, for less.')"
+                            :detail="__('Only dishes marked \'Comes with rice\' on the Dish Masterlist can be ordered this way.')">
                             <x-settings.field :label="__('Offer ala carte on')" for="ala-carte-mode">
                                 <select name="ala_carte_mode" id="ala-carte-mode" @disabled(! $canEdit) class="{{ $input }}">
                                     <option value="off" @selected($alaCarteMode === 'off')>{{ __('Nothing (ala carte is off)') }}</option>
@@ -209,7 +217,8 @@
                             </x-settings.field>
 
                             <x-settings.field :label="__('Rice price (taken off each plate)')" for="ala-carte-rice-price"
-                                :hint="__('A plate ordered without rice costs the dish price minus this amount. A dish that costs no more than the rice is not offered without it. Switching this off stops new ala carte plates at once; orders that already have them keep their price.')">
+                                :hint="__('Taken off every plate ordered without rice.')"
+                                :detail="__('A plate ordered without rice costs the dish price minus this amount. A dish that costs no more than the rice is not offered without it. Switching this off stops new ala carte plates at once; orders that already have them keep their price.')">
                                 <input type="number" name="ala_carte_rice_price" id="ala-carte-rice-price" min="0" max="100000" step="0.01" required
                                        value="{{ number_format($ricePrice, 2, '.', '') }}" @disabled(! $canEdit)
                                        class="{{ $input }}">
@@ -223,11 +232,14 @@
                         the users picked here also get everyone's, plus staff-only ones (a customer
                         sent a new proof, a dish sold out).
                     --}}
-                    <x-settings.panel id="notifications" :title="__('Notifications')"
+                    <x-settings.panel id="notifications" :title="__('Notifications')" cards
                         :description="__('Customers are always told about their own orders, in the bell. Here: what else is sent, and who else is told.')">
+                      <x-settings.card :title="__('Order notifications')"
+                          :description="__('Placed, paid, ready, completed or cancelled orders.')">
                         <x-settings.section :title="__('Copies')" :description="__('Both need a running queue worker.')">
                             <x-settings.field :label="__('Send notifications by email')" for="email-notifications" switch
-                                :hint="__('Everyone who gets a notification also gets it by email, at the address of their account. Needs the mail settings of the server and a running queue worker.')">
+                                :hint="__('Also email each notification to its recipient.')"
+                                :detail="__('Everyone who gets a notification also gets it by email, at the address of their account. Needs the mail settings of the server and a running queue worker.')">
                                 <x-slot:note>
                                     @if ($emailNotifications && in_array($mailer, ['log', 'array'], true))
                                         <p class="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
@@ -239,7 +251,8 @@
                             </x-settings.field>
 
                             <x-settings.field :label="__('Send notifications to Google Chat')" for="google-chat-notifications" switch
-                                :hint="__('Everyone who gets a notification also gets it as a Google Chat direct message. Only people who signed in with Google and added the Chat app can be reached; the others still get the bell. Needs a running queue worker.')">
+                                :hint="__('Also send each notification as a Google Chat message.')"
+                                :detail="__('Everyone who gets a notification also gets it as a Google Chat direct message. Only people who signed in with Google and added the Chat app can be reached; the others still get the bell. Needs a running queue worker.')">
                                 <x-slot:note>
                                     @if ($googleChatNotifications && ! $googleChatReady)
                                         <p class="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
@@ -254,7 +267,8 @@
                         <x-settings.section :title="__('Also notify')"
                             :description="__('Pick the users who should also receive every notification of every customer.')">
                             <x-settings.field :label="__('Users')" for="notification-watchers" stacked
-                                :hint="__('They see them under Notifications in the menu. Whoever causes an event is not told about their own action.')">
+                                :hint="__('They get a copy of every customer\'s notifications.')"
+                                :detail="__('They see them under Notifications in the menu. Whoever causes an event is not told about their own action.')">
                                 {{-- An empty entry is always sent, so un-picking everybody is saved as "nobody". --}}
                                 <input type="hidden" name="notification_watchers[]" value="">
                                 <select multiple name="notification_watchers[]" id="notification-watchers" @disabled(! $canEdit)
@@ -268,10 +282,60 @@
                                 </select>
                             </x-settings.field>
                         </x-settings.section>
+                      </x-settings.card>
+
+                      {{-- Its own card, one plain block of fields (no section titles): who is told, then how. --}}
+                      <x-settings.card :title="__('New dish alerts')"
+                          :description="__('When a dish is added to the Dish Masterlist with the Add Dish form.')">
+                        <x-settings.section>
+                            <x-settings.field :label="__('Who is told')" for="new-dish-watchers" stacked
+                                :hint="__('They are told each time a dish is added.')"
+                                :detail="__('Only dishes added with the Add Dish form count (not the Excel import, not edits). Whoever adds the dish is not told about their own action. They always get it in the bell; the switches below add email and Google Chat.')">
+                                {{-- An empty entry is always sent, so un-picking everybody is saved as "nobody". --}}
+                                <input type="hidden" name="new_dish_watchers[]" value="">
+                                <select multiple name="new_dish_watchers[]" id="new-dish-watchers" @disabled(! $canEdit)
+                                        data-placeholder="{{ __('Nobody') }}" data-count-label="{{ __('{n} users') }}"
+                                        class="{{ $input }}">
+                                    @foreach ($users as $user)
+                                        <option value="{{ $user->id }}" @selected(in_array((int) $user->id, $newDishWatchers, true))>
+                                            {{ $user->name }} · {{ $user->email }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </x-settings.field>
+
+                            {{-- Their own switches: independent of the "Copies" switches above, which are for order notifications. --}}
+                            <x-settings.field :label="__('Send by email')" for="new-dish-email" switch
+                                :hint="__('Also email the alert to these users (the bell they always get).')"
+                                :detail="__('Only the new dish alert, whatever the order notification switch above says. Sent to the address of each picked user. Needs the mail settings of the server and a running queue worker.')">
+                                <x-slot:note>
+                                    @if ($newDishEmail && in_array($mailer, ['log', 'array'], true))
+                                        <p class="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
+                                            {{ __('The server mailer is ":mailer": emails are only written to the log, not delivered.', ['mailer' => $mailer]) }}
+                                        </p>
+                                    @endif
+                                </x-slot:note>
+                                <x-settings.switch name="new_dish_email" id="new-dish-email" :checked="$newDishEmail" :disabled="! $canEdit" />
+                            </x-settings.field>
+
+                            <x-settings.field :label="__('Send to Google Chat')" for="new-dish-google-chat" switch
+                                :hint="__('Also send the alert as a Google Chat message.')"
+                                :detail="__('Only the new dish alert, whatever the order notification switch above says. Only people who signed in with Google and added the Chat app can be reached; the others still get the bell. Needs a running queue worker.')">
+                                <x-slot:note>
+                                    @if ($newDishGoogleChat && ! $googleChatReady)
+                                        <p class="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
+                                            {{ __('The Chat app key is not set up on the server (GOOGLE_CHAT_CREDENTIALS), so nothing is sent.') }}
+                                        </p>
+                                    @endif
+                                </x-slot:note>
+                                <x-settings.switch name="new_dish_google_chat" id="new-dish-google-chat" :checked="$newDishGoogleChat" :disabled="! $canEdit" />
+                            </x-settings.field>
+                        </x-settings.section>
+                      </x-settings.card>
                     </x-settings.panel>
 
                     {{-- The three public text pages. Each is a collapsible block (Markdown; empty = the built-in text). --}}
-                    <x-settings.panel id="public-pages" :title="__('Public pages')"
+                    <x-settings.panel id="public-pages" :title="__('Public pages')" cards="compact"
                         :description="__('The texts anyone can read, signed in or not. Open one to edit it.')">
                         {{-- The public Help and Support page: contact details + a Markdown help text. --}}
                         @include('settings.partials.support-card', ['support' => $support])

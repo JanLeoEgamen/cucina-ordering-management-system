@@ -60,9 +60,12 @@ export function enhanceSelect(select) {
     list.setAttribute('role', 'listbox');
     list.setAttribute('aria-multiselectable', multiple ? 'true' : 'false');
     list.hidden = true;
-    list.className = 'absolute z-50 max-h-60 overflow-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-card-lift dark:border-gray-700 dark:bg-gray-800 '
-        + (small ? 'min-w-full w-max left-0 ' : 'inset-x-0 ')
-        + (upward ? 'bottom-full mb-1.5' : 'top-full mt-1.5');
+    // The toolbar's "click outside closes the filter panel" must not count a click on the list as outside.
+    list.dataset.selectList = '';
+    // The open list is drawn on <body> with fixed coordinates (see place()), never inside
+    // the card: a card, drawer or table wrapper with overflow hidden / auto would clip it,
+    // and a sticky bar below (the settings Save bar) would be painted over it.
+    list.className = 'fixed z-[95] overflow-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-card-lift dark:border-gray-700 dark:bg-gray-800';
 
     wrap.append(button, list);
 
@@ -154,15 +157,62 @@ export function enhanceSelect(select) {
         items()[index]?.scrollIntoView({ block: 'nearest' });
     };
 
-    const close = () => {
+    // Put the list next to the button, in the viewport: below it, or above it when the room
+    // below is short (and there is more above), and never taller than the room it has.
+    const place = () => {
+        if (!wrap.isConnected) {
+            // A soft navigation replaced the select while the list was open.
+            close();
+
+            return;
+        }
+
+        const rect = button.getBoundingClientRect();
+        const gap = 6;
+        const edge = 12;
+        const wanted = Math.min(list.scrollHeight, 240);
+        const below = window.innerHeight - rect.bottom - gap - edge;
+        const above = rect.top - gap - edge;
+        const up = upward ? above >= Math.min(wanted, 120) || above > below : below < wanted && above > below;
+        const room = Math.max(up ? above : below, 96);
+
+        list.style.maxHeight = Math.min(240, room) + 'px';
+        list.style.minWidth = rect.width + 'px';
+        list.style.width = small ? 'max-content' : rect.width + 'px';
+
+        const left = Math.min(rect.left, Math.max(edge, window.innerWidth - list.offsetWidth - edge));
+
+        list.style.left = Math.max(edge, left) + 'px';
+
+        if (up) {
+            list.style.top = '';
+            list.style.bottom = (window.innerHeight - rect.top + gap) + 'px';
+        } else {
+            list.style.bottom = '';
+            list.style.top = (rect.bottom + gap) + 'px';
+        }
+    };
+
+    function close() {
         list.hidden = true;
         button.setAttribute('aria-expanded', 'false');
-        button.querySelector('[data-chevron]').classList.remove('rotate-180');
-    };
+        button.querySelector('[data-chevron]')?.classList.remove('rotate-180');
+        window.removeEventListener('resize', place);
+        window.removeEventListener('scroll', place, true);
+
+        // Back inside its wrapper, so nothing is left on <body>.
+        if (list.parentNode !== wrap) {
+            wrap.append(list);
+        }
+    }
 
     const open = () => {
         build();
+        document.body.append(list);
         list.hidden = false;
+        place();
+        window.addEventListener('resize', place);
+        window.addEventListener('scroll', place, true);
         button.setAttribute('aria-expanded', 'true');
         button.querySelector('[data-chevron]').classList.add('rotate-180');
         highlight(Math.max(multiple ? [...select.options].findIndex((option) => option.selected) : select.selectedIndex, 0));
@@ -244,11 +294,12 @@ export function enhanceSelect(select) {
         // The select left the page (a soft navigation replaced it): stop listening.
         if (!wrap.isConnected) {
             document.removeEventListener('click', closeOnOutsideClick);
+            list.remove();
 
             return;
         }
 
-        if (!wrap.contains(event.target)) {
+        if (!wrap.contains(event.target) && !list.contains(event.target)) {
             close();
         }
     };

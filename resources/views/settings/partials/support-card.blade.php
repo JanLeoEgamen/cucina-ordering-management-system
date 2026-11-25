@@ -5,7 +5,7 @@
         support   Setting::support()
         input, canEdit   the settings page's shared classes and permission flag
 --}}
-<details class="group" data-settings-details open>
+<details class="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800" data-settings-details open>
     <summary class="flex cursor-pointer list-none items-center gap-3 px-5 py-4 transition hover:bg-gray-50 focus:outline-none focus-visible:bg-gray-50 sm:px-6 dark:hover:bg-gray-700/40 dark:focus-visible:bg-gray-700/40 [&::-webkit-details-marker]:hidden">
         <div class="min-w-0 flex-1">
             <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Support') }}</h4>
@@ -49,9 +49,10 @@
             </x-settings.field>
 
             <x-settings.field :label="__('Help text')" for="support-content" stacked
-                :hint="($support['custom']
-                    ? __('This is your own text. Empty the box and save to go back to the built-in text.')
-                    : __('This is the built-in text: edit it to make it your own, and check that it matches how you really run your business.'))
+                :hint="$support['custom'] ? __('This is your own text.') : __('This is the built-in text: edit it to make it your own.')"
+                :detail="($support['custom']
+                    ? __('Empty the box and save to go back to the built-in text.')
+                    : __('Check that it matches how you really run your business.'))
                     . ' ' . __('Write in Markdown: ## for a heading, - for a list item, **bold**, [link text](https://example.com). Typing :tag shows the app name. HTML is not allowed.', ['tag' => '{app_name}'])">
                 <textarea name="support_content" id="support-content" rows="14" maxlength="{{ \App\Models\Setting::LEGAL_MAX_LENGTH }}"
                           spellcheck="true" @disabled(! $canEdit)

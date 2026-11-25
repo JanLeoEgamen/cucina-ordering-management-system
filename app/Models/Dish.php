@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Exceptions\DishGoneException;
 use App\Support\TableCache;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -198,6 +199,37 @@ class Dish extends Model
             ->exists();
     }
 
+    // Every live dish with what the import file carries, keyed by dish id (two queries, whatever the size):
+    // the filled-in template is written from it, and an upload is compared with it to find the dishes
+    // that exist, the ones that really changed, and the names that are taken. `types` is the dish's
+    // type ids keyed by lower case name, `type_names` the names in the order the template prints them.
+    public static function forImport(): array
+    {
+        $types = self::typesByDish();
+
+        return DB::table(self::TABLE)
+            ->whereNull('deleted_at')
+            ->orderBy('dish_name')
+            ->get(['dish_id', 'dish_name', 'description', 'price', 'calories', 'main_ingredients', 'includes_rice', 'is_active'])
+            ->mapWithKeys(function (object $row) use ($types) {
+                $own = $types[$row->dish_id] ?? collect();
+
+                return [(int) $row->dish_id => [
+                    'dish_id' => (int) $row->dish_id,
+                    'dish_name' => (string) $row->dish_name,
+                    'description' => $row->description,
+                    'price' => $row->price,
+                    'calories' => $row->calories === null ? null : (int) $row->calories,
+                    'main_ingredients' => $row->main_ingredients,
+                    'includes_rice' => (bool) $row->includes_rice,
+                    'is_active' => (bool) $row->is_active,
+                    'types' => $own->mapWithKeys(fn (object $type) => [mb_strtolower(trim((string) $type->type_name)) => (int) $type->dish_type_id])->all(),
+                    'type_names' => $own->pluck('type_name')->all(),
+                ]];
+            })
+            ->all();
+    }
+
     // Types of every dish, keyed by dish id: the feed needs them in one query.
     public static function typesByDish(): Collection
     {
@@ -238,6 +270,114 @@ class Dish extends Model
         return $dishId;
     }
 
+    // Create many dishes with their types in ONE transaction and a handful of statements (the import:
+    // a row-by-row loop would be hundreds of round trips on a remote database). Each entry is
+    // `createDish()`'s attributes, with `dish_types` = ids. The names must be unique among live dishes
+    // (the import checks), because the new ids are found again by name. Returns how many were stored.
+    public static function createMany(array $dishes): int
+    {
+        if ($dishes === []) {
+            return 0;
+        }
+
+        return DB::transaction(function () use ($dishes) {
+            $now = now();
+
+            // Every id above this one was created by the inserts below (soft deleted rows count: ids are never reused).
+            $after = (int) DB::table(self::TABLE)->max('dish_id');
+
+            foreach (array_chunk($dishes, 100) as $chunk) {
+                DB::table(self::TABLE)->insert(array_map(
+                    fn (array $dish) => self::values($dish) + ['created_at' => $now, 'updated_at' => $now],
+                    $chunk
+                ));
+            }
+
+            $ids = DB::table(self::TABLE)
+                ->where('dish_id', '>', $after)
+                ->whereNull('deleted_at')
+                ->pluck('dish_id', 'dish_name');
+
+            $links = [];
+
+            foreach ($dishes as $dish) {
+                $dishId = $ids[$dish['dish_name']] ?? null;
+
+                foreach (array_unique(array_map('intval', $dish['dish_types'] ?? [])) as $dishTypeId) {
+                    if ($dishId) {
+                        $links[] = ['dish_id' => (int) $dishId, 'dish_type_id' => $dishTypeId];
+                    }
+                }
+            }
+
+            foreach (array_chunk($links, 500) as $chunk) {
+                DB::table(self::PIVOT)->insert($chunk);
+            }
+
+            return count($dishes);
+        });
+    }
+
+    // Update many dishes in ONE transaction with a handful of statements (the import: an UPDATE per dish
+    // would be a round trip each on a remote database). Each entry carries `dish_id`, every data column of
+    // `createDish()` except the picture, and `dish_types` = the new type ids, or null to leave the types
+    // alone. The picture and `created_at` are never touched. A dish deleted since the file was checked
+    // stops the whole thing (DishGoneException): an upsert would otherwise write into a deleted row.
+    // Returns how many dishes were updated.
+    public static function updateMany(array $updates): int
+    {
+        if ($updates === []) {
+            return 0;
+        }
+
+        return DB::transaction(function () use ($updates) {
+            $ids = array_map(fn (array $update) => (int) $update['dish_id'], $updates);
+
+            $alive = 0;
+
+            foreach (array_chunk($ids, 500) as $chunk) {
+                $alive += DB::table(self::TABLE)->whereIn('dish_id', $chunk)->whereNull('deleted_at')->lockForUpdate()->count();
+            }
+
+            if ($alive !== count(array_unique($ids))) {
+                throw new DishGoneException();
+            }
+
+            $now = now();
+
+            foreach (array_chunk($updates, 100) as $chunk) {
+                DB::table(self::TABLE)->upsert(
+                    array_map(fn (array $update) => ['dish_id' => (int) $update['dish_id']]
+                        + Arr::except(self::values($update), ['image'])
+                        + ['created_at' => $now, 'updated_at' => $now], $chunk),
+                    ['dish_id'],
+                    [...array_diff(self::COLUMNS, ['image']), 'updated_at'],
+                );
+            }
+
+            // The type links of the dishes whose types changed: one delete, one bulk insert.
+            $retyped = array_values(array_filter($updates, fn (array $update) => $update['dish_types'] !== null));
+
+            foreach (array_chunk($retyped, 500) as $chunk) {
+                DB::table(self::PIVOT)->whereIn('dish_id', array_map(fn (array $update) => (int) $update['dish_id'], $chunk))->delete();
+            }
+
+            $links = [];
+
+            foreach ($retyped as $update) {
+                foreach (array_unique(array_map('intval', $update['dish_types'])) as $dishTypeId) {
+                    $links[] = ['dish_id' => (int) $update['dish_id'], 'dish_type_id' => $dishTypeId];
+                }
+            }
+
+            foreach (array_chunk($links, 500) as $chunk) {
+                DB::table(self::PIVOT)->insert($chunk);
+            }
+
+            return count($updates);
+        });
+    }
+
     // Update a dish; returns the number of changed rows (0 when it is gone).
     public static function updateDish(int $dishId, array $attributes): int
     {
@@ -252,6 +392,24 @@ class Dish extends Model
         }
 
         return $changed;
+    }
+
+    // Soft delete many dishes with ONE statement per 500 (the import's replace mode); returns how many
+    // were removed. Like the Delete button it keeps the row and the picture's file, so nothing is lost
+    // for good.
+    public static function deleteMany(array $dishIds): int
+    {
+        $now = now();
+        $removed = 0;
+
+        foreach (array_chunk(array_map('intval', $dishIds), 500) as $chunk) {
+            $removed += DB::table(self::TABLE)
+                ->whereIn('dish_id', $chunk)
+                ->whereNull('deleted_at')
+                ->update(['deleted_at' => $now, 'updated_at' => $now]);
+        }
+
+        return $removed;
     }
 
     // Soft delete a dish; false when it was already deleted.

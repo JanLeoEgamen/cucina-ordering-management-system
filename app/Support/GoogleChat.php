@@ -252,6 +252,7 @@ class GoogleChat
         'discount_resent' => '🪪',
         'dish_sold_out' => '📢',
         'session_opened' => '🍽️',
+        'dish_added' => '🍲',
         'welcome' => '👋',
         'connection_check' => '✅',
     ];

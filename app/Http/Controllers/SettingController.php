@@ -61,6 +61,10 @@ class SettingController extends Controller implements HasMiddleware
             // Who can be picked to receive every notification, and who is picked now.
             'users' => User::getAll(),
             'watchers' => Setting::notificationWatchers(),
+            // Who is told when a dish is added to the Dish Masterlist.
+            'newDishWatchers' => Setting::newDishWatchers(),
+            'newDishEmail' => Setting::newDishEmail(),
+            'newDishGoogleChat' => Setting::newDishGoogleChat(),
         ]);
     }
 
@@ -89,6 +93,12 @@ class SettingController extends Controller implements HasMiddleware
             // caller - changes nothing.
             'notification_watchers' => ['nullable', 'array'],
             'notification_watchers.*' => ['nullable', 'integer', Rule::exists('users', 'id')->whereNull('deleted_at')],
+            // The users told when a dish is added to the Dish Masterlist (same rules as the list above).
+            'new_dish_watchers' => ['nullable', 'array'],
+            'new_dish_watchers.*' => ['nullable', 'integer', Rule::exists('users', 'id')->whereNull('deleted_at')],
+            // Also email / Google Chat the new dish alert: switches of their own (0 or 1; left out = unchanged).
+            'new_dish_email' => ['sometimes', 'boolean'],
+            'new_dish_google_chat' => ['sometimes', 'boolean'],
             // Also send every notification by email. The form always sends 0 or 1; a
             // caller that leaves it out changes nothing.
             'email_notifications' => ['sometimes', 'boolean'],
@@ -132,6 +142,7 @@ class SettingController extends Controller implements HasMiddleware
             'theme_accent.required' => 'Pick a colour theme.',
             'session_end_time.after' => 'The end time must be after the start time.',
             'notification_watchers.*.exists' => 'One of the picked users does not exist any more.',
+            'new_dish_watchers.*.exists' => 'One of the picked users does not exist any more.',
             'ala_carte_rice_price.decimal' => 'The rice price can have at most 2 decimals.',
             'ala_carte_rice_price.required' => 'Enter how much a plate costs less without rice.',
             'pre_order_min_quantity.min' => 'The minimum pre-order must be at least 1 plate.',
@@ -254,6 +265,15 @@ class SettingController extends Controller implements HasMiddleware
             if ($request->has('notification_watchers')) {
                 Setting::setNotificationWatchers($validated['notification_watchers'] ?? []);
             }
+
+            if ($request->has('new_dish_watchers')) {
+                Setting::setNewDishWatchers($validated['new_dish_watchers'] ?? []);
+            }
+
+            Setting::setNewDishChannels(
+                $request->has('new_dish_email') ? $request->boolean('new_dish_email') : null,
+                $request->has('new_dish_google_chat') ? $request->boolean('new_dish_google_chat') : null,
+            );
         });
     }
 }

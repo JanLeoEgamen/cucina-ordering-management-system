@@ -94,7 +94,51 @@ class DishType extends Model
             ->get(['dish_type_id', 'type_name']);
     }
 
+    // Every type name that is taken, deleted ones included (the form's unique rule counts them too),
+    // keyed by the lower case name: ['id' => .., 'active' => bool, 'deleted' => bool]. For the import.
+    public static function namesInUse(): array
+    {
+        $names = [];
+
+        foreach (DB::table(self::TABLE)->get(['dish_type_id', 'type_name', 'is_active', 'deleted_at']) as $row) {
+            $names[mb_strtolower(trim((string) $row->type_name))] = [
+                'id' => (int) $row->dish_type_id,
+                'active' => (bool) $row->is_active,
+                'deleted' => $row->deleted_at !== null,
+            ];
+        }
+
+        return $names;
+    }
+
     /* -------- Writes -------- */
+
+    // Create many available dish types with a few statements (the import) and return their ids keyed
+    // by the lower case name. Each entry: type_name, description. The names must be unique (checked).
+    public static function createMany(array $types): array
+    {
+        if ($types === []) {
+            return [];
+        }
+
+        return DB::transaction(function () use ($types) {
+            $now = now();
+            $after = (int) DB::table(self::TABLE)->max('dish_type_id');
+
+            DB::table(self::TABLE)->insert(array_map(
+                fn (array $type) => self::values($type + ['is_active' => true]) + ['created_at' => $now, 'updated_at' => $now],
+                $types
+            ));
+
+            $ids = [];
+
+            foreach (DB::table(self::TABLE)->where('dish_type_id', '>', $after)->get(['dish_type_id', 'type_name']) as $row) {
+                $ids[mb_strtolower(trim((string) $row->type_name))] = (int) $row->dish_type_id;
+            }
+
+            return $ids;
+        });
+    }
 
     // Create a dish type and return its id.
     public static function createDishType(array $attributes): int
