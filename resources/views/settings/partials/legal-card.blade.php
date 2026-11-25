@@ -33,9 +33,10 @@
 
         <div class="divide-y divide-gray-100 dark:divide-gray-700/70">
             <x-settings.field :label="__('Page text')" :for="$page . '-content'" stacked
-                :hint="($legal['custom']
-                    ? __('This is your own text. Empty the box and save to go back to the built-in text.')
-                    : __('This is the built-in text: edit it to make it your own, and check that it matches how you really run your business.'))
+                :hint="$legal['custom'] ? __('This is your own text.') : __('This is the built-in text: edit it to make it your own.')"
+                :detail="($legal['custom']
+                    ? __('Empty the box and save to go back to the built-in text.')
+                    : __('Check that it matches how you really run your business.'))
                     . ' ' . __('Write in Markdown: ## for a heading, - for a list item, **bold**, [link text](https://example.com). Typing :tag shows the app name. HTML is not allowed.', ['tag' => '{app_name}'])">
                 <textarea name="{{ $field }}_content" id="{{ $page }}-content" rows="14" maxlength="{{ \App\Models\Setting::LEGAL_MAX_LENGTH }}"
                           spellcheck="true" @disabled(! $canEdit)

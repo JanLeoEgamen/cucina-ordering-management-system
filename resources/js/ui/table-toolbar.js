@@ -177,7 +177,7 @@ export function initTableToolbar(table, root = document.querySelector('[data-tab
     }
 
     document.addEventListener('click', (event) => {
-        if (!event.target.closest('[data-popover], [data-table-sort-toggle], [data-table-filter-toggle], [data-table-export-toggle]')) {
+        if (!event.target.closest('[data-popover], [data-select-list], [data-table-sort-toggle], [data-table-filter-toggle], [data-table-export-toggle]')) {
             closePopovers();
         }
     });
