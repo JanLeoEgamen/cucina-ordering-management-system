@@ -1,6 +1,14 @@
 <x-app-layout>
     <x-slot name="header">
         <x-page-header title="{{ __('Dish Masterlist') }}" action-label="{{ __('Add Dish') }}" action-id="create-dish">
+            {{-- Import dishes (with their dish types) from an Excel file: a modal wizard, wired by dishes.js. --}}
+            @can('create dishes')
+                <button type="button" id="import-dishes"
+                        class="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:focus:ring-gray-700">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v12m0 0l-4-4m4 4l4-4" /></svg>
+                    {{ __('Import') }}
+                </button>
+            @endcan
             {{-- Dish types are managed in a drawer here instead of on a page of their own. --}}
             @can('view dish-types')
                 <button type="button" id="manage-dish-types"
@@ -225,6 +233,209 @@
             </form>
         </div>
     </x-ui.drawer>
+
+    {{-- Import wizard (a modal, four steps): 1 what to do, 2 get the template that fits it, 3 upload and
+         check the file, 4 review what it would do and confirm. One file carries the dishes AND their dish
+         types; it is all or nothing, and the rows to fix are listed in the red box of step 3. Driven by
+         resources/js/pages/dishes.js (`goTo()`); every part of it may be missing for people without the
+         matching permission. --}}
+    @can('create dishes')
+        @php
+            $canUpdate = auth()->user()->can('edit dishes');
+            $canReplace = $canUpdate && auth()->user()->can('delete dishes');
+            $canSeeMenu = auth()->user()->can('view dishes');
+            $download = 'inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-4';
+            $downloadMain = $download . ' bg-indigo-600 text-white shadow-sm hover:bg-indigo-700 focus:ring-gray-300 dark:focus:ring-gray-600';
+            $downloadSide = $download . ' border border-gray-200 bg-white font-medium text-gray-700 hover:bg-gray-50 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:focus:ring-gray-700';
+            $downloadIcon = '<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v12m0 0l-4-4m4 4l4-4" /></svg>';
+            $card = 'block h-full rounded-xl border border-gray-200 p-4 text-sm transition peer-checked:border-indigo-600 peer-checked:bg-indigo-50 peer-checked:ring-2 peer-checked:ring-indigo-200 peer-focus-visible:ring-4 peer-focus-visible:ring-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/40 dark:peer-checked:bg-indigo-900/20 dark:peer-checked:ring-indigo-900/50';
+            $cardDanger = 'block h-full rounded-xl border border-red-200 p-4 text-sm transition peer-checked:border-red-600 peer-checked:bg-red-50 peer-checked:ring-2 peer-checked:ring-red-200 peer-focus-visible:ring-4 peer-focus-visible:ring-red-200 hover:bg-red-50/60 dark:border-red-900/60 dark:hover:bg-red-900/10 dark:peer-checked:bg-red-900/20 dark:peer-checked:ring-red-900/50';
+            $tip = 'list-decimal space-y-1 pl-5 text-xs text-gray-600 dark:text-gray-400';
+        @endphp
+
+        <x-ui.modal name="import-dishes-modal" size="2xl">
+            <div class="border-b border-gray-100 px-6 pb-4 pt-5 dark:border-gray-700">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Import dishes') }}</h3>
+                    <button type="button"
+                            class="rounded-full border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-100 dark:border-gray-600 hover:text-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                            x-on:click="show = false">
+                        <span class="sr-only">{{ __('Close') }}</span>
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                {{-- Where the person is: the number of the step, its name, a line between them. --}}
+                <ol class="mt-4 flex items-center gap-2 text-xs" aria-label="{{ __('Steps') }}">
+                    @foreach ([1 => __('What to do'), 2 => __('Template'), 3 => __('Upload'), 4 => __('Review')] as $number => $name)
+                        <li data-import-stepper="{{ $number }}" class="flex items-center gap-2 {{ $number < 4 ? 'flex-1' : '' }}">
+                            <span data-import-dot class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-200 text-[11px] font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ $number }}</span>
+                            <span data-import-name class="hidden font-medium text-gray-500 sm:inline dark:text-gray-400">{{ $name }}</span>
+                            @if ($number < 4)
+                                <span class="h-px flex-1 bg-gray-200 dark:bg-gray-700" aria-hidden="true"></span>
+                            @endif
+                        </li>
+                    @endforeach
+                </ol>
+            </div>
+
+            <form id="import-dishes-form" method="POST" action="{{ route('dishes.import') }}" enctype="multipart/form-data"
+                  data-modal="import-dishes-modal"
+                  data-loading-label="{{ __('Importing...') }}"
+                  data-checking-label="{{ __('Checking...') }}"
+                  data-choose-file="{{ __('Choose the Excel file to import.') }}"
+                  data-failed="{{ __('The file could not be imported. Try again.') }}">
+                @csrf
+                {{-- 1 while checking the file (nothing is saved), 0 on the final confirm. --}}
+                <input type="hidden" name="preview" value="1">
+
+                <div class="px-6 py-5">
+                    {{-- Step 1: what should the import do? --}}
+                    <section data-import-step="1">
+                        <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('What do you want to do?') }}</p>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Pick one. The next step gives you the template that fits it.') }}</p>
+
+                        <div class="mt-4 grid gap-3 sm:grid-cols-1">
+                            <label class="relative cursor-pointer">
+                                <input type="radio" name="mode" value="add" checked class="peer sr-only">
+                                <span class="{{ $card }}">
+                                    <span data-mode-title class="block font-semibold text-gray-900 dark:text-white">{{ __('Add new dishes') }}</span>
+                                    <span class="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{{ __('Adds the dishes that are not on the menu yet. A dish that is already there is skipped and listed, never changed.') }}</span>
+                                </span>
+                            </label>
+
+                            @if ($canUpdate)
+                                <label class="relative cursor-pointer">
+                                    <input type="radio" name="mode" value="update" class="peer sr-only">
+                                    <span class="{{ $card }}">
+                                        <span data-mode-title class="block font-semibold text-gray-900 dark:text-white">{{ __('Update existing dishes') }}</span>
+                                        <span class="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{{ __('Changes the dishes already on the menu (price, name, types...) and adds the new ones. Dishes that are not in the file are left alone: nothing is deleted.') }}</span>
+                                    </span>
+                                </label>
+                            @endif
+
+                            @if ($canReplace)
+                                <label class="relative cursor-pointer">
+                                    <input type="radio" name="mode" value="replace" class="peer sr-only">
+                                    <span class="{{ $cardDanger }}">
+                                        <span data-mode-title class="block font-semibold text-red-700 dark:text-red-300">{{ __('Replace the entire menu') }}</span>
+                                        <span class="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{{ __('The menu becomes exactly your file. Dishes in the file are kept (their orders and sessions stay linked) or added, and every dish that is NOT in the file is deleted.') }}</span>
+                                    </span>
+                                </label>
+                            @endif
+                        </div>
+                    </section>
+
+                    {{-- Step 2: the template that fits the choice. Only the help of the chosen mode is shown. --}}
+                    <section data-import-step="2" class="hidden">
+                        <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Get your template') }}</p>
+
+                        <div data-import-help="add" class="mt-3 space-y-4">
+                            <p class="text-sm text-gray-600 dark:text-gray-300">{{ __('Start from the blank template and type the new dishes, one per row.') }}</p>
+                            <div class="flex flex-wrap gap-2">
+                                <a href="{{ route('dishes.import.template') }}" download class="{{ $downloadMain }}">{!! $downloadIcon !!} {{ __('Download blank template') }}</a>
+                            </div>
+                            <ol class="{{ $tip }}">
+                                <li>{{ __('Sheet "Dish Types": add any new dish type on the next empty row.') }}</li>
+                                <li>{{ __('Sheet "Dishes": one dish per row. Pick its Dish Type from the dropdown (for more than one, separate them with commas).') }}</li>
+                                <li>{{ __('Save it as .xlsx, then continue.') }}</li>
+                            </ol>
+                        </div>
+
+                        <div data-import-help="update" class="mt-3 hidden space-y-4">
+                            <p class="text-sm text-gray-600 dark:text-gray-300">
+                                {{ $canSeeMenu ? __('Download your current menu, change what you need and add new dishes on the empty rows below.') : __('Download the blank template and type the dishes to change: a row is matched to a dish by its name.') }}
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                @if ($canSeeMenu)
+                                    <a href="{{ route('dishes.import.template', ['current' => 1]) }}" download class="{{ $downloadMain }}">{!! $downloadIcon !!} {{ __('Download my current menu') }}</a>
+                                    <a href="{{ route('dishes.import.template') }}" download class="{{ $downloadSide }}">{{ __('Blank template instead') }}</a>
+                                @else
+                                    <a href="{{ route('dishes.import.template') }}" download class="{{ $downloadMain }}">{!! $downloadIcon !!} {{ __('Download blank template') }}</a>
+                                @endif
+                            </div>
+                            <ol class="{{ $tip }}">
+                                @if ($canSeeMenu)
+                                    <li>{{ __('Change the cells of the dishes you want to update. Leave the other rows alone.') }}</li>
+                                    <li>{{ __('Do not change the grey ID column: it tells the app which dish a row is. Leave it empty on a new dish.') }}</li>
+                                @else
+                                    <li>{{ __('Type the dish name exactly as it is on the menu, with the new values on its row.') }}</li>
+                                @endif
+                                <li>{{ __('Save it as .xlsx, then continue.') }}</li>
+                            </ol>
+                        </div>
+
+                        <div data-import-help="replace" class="mt-3 hidden space-y-4">
+                            <div class="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800 dark:bg-red-900/30 dark:text-red-200">
+                                {{ __('Every dish that is not in your file will be deleted. You see exactly which ones before anything is saved.') }}
+                            </div>
+                            <p class="text-sm text-gray-600 dark:text-gray-300">
+                                {{ $canSeeMenu ? __('Download your current menu, delete the rows of the dishes you want gone, change what you need and add new rows. Or start from the blank template and type the whole menu.') : __('Download the blank template and type the whole menu: it becomes the menu.') }}
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                @if ($canSeeMenu)
+                                    <a href="{{ route('dishes.import.template', ['current' => 1]) }}" download class="{{ $downloadMain }}">{!! $downloadIcon !!} {{ __('Download my current menu') }}</a>
+                                    <a href="{{ route('dishes.import.template') }}" download class="{{ $downloadSide }}">{{ __('Blank template instead') }}</a>
+                                @else
+                                    <a href="{{ route('dishes.import.template') }}" download class="{{ $downloadMain }}">{!! $downloadIcon !!} {{ __('Download blank template') }}</a>
+                                @endif
+                            </div>
+                            <ol class="{{ $tip }}">
+                                <li>{{ __('A dish that stays keeps its orders and sessions (matched by the ID, or by its name when the ID is empty).') }}</li>
+                                <li>{{ __('Save it as .xlsx, then continue.') }}</li>
+                            </ol>
+                        </div>
+
+                        <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">{{ __('Already have your file? Just press Next.') }}</p>
+                    </section>
+
+                    {{-- Step 3: the file. "Check file" reads it and says what it would do; nothing is saved yet. --}}
+                    <section data-import-step="3" class="hidden">
+                        <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Upload your file') }}</p>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            {{ __('You chose:') }} <span data-import-mode-label class="font-medium text-gray-800 dark:text-gray-200"></span>
+                        </p>
+
+                        <div id="import-dishes-errors" class="mt-3 hidden max-h-56 space-y-1 overflow-y-auto rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300"></div>
+
+                        <div class="mt-4">
+                            <label for="import-dishes-file" class="sr-only">{{ __('Excel file') }}</label>
+                            <input type="file" name="file" id="import-dishes-file"
+                                   accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                   class="block w-full cursor-pointer rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-700 file:mr-4 file:cursor-pointer file:border-0 file:bg-gray-200 file:px-4 file:py-2.5 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700/60 dark:text-gray-200 dark:file:bg-gray-600 dark:file:text-gray-100 dark:hover:file:bg-gray-500 dark:focus:ring-gray-600">
+                        </div>
+                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            {{ __('Excel (.xlsx), up to 2 MB and 2,000 dishes. Pressing Check file only reads it: nothing is saved yet. If a row has a problem you are told which one to fix. New dish types need the permission to add dish types. Add pictures afterwards with Edit.') }}
+                        </p>
+                    </section>
+
+                    {{-- Step 4: what the file would do. Confirm saves it (the same file is sent again). --}}
+                    <section data-import-step="4" class="hidden">
+                        <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Review before saving') }}</p>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            {{ __('You chose:') }} <span data-import-mode-label class="font-medium text-gray-800 dark:text-gray-200"></span>
+                        </p>
+                        <div id="import-dishes-summary" class="mt-3 rounded-lg bg-emerald-50 p-4 text-sm leading-6 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"></div>
+                        <p id="import-dishes-warning" class="mt-3 hidden text-xs font-medium text-red-700 dark:text-red-300">{{ __('The dishes listed as removed will be deleted from the menu when you confirm.') }}</p>
+                    </section>
+                </div>
+
+                <div class="flex items-center justify-between gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-700">
+                    <button type="button" id="import-dishes-back" class="{{ $cancelButton }} invisible">{{ __('Back') }}</button>
+                    <div class="flex gap-3">
+                        <button type="button" class="{{ $cancelButton }}" x-on:click="show = false">{{ __('Cancel') }}</button>
+                        <button type="button" id="import-dishes-next" class="{{ $submitButton }}">{{ __('Next') }}</button>
+                        <button type="submit" id="import-dishes-submit" class="{{ $submitButton }} hidden"
+                                data-check-label="{{ __('Check file') }}"
+                                data-confirm-label="{{ __('Confirm import') }}"
+                                data-replace-label="{{ __('Confirm: replace the menu') }}">{{ __('Check file') }}</button>
+                    </div>
+                </div>
+            </form>
+        </x-ui.modal>
+    @endcan
 
     {{-- Edit drawer --}}
     <x-ui.drawer name="edit-dish-drawer" placement="right" size="lg">

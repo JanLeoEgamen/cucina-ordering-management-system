@@ -694,6 +694,185 @@ const start = () => {
         emit('open-drawer', createForm.dataset.drawer);
     });
 
+    /* ---- import from Excel (a four step modal) ----------------------------- */
+
+    // Steps: 1 what to do (the `mode`), 2 the template that fits it, 3 the file ("Check file" reads it and
+    // saves nothing: preview=1), 4 review what it would do and confirm (the same file is sent again with
+    // preview=0). The modal is only drawn for people who can create dishes, so every part may be missing.
+    const importButton = document.querySelector('#import-dishes');
+    const importForm = document.querySelector('#import-dishes-form');
+    const importErrors = document.querySelector('#import-dishes-errors');
+    const importFile = document.querySelector('#import-dishes-file');
+    const importSubmit = document.querySelector('#import-dishes-submit');
+    const importNext = document.querySelector('#import-dishes-next');
+    const importBack = document.querySelector('#import-dishes-back');
+    const importSummary = document.querySelector('#import-dishes-summary');
+    const importWarning = document.querySelector('#import-dishes-warning');
+    const importPreview = importForm?.elements.preview;
+
+    const LAST_STEP = 4;
+    let importStep = 1;
+    let importing = false;
+
+    // The chosen mode (add / update / replace) and the words of its card.
+    const importMode = () => importForm?.elements.mode?.value || 'add';
+    const importModeName = () => importForm?.querySelector('input[name="mode"]:checked')?.closest('label')?.querySelector('[data-mode-title]')?.textContent.trim() ?? '';
+
+    // Replacing the menu deletes dishes: its summary and its confirm button are red so it is not missed.
+    const summaryNormal = ['bg-emerald-50', 'text-emerald-800', 'dark:bg-emerald-900/30', 'dark:text-emerald-200'];
+    const summaryDanger = ['bg-red-50', 'text-red-800', 'dark:bg-red-900/30', 'dark:text-red-200'];
+
+    // The look of the numbered dots: the step you are on, the ones behind you, the ones ahead.
+    const dotNow = ['bg-accent', 'text-accent-on'];
+    const dotDone = ['bg-indigo-600', 'text-white'];
+    const dotTodo = ['bg-gray-200', 'text-gray-600', 'dark:bg-gray-700', 'dark:text-gray-300'];
+
+    const goTo = (step) => {
+        if (!importForm) {
+            return;
+        }
+
+        importStep = Math.min(Math.max(step, 1), LAST_STEP);
+
+        importForm.querySelectorAll('[data-import-step]').forEach((section) => {
+            section.classList.toggle('hidden', Number(section.dataset.importStep) !== importStep);
+        });
+
+        // Step 2 shows the help of the chosen mode only.
+        importForm.querySelectorAll('[data-import-help]').forEach((help) => {
+            help.classList.toggle('hidden', help.dataset.importHelp !== importMode());
+        });
+
+        importForm.querySelectorAll('[data-import-mode-label]').forEach((label) => {
+            label.textContent = importModeName();
+        });
+
+        document.querySelectorAll('[data-import-stepper]').forEach((item) => {
+            const number = Number(item.dataset.importStepper);
+            const dot = item.querySelector('[data-import-dot]');
+            const name = item.querySelector('[data-import-name]');
+
+            dot?.classList.remove(...dotNow, ...dotDone, ...dotTodo);
+            dot?.classList.add(...(number === importStep ? dotNow : number < importStep ? dotDone : dotTodo));
+
+            if (dot) {
+                dot.textContent = number < importStep ? '✓' : String(number);
+            }
+
+            // Only the current step keeps its name on a phone; every name shows from `sm` up.
+            name?.classList.toggle('font-semibold', number === importStep);
+            name?.classList.toggle('text-gray-900', number === importStep);
+            name?.classList.toggle('dark:text-white', number === importStep);
+        });
+
+        importBack?.classList.toggle('invisible', importStep === 1);
+        importNext?.classList.toggle('hidden', importStep > 2);
+        importSubmit?.classList.toggle('hidden', importStep < 3);
+
+        if (importSubmit) {
+            importSubmit.textContent = importStep === 3
+                ? importSubmit.dataset.checkLabel
+                : (importMode() === 'replace' ? importSubmit.dataset.replaceLabel : importSubmit.dataset.confirmLabel);
+
+            // The confirm button of a replace is red.
+            const danger = importStep === 4 && importMode() === 'replace';
+
+            importSubmit.classList.toggle('bg-red-600', danger);
+            importSubmit.classList.toggle('hover:bg-red-700', danger);
+            importSubmit.classList.toggle('bg-indigo-600', !danger);
+            importSubmit.classList.toggle('hover:bg-indigo-700', !danger);
+        }
+
+        if (importPreview) {
+            importPreview.value = importStep === LAST_STEP ? '0' : '1';
+        }
+
+        if (importStep !== 3) {
+            showErrors(importErrors, []);
+        }
+    };
+
+    importButton?.addEventListener('click', () => {
+        importForm?.reset();
+        goTo(1);
+        emit('open-modal', importForm?.dataset.modal ?? 'import-dishes-modal');
+    });
+
+    importNext?.addEventListener('click', () => goTo(importStep + 1));
+    importBack?.addEventListener('click', () => goTo(importStep - 1));
+
+    // Enter in the form must not save anything before the last two steps: it only moves on.
+    importForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        if (importStep < 3) {
+            goTo(importStep + 1);
+
+            return;
+        }
+
+        // A second click while the file is being read would import it twice.
+        if (importing) {
+            return;
+        }
+
+        if (!importFile?.files?.length) {
+            goTo(3);
+            showErrors(importErrors, [importForm.dataset.chooseFile]);
+
+            return;
+        }
+
+        importing = true;
+        showErrors(importErrors, []);
+
+        const checking = importStep === 3;
+
+        importPreview.value = checking ? '1' : '0';
+        importSubmit.dataset.loadingLabel = checking ? importForm.dataset.checkingLabel : importForm.dataset.loadingLabel;
+
+        const done = busy(importSubmit);
+
+        try {
+            const { ok, payload } = await send(importForm);
+
+            if (!ok) {
+                // Nothing was imported: back to the file, with one line per row to fix.
+                const list = messages(payload);
+
+                goTo(3);
+                showErrors(importErrors, list.length ? list : [importForm.dataset.failed]);
+
+                return;
+            }
+
+            if (checking) {
+                // What the file would do. Nothing is saved until the person confirms.
+                const replacing = importMode() === 'replace';
+
+                importSummary.textContent = payload.message;
+                importSummary.classList.remove(...(replacing ? summaryNormal : summaryDanger));
+                importSummary.classList.add(...(replacing ? summaryDanger : summaryNormal));
+                importWarning?.classList.toggle('hidden', !replacing);
+                goTo(4);
+
+                return;
+            }
+
+            emit('close-modal', importForm.dataset.modal);
+            showToast(payload.message);
+            importForm.reset();
+            goTo(1);
+            reload();
+        } finally {
+            importing = false;
+            done();
+
+            // done() puts back the label the button had when the request started: show the one of the step.
+            goTo(importStep);
+        }
+    });
+
     // One click = one action: a button ignores further clicks for this long, so
     // hammering Edit or Delete cannot fire a burst of requests or modal opens.
     const CLICK_COOLDOWN_MS = 600;

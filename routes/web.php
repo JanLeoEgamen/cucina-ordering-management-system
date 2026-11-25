@@ -66,6 +66,9 @@ Route::middleware(['auth', 'profile.complete'])->group(function () {
     // Dishes
     Route::get('/dishes', [DishController::class, 'index'])->name('dishes.index');
     Route::post('/dishes', [DishController::class, 'store'])->name('dishes.store');
+    // Import dishes (with their dish types) from an Excel file: the template to fill in, and the upload.
+    Route::get('/dishes/import/template', [DishController::class, 'importTemplate'])->name('dishes.import.template');
+    Route::post('/dishes/import', [DishController::class, 'import'])->name('dishes.import');
     Route::get('/dishes/{id}/edit', [DishController::class, 'edit'])
         ->whereNumber('id')->name('dishes.edit');
     Route::put('/dishes/{id}', [DishController::class, 'update'])

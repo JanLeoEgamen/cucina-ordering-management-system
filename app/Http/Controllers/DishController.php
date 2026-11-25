@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\DishGoneException;
 use App\Models\Dish;
 use App\Models\DishType;
+use App\Support\DishImport;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Yajra\DataTables\Facades\DataTables;
 
 class DishController extends Controller implements HasMiddleware
@@ -18,7 +22,9 @@ class DishController extends Controller implements HasMiddleware
     {
         return [
             new Middleware('permission:view dishes', only: ['index']),
-            new Middleware('permission:create dishes', only: ['store']),
+            new Middleware('permission:create dishes', only: ['store', 'importTemplate', 'import']),
+            // Reading a spreadsheet is the heaviest thing this page does: a few files a minute are plenty.
+            new Middleware('throttle:20,1', only: ['import']), // a check and a confirm are two requests
             new Middleware('permission:edit dishes', only: ['edit', 'update']),
             new Middleware('permission:delete dishes', only: ['destroy']),
         ];
@@ -116,6 +122,74 @@ class DishController extends Controller implements HasMiddleware
         Dish::createDish($validated);
 
         return $this->successResponse('Dish created successfully.');
+    }
+
+    // The Excel template of the import: the instructions, the Dish Types table (the available types are
+    // already in it; new ones are typed below) and the Dishes table whose type dropdown reads from it.
+    // `?current=1` fills the Dishes table with the menu as it is now (with an ID column), to be edited and
+    // sent back with "Add new and update existing"; that reads the whole menu, so it also needs `view dishes`.
+    public function importTemplate(Request $request)
+    {
+        $current = $request->boolean('current');
+
+        abort_if($current && ! $request->user()->can('view dishes'), 403);
+
+        $book = DishImport::template(DishType::activeOptions(), $current ? Dish::forImport() : null);
+
+        return response()->streamDownload(function () use ($book) {
+            (new Xlsx($book))->save('php://output');
+        }, $current ? 'dish-menu.xlsx' : 'dish-import-template.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    // Import dishes (and their dish types) from an Excel file. All or nothing: any problem in any row
+    // stores nothing and answers 422 with one message per row, so the file can be fixed and sent again.
+    // `mode` = add (default: dishes already on the menu are skipped), update (they are updated too, which
+    // also needs `edit dishes`) or replace (the file becomes the whole menu: dishes it leaves out are
+    // deleted, which also needs `delete dishes`). `preview` = only check the file and say what it WOULD do;
+    // nothing is stored.
+    public function import(Request $request)
+    {
+        // The extension is checked here; whether it really is a workbook is what reading it tells.
+        $request->validate([
+            'file' => ['required', 'file', 'extensions:xlsx', 'max:2048'],
+            'mode' => ['nullable', 'in:' . DishImport::MODE_ADD . ',' . DishImport::MODE_UPDATE . ',' . DishImport::MODE_REPLACE],
+            'preview' => ['nullable', 'boolean'],
+        ], [
+            'file.required' => 'Choose the Excel file to import.',
+            'file.extensions' => 'The file must be an Excel workbook (.xlsx). Download the template to start.',
+            'file.max' => 'The file may not be larger than 2 MB.',
+        ]);
+
+        $mode = in_array($request->input('mode'), [DishImport::MODE_UPDATE, DishImport::MODE_REPLACE], true)
+            ? $request->input('mode')
+            : DishImport::MODE_ADD;
+
+        // Changing a dish that exists is editing it, so it needs the edit permission on top of create;
+        // replacing the menu also deletes the dishes the file leaves out, so it needs the delete permission too.
+        abort_if($mode !== DishImport::MODE_ADD && ! $request->user()->can('edit dishes'), 403);
+        abort_if($mode === DishImport::MODE_REPLACE && ! $request->user()->can('delete dishes'), 403);
+
+        // Adding dish types is its own permission: a person with only `create dishes` may import dishes
+        // that use the existing types, but not make the file invent new ones.
+        $result = DishImport::read($request->file('file')->getRealPath(), (bool) $request->user()->can('create dish-types'), $mode);
+
+        if ($result['errors']) {
+            throw ValidationException::withMessages(['file' => $result['errors']]);
+        }
+
+        if ($request->boolean('preview')) {
+            return $this->successResponse(DishImport::summary($result, false));
+        }
+
+        try {
+            DishImport::store($result);
+        } catch (DishGoneException) {
+            throw ValidationException::withMessages(['file' => ['A dish in the file was deleted while it was being imported. Nothing was imported: download the template again.']]);
+        }
+
+        return $this->successResponse(DishImport::summary($result, true));
     }
 
     // Update a dish.
