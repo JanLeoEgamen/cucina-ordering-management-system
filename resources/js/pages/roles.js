@@ -211,6 +211,33 @@ const start = () => {
             + '</span>';
     };
 
+    // The view drawer prints the permissions the way the picker groups them: a
+    // section per area, a row per resource, its granted actions as chips.
+    const groupedChips = (groups, fallbackNames) => {
+        if (!groups || groups.length === 0) {
+            return chips(fallbackNames);
+        }
+
+        return '<div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">'
+            + groups.map((group) => {
+                const total = group.resources.reduce((sum, row) => sum + row.permissions.length, 0);
+
+                return '<section class="border-b border-gray-100 last:border-b-0 dark:border-gray-700">'
+                    + '<div class="flex items-center gap-2 bg-gray-50 px-3 py-2 dark:bg-gray-900/40">'
+                    + '<span class="text-sm font-semibold text-gray-900 dark:text-white">' + escapeHtml(group.label) + '</span>'
+                    + '<span class="text-xs tabular-nums text-gray-500 dark:text-gray-400">' + total + '</span>'
+                    + '</div>'
+                    + '<ul class="px-3 py-1">'
+                    + group.resources.map((row) => '<li class="flex items-start gap-3 py-1.5">'
+                        + '<span class="w-28 flex-shrink-0 pt-0.5 text-sm text-gray-800 dark:text-gray-100">' + escapeHtml(row.label) + '</span>'
+                        + '<span class="flex flex-wrap gap-1">'
+                        + row.permissions.map((permission) => '<span title="' + escapeHtml(permission.name) + '" class="inline-flex items-center rounded-full bg-accent px-2.5 py-0.5 text-xs font-medium text-accent-on">' + escapeHtml(permission.action) + '</span>').join('')
+                        + '</span></li>').join('')
+                    + '</ul></section>';
+            }).join('')
+            + '</div>';
+    };
+
     // The picker's checkboxes are named `permissions[]` and are the truth for
     // the selection, so filling and clearing goes through them.
     const eachBox = (form, callback) => {
@@ -322,7 +349,7 @@ const start = () => {
                 viewProtected?.classList.toggle('hidden', ! record.is_protected);
 
                 if (viewPermissions) {
-                    viewPermissions.innerHTML = chips(record.permission_names ?? []);
+                    viewPermissions.innerHTML = groupedChips(record.permission_groups ?? [], record.permission_names ?? []);
                 }
 
                 showErrors(viewErrors, []);
