@@ -37,7 +37,7 @@ const ICONS = {
 
 // Round icon, and the colour of the countdown bar.
 const TONES = {
-    success: { icon: 'bg-gray-900 text-white dark:bg-mist dark:text-ink', bar: 'bg-gray-900 dark:bg-mist' },
+    success: { icon: 'bg-accent text-accent-on', bar: 'bg-accent' },
     error: { icon: 'bg-red-600 text-white dark:bg-red-500', bar: 'bg-red-600 dark:bg-red-500' },
     warning: { icon: 'bg-amber-500 text-white', bar: 'bg-amber-500' },
 };

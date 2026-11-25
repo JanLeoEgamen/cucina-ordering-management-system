@@ -225,11 +225,12 @@ class ThemeShellTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/data-nav-group="ordering"\s+data-has-active/', $dishes);
     }
 
-    public function test_the_active_link_is_the_ink_pill(): void
+    // The accent is ink on the default theme, and the admin's colour otherwise (the Theme class in app/Support).
+    public function test_the_active_link_is_the_accent_pill(): void
     {
         $this->actingAs($this->superAdmin())
             ->get(route('menu.index'))
             ->assertOk()
-            ->assertSee('bg-gray-900 text-white shadow-sm dark:bg-mist dark:text-ink', false);
+            ->assertSee('bg-accent text-accent-on shadow-sm', false);
     }
 }

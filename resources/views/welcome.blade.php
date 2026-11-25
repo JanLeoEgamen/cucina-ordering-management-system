@@ -5,7 +5,7 @@
 --}}
 @php
     $signedIn = auth()->check();
-    $primary = 'inline-flex items-center justify-center gap-2 rounded-full bg-gray-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-300 dark:bg-mist dark:text-ink dark:hover:bg-white dark:focus:ring-gray-600';
+    $primary = 'inline-flex items-center justify-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-semibold text-accent-on shadow-sm transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-gray-300 dark:focus:ring-gray-600';
     $outline = 'inline-flex items-center justify-center gap-2 rounded-full border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-800 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 dark:focus:ring-gray-700';
     // The same two buttons on the ink hero: mist fill, and a white outline.
     $heroPrimary = 'inline-flex items-center justify-center gap-2 rounded-full bg-mist px-6 py-3 text-sm font-semibold text-ink shadow-sm transition hover:bg-white focus:outline-none focus:ring-4 focus:ring-white/30';
@@ -91,17 +91,20 @@
 
         <main class="mx-auto max-w-6xl space-y-6 px-4 pb-16 sm:px-6 lg:px-8">
             {{-- Hero --}}
-            <section class="relative overflow-hidden rounded-3xl bg-ink p-7 text-white shadow-card sm:p-12 lg:p-14 dark:bg-gray-800 dark:ring-1 dark:ring-white/10">
+            <section class="relative overflow-hidden rounded-3xl bg-hero p-7 text-white shadow-card sm:p-12 lg:p-14 dark:bg-gray-800 dark:ring-1 dark:ring-white/10">
                 @if ($collage)
-                    {{-- The dishes, scrolling up behind the right side of the hero. The left edge fades into
-                         the ink so the headline stays readable, and the order ticket floats over them.
+                    {{-- The dishes, scrolling up behind the right side of the hero. The left edge fades out
+                         so the headline stays readable, and the order ticket floats over them.
                          Decoration only (the same collage as the sign-in panel). --}}
-                    <div class="pointer-events-none absolute inset-y-0 right-0 hidden w-[62%] overflow-hidden lg:block" aria-hidden="true">
-                        <x-ui.dish-collage :columns="$collage" />
-
-                        <div class="absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-ink via-ink/75 to-transparent dark:from-gray-800 dark:via-gray-800/75"></div>
-                        <div class="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-ink/80 to-transparent dark:from-gray-800/80"></div>
-                        <div class="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-ink/80 to-transparent dark:from-gray-800/80"></div>
+                    {{-- The collage is FADED OUT WITH A MASK (left edge, top and bottom), not covered with a coat of paint: the
+                         hero's background is the theme's gradient, and a solid fade of one colour left a hard seam where
+                         it ended. A mask lets the tiles dissolve into whatever is behind them. --}}
+                    <div class="pointer-events-none absolute inset-y-0 right-0 hidden w-[62%] overflow-hidden lg:block" aria-hidden="true"
+                         style="-webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.45) 22%, #000 55%); mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.45) 22%, #000 55%);">
+                        <div class="absolute inset-0"
+                             style="-webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 82%, transparent 100%); mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 82%, transparent 100%);">
+                            <x-ui.dish-collage :columns="$collage" />
+                        </div>
                     </div>
                 @endif
 
@@ -173,7 +176,7 @@
                             <ol class="mt-6 space-y-3.5 border-t border-gray-100 pt-5 dark:border-gray-800">
                                 @foreach ([[__('Order placed'), true], [__('Payment verified'), true], [__('Ready for pickup'), false]] as [$step, $done])
                                     <li class="flex items-center gap-3 text-sm {{ $done ? 'font-medium' : 'text-gray-400 dark:text-gray-500' }}">
-                                        <span class="flex h-5 w-5 items-center justify-center rounded-full {{ $done ? 'bg-gray-900 text-white dark:bg-mist dark:text-ink' : 'border border-gray-300 dark:border-gray-600' }}">
+                                        <span class="flex h-5 w-5 items-center justify-center rounded-full {{ $done ? 'bg-accent text-accent-on' : 'border border-gray-300 dark:border-gray-600' }}">
                                             @if ($done)
                                                 <svg class="h-3 w-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4.5 10.5 3.5 3.5 7.5-8" /></svg>
                                             @endif
@@ -261,7 +264,7 @@
                     ] as $index => [$title, $text, $icon])
                         <li class="animate-fade-up rounded-2xl bg-white p-6 shadow-card transition duration-200 hover:-translate-y-0.5 hover:shadow-card-lift dark:bg-gray-800" style="animation-delay: {{ $index * 60 }}ms">
                             <div class="flex items-center justify-between">
-                                <span class="flex h-11 w-11 items-center justify-center rounded-full bg-gray-900 text-white dark:bg-mist dark:text-ink">
+                                <span class="flex h-11 w-11 items-center justify-center rounded-full bg-accent text-accent-on">
                                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="{{ $icon }}" /></svg>
                                 </span>
                                 <span class="text-3xl font-bold tabular-nums text-gray-200 dark:text-gray-700">0{{ $index + 1 }}</span>

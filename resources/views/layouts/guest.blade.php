@@ -41,7 +41,7 @@
         <div class="min-h-screen lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
             {{-- Brand panel (desktop). With dishes to show it is a collage of them scrolling up;
                  without any, the three plain points stand in. --}}
-            <aside class="relative hidden flex-col justify-between overflow-hidden bg-ink p-12 text-white lg:flex dark:bg-gray-800 dark:ring-1 dark:ring-white/10">
+            <aside class="relative hidden flex-col justify-between overflow-hidden bg-hero p-12 text-white lg:flex dark:bg-gray-800 dark:ring-1 dark:ring-white/10">
                 @if ($collage)
                     {{-- The collage: three columns of dish tiles, tilted a little and scrolling up at
                          their own speeds. Each column holds its tiles twice, so the loop has no seam
@@ -50,9 +50,12 @@
                         <x-ui.dish-collage :columns="$collage" />
 
                         {{-- Fades that keep the brand and the text readable over the photos. --}}
-                        <div class="absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-ink to-transparent dark:from-gray-800"></div>
-                        <div class="absolute inset-x-0 bottom-0 h-[68%] bg-gradient-to-t from-ink via-ink/90 to-transparent dark:from-gray-800 dark:via-gray-800/90"></div>
-                        <div class="absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-ink/60 to-transparent dark:from-gray-800/60"></div>
+                        <div class="absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-hero to-transparent dark:from-gray-800"></div>
+                        <div class="absolute inset-x-0 bottom-0 h-[78%] bg-gradient-to-t from-hero via-hero/95 to-transparent dark:from-gray-800 dark:via-gray-800/90"></div>
+                        {{-- The shadow: see-through black, so the theme's colour only gets deeper (never grey), strongest on the
+                             left where the headline sits. It stops a tile's name from running into the text. --}}
+                        <div class="absolute inset-0 bg-gradient-to-r from-black/45 via-black/25 to-black/5 dark:hidden"></div>
+                        <div class="absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-hero/60 to-transparent dark:from-gray-800/60"></div>
                     </div>
                 @endif
 

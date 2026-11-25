@@ -121,7 +121,7 @@ export function enhanceSelect(select) {
             const box = li.querySelector('[data-box]');
 
             if (box) {
-                for (const name of ['bg-gray-900', 'border-gray-900', 'dark:bg-mist', 'dark:border-mist', 'dark:text-ink']) {
+                for (const name of ['bg-accent', 'border-accent']) {
                     box.classList.toggle(name, on);
                 }
 
@@ -140,7 +140,7 @@ export function enhanceSelect(select) {
             li.dataset.index = String(i);
             li.className = 'flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-700 transition-colors dark:text-gray-200 ' + (multiple ? '' : 'justify-between');
             li.innerHTML = multiple
-                ? '<span data-box class="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-white transition-colors"><span data-check>' + CHECK + '</span></span><span data-text class="truncate"></span>'
+                ? '<span data-box class="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-accent-on transition-colors"><span data-check>' + CHECK + '</span></span><span data-text class="truncate"></span>'
                 : '<span data-text class="truncate"></span><span data-check>' + CHECK + '</span>';
             li.querySelector('[data-text]').textContent = option.textContent;
             list.append(li);

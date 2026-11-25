@@ -36,7 +36,7 @@
                 <x-ui.theme-toggle />
 
                 @auth
-                    <a href="{{ route('dashboard') }}" class="inline-flex items-center justify-center rounded-full bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-300 dark:bg-mist dark:text-ink dark:hover:bg-white dark:focus:ring-gray-600">{{ __('Dashboard') }}</a>
+                    <a href="{{ route('dashboard') }}" class="inline-flex items-center justify-center rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-accent-on shadow-sm transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-gray-300 dark:focus:ring-gray-600">{{ __('Dashboard') }}</a>
                 @else
                     <a href="{{ route('login') }}" class="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-800 transition hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 dark:focus:ring-gray-700">{{ __('Log in') }}</a>
                 @endauth

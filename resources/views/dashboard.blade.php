@@ -32,7 +32,7 @@
     <div class="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
         {{-- What is happening right now --}}
         <section class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <div class="animate-fade-up rounded-2xl bg-ink p-6 text-white shadow-card dark:bg-gray-800 dark:ring-1 dark:ring-white/10 {{ $pendingPayments !== null ? 'lg:col-span-2' : 'lg:col-span-3' }}">
+            <div class="animate-fade-up rounded-2xl bg-hero p-6 text-white shadow-card dark:bg-gray-800 dark:ring-1 dark:ring-white/10 {{ $pendingPayments !== null ? 'lg:col-span-2' : 'lg:col-span-3' }}">
                 <p class="text-xs font-semibold uppercase tracking-wider text-white/60">{{ __('Order session') }}</p>
 
                 @if ($live)

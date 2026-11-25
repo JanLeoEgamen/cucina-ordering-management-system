@@ -116,7 +116,7 @@ const progress = {
             if (!bar) {
                 bar = document.createElement('div');
                 bar.setAttribute('aria-hidden', 'true');
-                bar.className = 'pointer-events-none fixed left-0 top-0 z-[70] h-0.5 w-full origin-left bg-gray-900 transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none dark:bg-mist';
+                bar.className = 'pointer-events-none fixed left-0 top-0 z-[70] h-0.5 w-full origin-left bg-accent transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none';
                 document.body.appendChild(bar);
             }
 

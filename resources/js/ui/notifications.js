@@ -36,7 +36,7 @@ const buildRow = (item) => {
 
     const dot = document.createElement('span');
     dot.className = 'mt-1.5 h-2 w-2 flex-shrink-0 rounded-full '
-        + (item.unread ? 'bg-indigo-600 dark:bg-mist' : 'bg-transparent');
+        + (item.unread ? 'bg-accent' : 'bg-transparent');
     dot.setAttribute('aria-hidden', 'true');
 
     const text = document.createElement('span');

@@ -37,7 +37,7 @@
                         {{-- Opening marks it read and goes to what it is about. --}}
                         <a href="{{ route('notifications.open', $notification->id) }}"
                            class="flex items-start gap-3 px-5 py-4 transition hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:hover:bg-gray-700/40 dark:focus:bg-gray-700/40 {{ $unreadRow ? 'bg-gray-50/70 dark:bg-gray-700/20' : '' }}">
-                            <span class="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full {{ $unreadRow ? 'bg-indigo-600 dark:bg-mist' : 'bg-transparent' }}" aria-hidden="true"></span>
+                            <span class="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full {{ $unreadRow ? 'bg-accent' : 'bg-transparent' }}" aria-hidden="true"></span>
                             <span class="min-w-0 flex-1">
                                 <span class="block text-sm {{ $unreadRow ? 'font-semibold text-gray-900 dark:text-white' : 'font-medium text-gray-700 dark:text-gray-300' }}">{{ $notification->title }}</span>
                                 @if ($notification->body)

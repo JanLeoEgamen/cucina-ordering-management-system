@@ -1,7 +1,7 @@
 # Testing
 
 ```
-php artisan test                      # all (baseline 2026-11-24: 805 passed)
+php artisan test                      # all (baseline 2026-11-25: 821 passed)
 php artisan test --filter=DishTest    # one class
 php scripts/harness.php               # docs drift check + full suite
 ```
@@ -29,6 +29,7 @@ php scripts/harness.php               # docs drift check + full suite
 | Payment methods (protected Cash on Pick up, 403) | `PaymentMethodTest` |
 | Image viewer present; drawer images zoomable | `ImageViewerTest` |
 | Roles permission picker (`RolePermissionPickerTest`, 4 tests: every permission sits in exactly one resource row and none falls under "Other"; a row holds one resource's actions in order; the Roles page draws one `permissions[]` checkbox per permission in each of its two drawers; a role's record carries only its granted permissions, grouped) | `Role::permissionGroups()`, `<x-ui.permission-picker>` |
+| Colour theme (`ThemeTest`, 12 tests (the dark panels are a deepened shade of the theme, never near-black): default is the ink look, every theme in `config/themes.php` is complete and keeps 4.5:1 contrast for its button text light and dark (both ends of a gradient), a gradient theme prints `--accent-image` and a plain one `none`, the saved theme is printed in the `<head>` of signed-in, sign in and public pages, a removed theme falls back to the default, `Theme::channels()` cannot be broken by a bad value, the settings page lists every theme with the saved one picked, saving stores it and the next page uses it, an unknown / empty theme is 422 and changes nothing, a caller that leaves it out changes nothing, `view settings` alone gets 403) | `tests/Feature/ThemeTest.php` |
 | Theme shell: dark / light switch (top right of both bars, login) + before-paint script, the account menu's identity card (initials + name + role, once, none in the sidebar, no external avatar), ink active pill, dashboard tiles by permission + pending count + live session, status badges are one gray pill with `data-status` | `ThemeShellTest` |
 | Menu bar: search, sort options, every filter control | `MenuCheckoutTest` |
 | Soft navigation markup contract: `#page-root` wraps heading + main, the sidebar `<nav>` is `data-soft-nav`, `asset-hash` meta, a view names its script module with `<x-page-module>` (no `<script>` in the page area), every `pages/*.js` ends in `export default start;` and is named by a view, signed-out pages have no swap area (the swap itself runs in the browser and is not covered: see known-issues F21) | `SoftNavigationTest` |

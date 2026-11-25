@@ -27,21 +27,22 @@ export default {
 
             /*
              * THE THEME. A warm gray palette (tokens read from tokenharbor.ai): a
-             * paper page, near-black "ink", and soft grays. No colour accent: the
-             * emphasis is the contrast between ink and paper (see docs/frontend.md,
-             * Theme).
+             * paper page, near-black "ink", and soft grays. The page never changes; the
+             * BRAND colour does: by default it is ink (no colour accent, the emphasis is
+             * the contrast between ink and paper), and an admin can pick a colour in
+             * System Configuration -> Branding (see docs/frontend.md, Theme).
              *
              * Two Tailwind scales are REMAPPED instead of renamed, so the hundreds
              * of existing classes pick the new look up without being edited:
              *
              *   gray   -> warm neutrals. 50 is the paper (#f7f6f2), 900 the dark page
              *             (#141413), 500 the muted text (#6b6a64). Cards stay white.
-             *   indigo -> the BRAND, which here is INK plus grays. 600 is ink (primary
+             *   indigo -> the BRAND (CSS variables, see below); by default INK plus grays. 600 is ink (primary
              *             buttons, links), 300 / 400 the light grays that carry text
              *             and rings on the dark page, 50 / 100 the washes used for
              *             hover and active backgrounds. In dark mode a solid ink
              *             button would vanish, so resources/css/app.css turns
-             *             `bg-indigo-600` into `mist` (a light gray) there.
+             *             `bg-indigo-600` into the theme's dark accent (mist for ink) there.
              *
              * New code should prefer the names below (paper, ink, mist).
              */
@@ -52,6 +53,20 @@ export default {
                 mist: {
                     DEFAULT: '#e8e6e1',
                     deep: '#d8d5cc',
+                },
+
+                // The solid fill of a primary action and of the page you are on in the menu, and the text on
+                // it: `bg-accent text-accent-on` (hover:bg-accent-hover). Unlike the old `bg-gray-900 ... dark:bg-mist
+                // dark:text-ink` pair it follows the theme AND the dark switch from one class, because the
+                // variables themselves change under `html.dark` (the Theme class in app/Support).
+                // The big dark panels (the welcome hero, the sign in panel, the dashboard card): ink by default,
+                // a deep shade of the theme's colour otherwise.
+                hero: 'rgb(var(--hero) / <alpha-value>)',
+
+                accent: {
+                    DEFAULT: 'rgb(var(--accent) / <alpha-value>)',
+                    hover: 'rgb(var(--accent-hover) / <alpha-value>)',
+                    on: 'rgb(var(--accent-on) / <alpha-value>)',
                 },
 
                 gray: {
@@ -67,18 +82,21 @@ export default {
                     950: '#0d0d0c',
                 },
 
+                // The BRAND scale. Its values are CSS variables printed on every page by the Theme class (app/Support)
+                // (System Configuration -> Branding, config/themes.php), so an admin's colour reaches every
+                // existing `indigo-*` class. The built-in fallback (app.css) is the original ink look.
                 indigo: {
-                    50: '#f3f2ee',
-                    100: '#e9e7e0',
-                    200: '#dcd9cf',
-                    300: '#c9c5b8',
-                    400: '#a8a498',
-                    500: '#6b6a64',
-                    600: '#17170f',
-                    700: '#2b2b20',
-                    800: '#55544e',
-                    900: '#1d1d14',
-                    950: '#0f0f0a',
+                    50: 'rgb(var(--brand-50) / <alpha-value>)',
+                    100: 'rgb(var(--brand-100) / <alpha-value>)',
+                    200: 'rgb(var(--brand-200) / <alpha-value>)',
+                    300: 'rgb(var(--brand-300) / <alpha-value>)',
+                    400: 'rgb(var(--brand-400) / <alpha-value>)',
+                    500: 'rgb(var(--brand-500) / <alpha-value>)',
+                    600: 'rgb(var(--brand-600) / <alpha-value>)',
+                    700: 'rgb(var(--brand-700) / <alpha-value>)',
+                    800: 'rgb(var(--brand-800) / <alpha-value>)',
+                    900: 'rgb(var(--brand-900) / <alpha-value>)',
+                    950: 'rgb(var(--brand-950) / <alpha-value>)',
                 },
             },
 

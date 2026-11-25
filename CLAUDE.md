@@ -21,7 +21,7 @@ cp .env.example .env && php artisan key:generate
 php artisan migrate --seed          # seeds test@example.com / password as Super Admin (dev only)
 php artisan storage:link            # needed for uploaded images
 composer dev                        # server + queue worker (notifications,default) + pail logs + vite
-php artisan test                    # PHPUnit (baseline: 805 passing)
+php artisan test                    # PHPUnit (baseline: 821 passing)
 php artisan schedule:work           # optional locally: runs the daily notifications:prune + audit:prune (server: cron `schedule:run`)
 php artisan audit:prune [--days=N]  # delete audit trail entries past AUDIT_RETENTION_DAYS (365); 0 keeps all
 php scripts/harness.php             # docs-drift check + tests;  --docs = drift only
@@ -47,7 +47,7 @@ Shell is PowerShell on Windows (Git Bash also available). `php` and `npm` are on
 - New permission ⇒ add to `Role::PERMISSIONS`, rerun `PermissionSeeder`, update security.md.
 - Reuse `Controller::successResponse()/errorResponse()` (`{status,message}`); validation errors stay Laravel-default 422.
 - Escape with `e()` every dynamic value in controller-built HTML. Keep badge class strings under `app/Http/Controllers/**` (Tailwind scans it).
-- Colours come from the theme (docs/frontend.md, Theme): primary buttons are `bg-indigo-600 text-white` (it is ink; mist in dark mode), `gray` is the warm paper scale. No colour accent and no hard-coded hex. Motion stays short and must respect reduced motion.
+- Colours come from the theme (docs/frontend.md, Theme): primary buttons are `bg-indigo-600 text-white`, a highlight pill / chip / active nav item is `bg-accent text-accent-on`, a big dark panel is `bg-hero`; `gray` is the warm paper scale. Default = ink, but an admin picks a colour theme in System Configuration → Branding (`config/themes.php`), so **never hard-code a hex or write `bg-gray-900 text-white dark:bg-mist dark:text-ink` for a highlight**: it ignores the theme. Motion stays short and must respect reduced motion.
 - Dark mode is the `dark` class on `<html>` (a switch, default = OS). Hand-written dark-only CSS must be `html.dark …`, not `@media (prefers-color-scheme)`.
 - Soft deletes everywhere: filter `deleted_at IS NULL`. Never edit an applied migration.
 - Stock changes only via `SessionDish::reserve()/release()` inside a DB transaction.
@@ -56,6 +56,7 @@ Shell is PowerShell on Windows (Git Bash also available). `php` and `npm` are on
 
 ## Gotchas (append one line per trap you hit)
 
+- **The colour theme is CSS variables, printed by `layouts/theme-script` in every `<head>`** (`App\Support\Theme::css()` from `config/themes.php`; setting `theme.accent`). `indigo-*` in `tailwind.config.js` is `rgb(var(--brand-N) / <alpha-value>)`, `accent` / `hero` likewise, so a colour can never be a Tailwind hex again. A new page that has its own `<head>` must `@include('layouts.theme-script')` or it is drawn with the built-in ink fallback (`:where(:root)` in `app.css`). A theme may be a **gradient** (`gradient` block): it is an IMAGE over the accent colour (`--accent-image`, rules at the top of `app.css`), so never set `background:` shorthand on a `bg-accent` / `bg-indigo-600` element or you wipe it. A theme's button shade must keep white text at 4.5:1 (`ThemeTest` fails otherwise). Changing the theme in the settings page previews with a second `<style id="theme-preview">` and reloads once after Save: soft navigation never replaces `<head>`.
 - `User` is not `MustVerifyEmail`, so the `verified` middleware does nothing.
 - Self-registered users (form or Google) get the **Customer** role through `User::giveCustomerRole()` (menu + ordering only). If `PermissionSeeder` has not run the role does not exist and they stay role-less (403 on the menu), so seed before opening registration. Accounts that registered before this change have no role: run `php artisan users:give-customer-role --dry-run`, then without the flag (it skips anyone who already has a role).
 - Payment rules depend on the method: Cash on Pick up is verified by completing its order (no manual verify/reject); other methods are verified first, then completed. Cancelling an order releases its stock and is refused while its payment is verified (undo that first). A *rejection* does NOT release the stock: the customer can resend a proof or switch to cash (`my-orders.payment.*`), so the plates stay held until staff cancel.

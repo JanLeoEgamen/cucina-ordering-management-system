@@ -64,6 +64,9 @@ class Setting
     // (which is Laravel's "Laravel" on a fresh install).
     public const DEFAULT_APP_NAME = 'Cucina';
 
+    // The colour theme (a key of config/themes.php), read through the Theme class in App\Support.
+    public const THEME_ACCENT = 'theme.accent';
+
     // The two public legal pages, written by an admin in Markdown: the privacy policy (GET /privacy-policy)
     // and the terms of service of ordering (GET /terms-of-service). Each has its text (empty = the built-in
     // text in resources/legal/<page>.md) and an optional address people can write to.
@@ -106,6 +109,8 @@ class Setting
         self::TERMS_OF_SERVICE_CONTACT_EMAIL => '',
         self::APP_NAME => self::DEFAULT_APP_NAME,
         self::APP_LOGO => '',
+        // The original ink look until an admin picks a colour (an unknown value also reads as this).
+        self::THEME_ACCENT => 'ink',
         self::SESSION_START_TIME => '09:00',
         self::SESSION_END_TIME => '17:00',
         self::NOTIFICATION_WATCHERS => '[]',
@@ -370,6 +375,12 @@ class Setting
     public static function setGoogleChatNotifications(bool $enabled): void
     {
         self::set(self::GOOGLE_CHAT_NOTIFICATIONS, $enabled ? '1' : '0');
+    }
+
+    // Save the colour theme (the caller has validated it against config/themes.php).
+    public static function setThemeAccent(string $slug): void
+    {
+        self::set(self::THEME_ACCENT, $slug);
     }
 
     // Allow or forbid customers to cancel their own pending order.

@@ -32,7 +32,7 @@
     @if ($actionLabel && $actionId)
         <button type="button" id="{{ $actionId }}" data-fab
                 aria-label="{{ $actionLabel }}" title="{{ $actionLabel }}"
-                class="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] right-5 z-40 inline-flex h-14 w-14 animate-pop items-center justify-center gap-2 rounded-full sm:rounded-xl border border-gray-900 bg-indigo-600 text-sm font-normal text-white shadow-card-lift sm:shadow-md transition duration-200 hover:-translate-y-0.5 hover:bg-indigo-700 sm:animate-none focus:outline-none focus:ring-4 focus:ring-gray-300 sm:static sm:z-auto sm:h-auto sm:w-auto sm:px-6 sm:py-3.5 dark:border-mist dark:focus:ring-gray-600">
+                class="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] right-5 z-40 inline-flex h-14 w-14 animate-pop items-center justify-center gap-2 rounded-full sm:rounded-xl border border-accent bg-accent text-sm font-normal text-accent-on shadow-card-lift sm:shadow-md transition duration-200 hover:-translate-y-0.5 hover:bg-accent-hover sm:animate-none focus:outline-none focus:ring-4 focus:ring-gray-300 sm:static sm:z-auto sm:h-auto sm:w-auto sm:px-6 sm:py-3.5 dark:focus:ring-gray-600">
             <svg class="h-6 w-6 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.25" d="M12 4v16m8-8H4" />
             </svg>

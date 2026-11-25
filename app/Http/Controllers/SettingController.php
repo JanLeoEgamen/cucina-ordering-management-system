@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Setting;
 use App\Models\User;
 use App\Support\GoogleChat;
+use App\Support\Theme;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -14,7 +15,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
-// System configuration: the values the rest of the app starts from: the app's name and logo,
+// System configuration: the values the rest of the app starts from: the app's name and logo, its colour theme,
 // the default start and end time of a new order session (the create drawer is pre-filled with
 // them), the pre-order limits, the public support page, the privacy policy and terms of service and who is notified. The page is laid out in sections so more
 // settings can be added beside them.
@@ -34,6 +35,12 @@ class SettingController extends Controller implements HasMiddleware
     {
         return view('settings.index', [
             'brand' => Setting::brand(),
+            // The colour theme: the picked one, the choices, their swatches and the CSS of each (for the live preview).
+            'themeAccent' => Theme::current(),
+            'themeDefault' => Theme::default(),
+            'themes' => Theme::options(),
+            'swatches' => Theme::swatches(),
+            'themePreviews' => Theme::previews(),
             'sessionWindow' => Setting::sessionWindow(),
             'preOrderLimits' => Setting::preOrderLimits(),
             'support' => Setting::support(),
@@ -73,6 +80,8 @@ class SettingController extends Controller implements HasMiddleware
             // runs its scripts on this site's origin, and `image` (without allow_svg) refuses it.
             'app_logo' => ['nullable', 'file', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
             'remove_app_logo' => ['sometimes', 'boolean'],
+            // The colour theme: one of the blocks of config/themes.php. A caller that leaves it out changes nothing.
+            'theme_accent' => ['sometimes', 'required', Rule::in(array_keys(Theme::all()))],
             'session_start_time' => ['required', 'date_format:H:i'],
             'session_end_time' => ['required', 'date_format:H:i', 'after:session_start_time'],
             // The users who get a copy of every notification. The form always sends the
@@ -119,6 +128,8 @@ class SettingController extends Controller implements HasMiddleware
             'app_logo.image' => 'The logo must be a picture (JPG, PNG or WebP).',
             'app_logo.mimes' => 'The logo must be a JPG, PNG or WebP picture.',
             'app_logo.max' => 'The logo can be at most 2 MB.',
+            'theme_accent.in' => 'Pick one of the colour themes in the list.',
+            'theme_accent.required' => 'Pick a colour theme.',
             'session_end_time.after' => 'The end time must be after the start time.',
             'notification_watchers.*.exists' => 'One of the picked users does not exist any more.',
             'ala_carte_rice_price.decimal' => 'The rice price can have at most 2 decimals.',
@@ -177,6 +188,10 @@ class SettingController extends Controller implements HasMiddleware
         DB::transaction(function () use ($validated, $request, $newLogo, $logoChanged) {
             if (array_key_exists('app_name', $validated)) {
                 Setting::setAppName($validated['app_name']);
+            }
+
+            if (array_key_exists('theme_accent', $validated)) {
+                Setting::setThemeAccent($validated['theme_accent']);
             }
 
             if ($logoChanged) {
