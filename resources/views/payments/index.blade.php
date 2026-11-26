@@ -1,7 +1,15 @@
 <x-app-layout>
     <x-slot name="header">
         {{-- No create button: a payment is made by the customer when the order is placed. --}}
-        <x-page-header title="{{ __('Payments') }}" />
+        <x-page-header title="{{ __('Payments') }}">
+            <span data-soft-nav>
+                <a href="{{ route('payments.proofs') }}"
+                   class="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:focus:ring-gray-700">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.41a2.25 2.25 0 0 1 3.182 0l2.909 2.91M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z" /></svg>
+                    {{ __('Proof of Payment Gallery') }}
+                </a>
+            </span>
+        </x-page-header>
     </x-slot>
 
     @php

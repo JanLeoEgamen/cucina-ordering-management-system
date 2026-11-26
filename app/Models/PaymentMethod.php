@@ -123,6 +123,16 @@ class PaymentMethod extends Model
         return in_array($name, self::PROTECTED, true);
     }
 
+    // Active methods a customer could not pay with: not cash, and neither an account number nor
+    // a QR picture to send the money to (the dashboard's setup checklist).
+    public static function countWithoutDetails(): int
+    {
+        return self::activeOptions()
+            ->filter(fn (object $method) => $method->method_name !== self::CASH_ON_PICKUP
+                && blank($method->account_number) && blank($method->qr_image))
+            ->count();
+    }
+
     // The live and available methods, for the checkout picker. Cached with its table (a write to
     // payment_methods drops it), so the cash option AND the bank options of one page, and every page
     // after it, cost no query.

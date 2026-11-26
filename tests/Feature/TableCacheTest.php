@@ -140,13 +140,17 @@ class TableCacheTest extends TestCase
         $this->assertCount(1, Order::pageOfUser($mine->id, ['q' => $order->order_number])->items(), 'a search is read fresh');
     }
 
-    public function test_the_pending_payments_count_follows_the_table(): void
+    public function test_the_dashboards_open_orders_follow_the_tables(): void
     {
-        $this->assertSame(0, \App\Models\Payment::pendingCount());
+        $this->assertCount(0, Order::openForDashboard());
 
-        \App\Models\Payment::factory()->create(['payment_status' => 'pending']);
+        $payment = \App\Models\Payment::factory()->create(['payment_status' => 'pending']);
 
-        $this->assertSame(1, \App\Models\Payment::pendingCount());
+        $this->assertSame('pending', Order::openForDashboard()->first()->payment_state);
+
+        DB::table('payments')->where('order_id', $payment->order_id)->update(['payment_status' => 'rejected']);
+
+        $this->assertSame('rejected', Order::openForDashboard()->first()->payment_state);
     }
     public function test_the_database_cache_driver_cannot_disturb_the_id_of_an_insert(): void
     {

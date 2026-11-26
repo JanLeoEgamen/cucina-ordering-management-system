@@ -128,6 +128,28 @@ class Discount extends Model
         return 'active';
     }
 
+    // The switched-on discounts that have an end date, with that date (the setup checklist picks
+    // the ones ending soon: which those are depends on the day, so the filter is the caller's).
+    public static function withEndDate(): Collection
+    {
+        return \App\Support\TableCache::remember([self::TABLE], 'dashboard.discount_ends', fn () => DB::table(self::TABLE)
+            ->whereNull('deleted_at')
+            ->where('is_active', true)
+            ->whereNotNull('valid_until')
+            ->get(['discount_id', 'discount_name', 'valid_until']));
+    }
+
+    // Every switched-on discount with its window, for the customer's dashboard (which of them is
+    // inside its window depends on the day, so the caller works that out).
+    public static function switchedOn(): Collection
+    {
+        return \App\Support\TableCache::remember([self::TABLE], 'dashboard.discounts_on', fn () => DB::table(self::TABLE)
+            ->whereNull('deleted_at')
+            ->where('is_active', true)
+            ->orderBy('discount_name')
+            ->get(['discount_id', 'discount_name', 'percent', 'requires_proof', 'valid_from', 'valid_until']));
+    }
+
     // The discounts a customer can pick right now: live, switched on and inside their window.
     // Only what the checkout needs (no counts, no dates).
     public static function offered(): array

@@ -70,19 +70,17 @@ class ThemeShellTest extends TestCase
         $order = Order::factory()->create(['session_id' => $session->session_id]);
         Payment::factory()->create(['order_id' => $order->order_id, 'payment_status' => 'pending']);
 
-        $this->assertSame(1, Payment::pendingCount());
-
-        $this->actingAs($this->userWith('view payments', 'view order-sessions'))
+        $this->actingAs($this->userWith('view dashboard-attention', 'view payments', 'view order-sessions'))
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Waiting for a decision')
-            ->assertSee('pending payment')
+            ->assertSee('Needs attention')
+            ->assertSee('payment to verify')
             ->assertSee(route('order-sessions.show', $session->session_id), false);
 
         // Someone who may not check payments is not shown the count.
         $this->actingAs($this->userWith('view menu'))
             ->get(route('dashboard'))
-            ->assertDontSee('Waiting for a decision');
+            ->assertDontSee('Needs attention');
     }
 
     public function test_status_badges_are_one_gray_pill_with_the_state_in_data_status(): void

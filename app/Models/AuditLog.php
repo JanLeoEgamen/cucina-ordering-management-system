@@ -113,6 +113,18 @@ class AuditLog
         return self::filtered($filters)->paginate($perPage);
     }
 
+    // Failed sign ins and lockouts since a moment, for the dashboard's security widget: counts
+    // only (the addresses typed stay on the Audit Trail page). Not cached: the audit table is
+    // one TableCache does not watch.
+    public static function signInTroubleSince(string $since): object
+    {
+        return DB::table(self::TABLE)
+            ->where('created_at', '>=', $since)
+            ->whereIn('action', ['auth.failed', 'auth.lockout'])
+            ->selectRaw("COALESCE(SUM(CASE WHEN action = 'auth.failed' THEN 1 ELSE 0 END), 0) as failed, COALESCE(SUM(CASE WHEN action = 'auth.lockout' THEN 1 ELSE 0 END), 0) as lockouts, COUNT(DISTINCT ip) as addresses")
+            ->first();
+    }
+
     // One entry with its JSON decoded for the detail page, or null.
     public static function findById(int $id): ?object
     {

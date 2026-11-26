@@ -19,7 +19,11 @@
     Every DOM lookup goes through `$root`: `$el` resolves to the element a directive
     sits on, not to the component's root.
 
+    A permission in `locked` is one the signed-in user may not hand out (App\Support\
+    AccessGuard): its chip is disabled and the bulk buttons skip it. The server refuses it too.
+
     Props:
+      locked             - ids of the permissions that cannot be ticked
       groups             - Role::permissionGroups(): [{label, resources: [{label, permissions: [{id, action, name}]}]}]
       name               - form field name for the checkboxes
       searchPlaceholder  - placeholder of the search box
@@ -30,6 +34,7 @@
     'name',
     'searchPlaceholder' => null,
     'emptyText' => null,
+    'locked' => [],
 ])
 
 @php
@@ -60,6 +65,7 @@
         field: @js($name),
         sections: @js($model),
         viewIds: @js($viewIds),
+        locked: @js(array_values($locked)),
         total: @js($total),
         picked: [],
         search: '',
@@ -81,7 +87,7 @@
             const wanted = new Set(ids.map(String));
 
             for (const box of this.boxes(root)) {
-                if (wanted.has(box.value)) {
+                if (wanted.has(box.value) && ! box.disabled) {
                     box.checked = checked;
                 }
             }
@@ -115,7 +121,8 @@
         // The ids a section's / the whole page's buttons act on: only what the
         // search leaves on screen, like the checkbox picker's Select all.
         shownIds(s) {
-            return this.sections[s].rows.flatMap((row, r) => this.rowShown(s, r) ? row.ids : []);
+            return this.sections[s].rows.flatMap((row, r) => this.rowShown(s, r) ? row.ids : [])
+                .filter((id) => ! this.locked.includes(id));
         },
 
         allShownIds() {
@@ -193,7 +200,7 @@
                               x-text="count(sections[{{ $s }}].rows.flatMap((row) => row.ids)) + ' / ' + sections[{{ $s }}].rows.flatMap((row) => row.ids).length"></span>
                     </button>
 
-                    <button type="button" class="{{ $link }} flex-shrink-0"
+                    <button type="button" class="{{ $link }} flex-shrink-0" x-show="shownIds({{ $s }}).length > 0"
                             x-on:click="toggleSection($root, {{ $s }}, count(shownIds({{ $s }})) !== shownIds({{ $s }}).length)"
                             x-text="count(shownIds({{ $s }})) === shownIds({{ $s }}).length ? @js(__('Clear')) : @js(__('Select all'))"></button>
                 </div>
@@ -206,9 +213,10 @@
 
                             <div class="flex flex-wrap gap-1">
                                 @foreach ($row['permissions'] as $permission)
-                                    <label title="{{ $permission['name'] }}" class="cursor-pointer">
-                                        <input type="checkbox" name="{{ $name }}" value="{{ $permission['id'] }}" class="peer sr-only">
-                                        <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-200 peer-checked:bg-accent peer-checked:text-accent-on peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-1 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
+                                    @php($isLocked = in_array($permission['id'], $locked, true))
+                                    <label title="{{ $permission['name'] }}{{ $isLocked ? ' (' . __('you do not have this permission') . ')' : '' }}" class="cursor-pointer">
+                                        <input type="checkbox" name="{{ $name }}" value="{{ $permission['id'] }}" class="peer sr-only" @disabled($isLocked)>
+                                        <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-200 peer-disabled:cursor-not-allowed peer-disabled:opacity-40 peer-checked:bg-accent peer-checked:text-accent-on peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-1 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
                                             {{ $permission['action'] }}
                                         </span>
                                     </label>

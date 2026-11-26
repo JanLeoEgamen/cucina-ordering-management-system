@@ -153,11 +153,11 @@
                 <div>
                     <span class="{{ $label }}">{{ __('Roles') }}</span>
                     <div class="mt-1">
-                        <x-ui.checkbox-picker id="create-user-roles" name="roles[]" :items="$roleOptions"
+                        <x-ui.checkbox-picker id="create-user-roles" name="roles[]" :items="$grantableRoles"
                                               placeholder="{{ __('Select roles') }}"
                                               search-placeholder="{{ __('Search roles') }}"
                                               empty-text="{{ __('No roles match that search.') }}" />
-                        <p class="{{ $hint }}">{{ __('A user without a role cannot open any gated page.') }}</p>
+                        <p class="{{ $hint }}">{{ __('A user without a role cannot open any gated page. Only roles whose access you have yourself are listed.') }}</p>
                     </div>
                 </div>
 
@@ -265,10 +265,11 @@
                 <div>
                     <span class="{{ $label }}">{{ __('Roles') }}</span>
                     <div class="mt-1">
-                        <x-ui.checkbox-picker id="edit-user-roles" name="roles[]" :items="$roleOptions"
+                        <x-ui.checkbox-picker id="edit-user-roles" name="roles[]" :items="$grantableRoles"
                                               placeholder="{{ __('Select roles') }}"
                                               search-placeholder="{{ __('Search roles') }}"
                                               empty-text="{{ __('No roles match that search.') }}" />
+                        <p class="{{ $hint }}">{{ __('Only roles whose access you have yourself are listed. You cannot change your own roles.') }}</p>
                     </div>
                 </div>
 

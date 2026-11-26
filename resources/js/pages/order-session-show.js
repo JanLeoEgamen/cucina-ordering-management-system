@@ -3,14 +3,15 @@
  *
  * Self contained, like the other page modules. The only import is the toast
  * (resources/js/ui/toast.js); copy and the feed URL come from the Blade view
- * through `data-*` attributes. Proof links carry `data-zoom`, so the shared
- * image viewer (resources/js/ui/image-viewer.js) enlarges them.
+ * through `data-*` attributes. The payment method's name is the proof link (not for
+ * cash); it carries `data-zoom`, so the shared image viewer
+ * (resources/js/ui/image-viewer.js) enlarges the proof.
  *
  * Flow:
  *   #session-orders-table   -> DataTable fed by this page's own AJAX response
  *   [data-view-mode]        -> swap the table for the card grid (and back)
  *   #*-status-filter        -> narrow the rows by order / payment status
- *   [data-order-view]       -> Actions column: read only order details modal
+ *   a row or card           -> the order details modal ([data-order-open]: its number)
  *   Complete / Cancel / Verify -> (in that modal) an inline confirm bar, then POST; Reject -> its reason popup
  *   #end-session            -> confirmation modal, POST .../end, reload the page
  */
@@ -18,7 +19,6 @@ import DataTable from 'datatables.net-dt';
 import { initTableToolbar } from '../ui/table-toolbar';
 import { showToast } from '../ui/toast';
 import { initOrderPopup, post } from '../ui/order-popup';
-import { proofLink } from '../ui/proof-link';
 
 const start = () => {
     const tableElement = document.querySelector('#session-orders-table');
@@ -66,13 +66,31 @@ const start = () => {
             + '<span class="tabular-nums text-gray-500 dark:text-gray-400">' + Number(item.quantity) + '×</span> '
             + escapeHtml(item.dish_name) + '</span>').join('');
 
-    // Method, the customer's reference, the proof link and the payment badge.
-    const paymentHtml = (order) => '<span class="block text-sm text-gray-700 dark:text-gray-300">' + escapeHtml(order.method_name ?? '—') + '</span>'
-        + (order.reference_number ? '<span class="mt-0.5 block text-xs tabular-nums text-gray-500 dark:text-gray-400">' + escapeHtml(order.reference_number) + '</span>' : '')
-        + (order.proof_url
-            ? '<span class="mt-1 block">' + proofLink(order.proof_url, copy.proofLabel, copy.proofCaption) + '</span>'
-            : '')
-        + '<span class="mt-1 block">' + (order.payment_badge ?? '') + '</span>';
+    // The method's name. When the order was not paid in cash and has a proof, the name itself is
+    // the link to it (underlined, so it reads as one): `data-zoom` opens it in the image viewer.
+    const methodHtml = (order) => {
+        const name = escapeHtml(order.method_name ?? '—');
+
+        if (order.is_cash || !order.proof_url) {
+            return name;
+        }
+
+        return '<a href="' + escapeHtml(order.proof_url) + '" target="_blank" rel="noopener" data-zoom data-zoom-caption="' + escapeHtml(copy.proofCaption) + '"'
+            + ' title="' + escapeHtml(copy.proofLabel) + '" aria-label="' + escapeHtml((order.method_name ?? '') + ': ' + copy.proofLabel) + '"'
+            + ' class="rounded font-medium text-indigo-600 underline underline-offset-4 transition hover:text-indigo-800 hover:decoration-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">'
+            + name + '</a>';
+    };
+
+    // Method (the proof link) and, under it, the customer's reference.
+    const paymentMethodHtml = (order) => '<span class="block text-sm text-gray-700 dark:text-gray-300">' + methodHtml(order) + '</span>'
+        + (order.reference_number ? '<span class="mt-0.5 block text-xs tabular-nums text-gray-500 dark:text-gray-400">' + escapeHtml(order.reference_number) + '</span>' : '');
+
+    // The order number is a button: the keyboard's and a screen reader's way into a row or card
+    // that the mouse can click anywhere.
+    const openButton = (order, classes) => '<button type="button" data-order-open="' + Number(order.order_id) + '"'
+        + ' aria-label="' + escapeHtml((copy.openLabel ?? '') + ' ' + order.order_number) + '" aria-haspopup="dialog"'
+        + ' class="rounded text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ' + classes + '">'
+        + escapeHtml(order.order_number) + '</button>';
 
     /* ---- table ----------------------------------------------------------- */
 
@@ -84,8 +102,8 @@ const start = () => {
         return type === 'display' ? '<span class="tabular-nums text-gray-400 dark:text-gray-500">' + number + '</span>' : number;
     };
 
-    const numberCell = (value, type) => (type === 'display'
-        ? '<span class="font-medium text-gray-900 dark:text-white">' + escapeHtml(value) + '</span>'
+    const numberCell = (value, type, row) => (type === 'display'
+        ? openButton(row, 'whitespace-nowrap font-medium text-gray-900 dark:text-white')
         : value ?? '');
 
     const itemsCell = (data, type, row) => (type === 'display' ? '<span class="text-sm text-gray-700 dark:text-gray-300">' + itemLines(row) + '</span>' : itemsText(row));
@@ -94,21 +112,27 @@ const start = () => {
         ? '<span class="block text-right font-medium tabular-nums text-gray-900 dark:text-white">' + money(value) + '</span>'
         : Number(value ?? 0));
 
-    const paymentCell = (data, type, row) => (type === 'display'
-        ? paymentHtml(row)
-        : [row.method_name, row.reference_number].filter(Boolean).join(' '));
+    // Sorted by the method's name; the search also finds the reference number.
+    const methodCell = (data, type, row) => {
+        if (type === 'display') {
+            return paymentMethodHtml(row);
+        }
 
-    const placedCell = (value, type) => (type === 'display'
-        ? '<span class="whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">' + escapeHtml(prettyDateTime(value)) + '</span>'
-        : value ?? '');
+        return type === 'filter' ? [row.method_name, row.reference_number].filter(Boolean).join(' ') : row.method_name ?? '';
+    };
 
-    // The row's one action: a read only look at the order. The button carries
-    // the order id; the click below finds the row again in the table.
-    const viewButton = (order) => '<button type="button" data-order-view="' + Number(order.order_id) + '"'
-        + ' class="mx-0.5 rounded-full border border-gray-200 px-3 py-1.5 font-medium text-slate-600 dark:border-gray-600 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:text-slate-400 dark:hover:bg-slate-700/40 dark:hover:text-slate-200">'
-        + escapeHtml(copy.viewLabel ?? 'View') + '</button>';
+    // Shown as the badge, sorted by the state behind it.
+    const paymentStatusCell = (value, type, row) => (type === 'display' ? value ?? '' : row.payment_status ?? '');
 
-    const actionCell = (data, type, row) => (type === 'display' ? viewButton(row) : '');
+    // The time sits under the date, so the nine columns fit a laptop screen.
+    const placedHtml = (value) => {
+        const [day, ...time] = prettyDateTime(value).split(', ');
+
+        return '<span class="block whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">' + escapeHtml(day) + '</span>'
+            + (time.length ? '<span class="mt-0.5 block whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">' + escapeHtml(time.join(', ')) + '</span>' : '');
+    };
+
+    const placedCell = (value, type) => (type === 'display' ? placedHtml(value) : value ?? '');
 
     const table = new DataTable(tableElement, {
         processing: true,
@@ -117,7 +141,7 @@ const start = () => {
         pageLength: 10,
         lengthMenu: [10, 25, 50, 100],
         // Newest order first (column 0, the running number, is not orderable).
-        order: [[7, 'desc']],
+        order: [[8, 'desc']],
         layout: {
             topStart: null,
             // The toolbar above the table (resources/js/ui/table-toolbar.js) searches instead.
@@ -142,11 +166,13 @@ const start = () => {
             { data: 'customer_name' },
             { data: null, orderable: false, className: 'hidden md:table-cell', render: itemsCell },
             { data: 'total_amount', render: totalCell },
-            { data: null, orderable: false, className: 'hidden sm:table-cell', render: paymentCell },
+            { data: null, className: 'hidden sm:table-cell', render: methodCell },
+            { data: 'payment_badge', className: 'hidden sm:table-cell', render: paymentStatusCell },
             { data: 'status_badge' },
             { data: 'order_date', className: 'hidden lg:table-cell', render: placedCell },
-            { data: null, orderable: false, searchable: false, className: 'whitespace-nowrap text-right', render: actionCell },
         ],
+        // The whole row opens its order (see the click listener below).
+        createdRow: (row) => row.classList.add('row-clickable'),
     });
 
     // Search, sort and the filter dropdown above the table.
@@ -201,10 +227,10 @@ const start = () => {
     let feedLoaded = false;
 
     const cardTemplate = (order) => `
-        <article class="flex flex-col justify-between overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <article data-order-card="${Number(order.order_id)}" class="flex cursor-pointer flex-col justify-between overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:border-gray-300 hover:shadow-card-lift dark:border-gray-700 dark:bg-gray-800 dark:hover:border-gray-500">
             <div class="flex items-start justify-between gap-2 border-b border-gray-100 p-4 dark:border-gray-700/60">
                 <div class="min-w-0">
-                    <p class="truncate text-sm font-semibold text-gray-900 dark:text-white">${escapeHtml(order.order_number)}</p>
+                    <p class="truncate text-sm font-semibold text-gray-900 dark:text-white">${openButton(order, 'max-w-full truncate')}</p>
                     <p class="text-xs text-gray-500 dark:text-gray-400">${escapeHtml(prettyDateTime(order.order_date))}</p>
                 </div>
                 ${order.status_badge ?? ''}
@@ -219,16 +245,17 @@ const start = () => {
                     <dd class="text-gray-700 dark:text-gray-300">${itemLines(order)}</dd>
                 </div>
                 <div>
-                    <dt class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">${escapeHtml(copy.paymentLabel ?? '')}</dt>
-                    <dd>${paymentHtml(order)}</dd>
+                    <dt class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">${escapeHtml(copy.methodLabel ?? '')}</dt>
+                    <dd>${paymentMethodHtml(order)}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">${escapeHtml(copy.paymentStatusLabel ?? '')}</dt>
+                    <dd class="mt-1">${order.payment_badge ?? ''}</dd>
                 </div>
             </dl>
             <div class="flex items-center justify-between border-t border-gray-100 px-4 py-3 dark:border-gray-700/60">
                 <span class="text-xs text-gray-500 dark:text-gray-400">${Number(order.items_count ?? 0)} ${escapeHtml(copy.itemsLabel ?? '')}</span>
                 <span class="text-base font-semibold tabular-nums text-indigo-600 dark:text-indigo-400">${money(order.total_amount)}</span>
-            </div>
-            <div class="flex flex-wrap justify-end gap-2 border-t border-gray-100 px-4 py-2 dark:border-gray-700/60">
-                ${viewButton(order)}
             </div>
         </article>`;
 
@@ -307,12 +334,42 @@ const start = () => {
         },
     });
 
-    // Rows and cards are drawn by script, so the button is handled by delegation.
+    const openOrder = (orderId) => {
+        const order = table.rows().data().toArray().find((row) => Number(row.order_id) === Number(orderId));
+
+        if (order) {
+            popup.open(order);
+        }
+    };
+
+    // Rows and cards are drawn by script, so the clicks are handled by delegation. A row or card
+    // opens its order wherever it is clicked, except on something with a job of its own (the
+    // proof link) and while text is being selected (copying an order or reference number).
     document.addEventListener('click', (event) => {
-        const button = event.target.closest('[data-order-view]');
+        const button = event.target.closest('[data-order-open]');
 
         if (button) {
-            popup.open(table.rows().data().toArray().find((row) => Number(row.order_id) === Number(button.dataset.orderView)));
+            openOrder(button.dataset.orderOpen);
+
+            return;
+        }
+
+        if (event.target.closest('a, button, input, select, label, [data-zoom]') || window.getSelection()?.toString()) {
+            return;
+        }
+
+        const card = event.target.closest('[data-order-card]');
+
+        if (card) {
+            openOrder(card.dataset.orderCard);
+
+            return;
+        }
+
+        const row = event.target.closest('#session-orders-table tbody tr.row-clickable');
+
+        if (row) {
+            openOrder(table.row(row).data()?.order_id);
         }
     });
 

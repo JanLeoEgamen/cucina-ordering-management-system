@@ -23,7 +23,7 @@ class PaymentController extends Controller implements HasMiddleware
     public static function middleware(): array
     {
         return [
-            new Middleware('permission:view payments', only: ['index']),
+            new Middleware('permission:view payments', only: ['index', 'proofs']),
             new Middleware('permission:verify payments', only: ['verify']),
             new Middleware('permission:reject payments', only: ['reject']),
             new Middleware('permission:undo payments', only: ['undo']),
@@ -87,6 +87,37 @@ class PaymentController extends Controller implements HasMiddleware
         }
 
         return view('payments.index');
+    }
+
+    // The Proof of Payment Gallery: every uploaded proof as a picture, narrowed by payment
+    // method and date. The page, and one page of pictures for its AJAX request. Read only.
+    public function proofs(Request $request)
+    {
+        if (! $request->ajax()) {
+            return view('payments.proofs');
+        }
+
+        $gallery = Payment::proofPage(ServerTable::filters($request), (int) $request->input('page', 1));
+
+        return response()->json([
+            // Named one by one: only what a picture's card prints leaves the server.
+            'data' => $gallery['rows']->map(fn (object $payment) => [
+                'order_id' => (int) $payment->order_id,
+                'order_number' => $payment->order_number,
+                'customer_name' => $payment->customer_name,
+                'method_name' => $payment->method_name,
+                'reference_number' => $payment->reference_number,
+                'amount' => $payment->amount,
+                'created_at' => $payment->created_at,
+                'proof_url' => $payment->proof_url,
+                'status' => $this->paymentStatusBadge($payment->payment_status),
+            ])->values(),
+            'total' => $gallery['total'],
+            'page' => $gallery['page'],
+            'last_page' => $gallery['last_page'],
+            'per_page' => Payment::GALLERY_PAGE_SIZE,
+            'methods' => Payment::proofMethodOptions(),
+        ]);
     }
 
     // The URL of a decision when the payment is in the right state for it (verify

@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Support\Memo;
 use App\Support\ServerTable;
+use App\Support\Sql;
 use App\Support\TableCache;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -61,6 +63,346 @@ class Order extends Model
 
     /* -------- Reads -------- */
 
+    // Every order still pending, oldest first, with what the staff dashboard widgets ask about:
+    // customer, payment, discount, ready announcement, the session's window and the plates held.
+    // ONE cached query that the attention, unclaimed and cash widgets share; whatever depends on
+    // the clock (has the session ended?) is worked out by the caller, never in here.
+    public static function openForDashboard(): Collection
+    {
+        return Memo::get('order.open_for_dashboard', fn () => TableCache::remember(['orders', 'users', 'order_sessions', 'payments', 'payment_methods', 'order_items'], 'dashboard.open_orders', function () {
+            $plates = DB::table('order_items')
+                ->selectRaw('coalesce(sum(quantity), 0)')
+                ->whereColumn('order_items.order_id', self::TABLE . '.order_id')
+                ->whereNull('order_items.deleted_at');
+
+            return self::listQuery()
+                ->whereNull('payments.deleted_at')
+                ->where(self::TABLE . '.order_status', 'pending')
+                ->orderBy(self::TABLE . '.order_id')
+                ->select([
+                    self::TABLE . '.order_id',
+                    self::TABLE . '.session_id',
+                    self::TABLE . '.order_number',
+                    self::TABLE . '.order_date as placed_at',
+                    self::TABLE . '.total_amount',
+                    self::TABLE . '.discount_status',
+                    self::TABLE . '.ready_at',
+                    DB::raw(User::fullNameSql('users') . ' as customer_name'),
+                    'payments.payment_status as payment_state',
+                    'payment_methods.method_name',
+                    'order_sessions.order_date as session_date',
+                    'order_sessions.start_time as session_start',
+                    'order_sessions.end_time as session_end',
+                    'order_sessions.ended_at as session_ended_at',
+                    'order_sessions.is_active as session_is_active',
+                ])
+                ->selectSub($plates, 'plates')
+                ->get();
+        }));
+    }
+
+    // The orders placed on any of the given days (Y-m-d): when, status and total. The days are
+    // passed in, so the cached result never depends on the clock.
+    public static function placedOnDays(array $days): Collection
+    {
+        return TableCache::remember(['orders'], 'dashboard.placed.' . implode('.', $days), fn () => DB::table(self::TABLE)
+            ->whereNull('deleted_at')
+            ->where(function (Builder $any) use ($days) {
+                foreach ($days as $day) {
+                    $any->orWhereBetween('order_date', [$day . ' 00:00:00', $day . ' 23:59:59']);
+                }
+            })
+            ->get(['order_date', 'order_status', 'total_amount']));
+    }
+
+    // One customer's own history for their dashboard widgets: every order placed since $since
+    // (Y-m-d) plus any still pending, cancelled ones left out, newest first, each with its lines
+    // as dish ids. ONE query for the active orders, pickup, favourites, usual order and spending.
+    public static function dashboardHistoryOfUser(int $userId, string $since): Collection
+    {
+        $tables = ['orders', 'order_items', 'session_dishes', 'dishes', 'payments', 'payment_methods'];
+
+        return TableCache::remember($tables, 'dashboard.history.' . $userId . '.' . $since, fn () => self::loadHistoryOfUser($userId, $since));
+    }
+
+    // The query behind dashboardHistoryOfUser().
+    protected static function loadHistoryOfUser(int $userId, string $since): Collection
+    {
+        return DB::table(self::TABLE)
+            ->leftJoin('order_items', fn ($join) => $join->on('order_items.order_id', '=', self::TABLE . '.order_id')
+                ->whereNull('order_items.deleted_at'))
+            ->leftJoin('session_dishes', 'session_dishes.session_dish_id', '=', 'order_items.session_dish_id')
+            ->leftJoin('dishes', 'dishes.dish_id', '=', 'session_dishes.dish_id')
+            ->leftJoin('payments', 'payments.order_id', '=', self::TABLE . '.order_id')
+            ->leftJoin('payment_methods', 'payment_methods.method_id', '=', 'payments.payment_method_id')
+            ->where(self::TABLE . '.user_id', $userId)
+            ->whereNull(self::TABLE . '.deleted_at')
+            ->where(self::TABLE . '.order_status', '!=', 'cancelled')
+            ->where(fn (Builder $recent) => $recent->where(self::TABLE . '.order_date', '>=', $since . ' 00:00:00')
+                ->orWhere(self::TABLE . '.order_status', 'pending'))
+            ->orderByDesc(self::TABLE . '.order_id')
+            ->orderBy('order_items.order_item_id')
+            ->get([
+                self::TABLE . '.order_id',
+                self::TABLE . '.order_number',
+                self::TABLE . '.order_date',
+                self::TABLE . '.order_status',
+                self::TABLE . '.payment_status',
+                self::TABLE . '.ready_at',
+                self::TABLE . '.total_amount',
+                self::TABLE . '.discount_status',
+                self::TABLE . '.discount_amount',
+                'payment_methods.method_name',
+                'dishes.dish_id',
+                'dishes.dish_name',
+                'order_items.quantity',
+            ])
+            ->groupBy('order_id')
+            ->map(function (Collection $rows) {
+                $order = clone $rows->first();
+
+                // An order with no line at all keeps an empty list.
+                $order->lines = $rows->whereNotNull('dish_id')
+                    ->map(fn (object $row) => [
+                        'dish_id' => (int) $row->dish_id,
+                        'dish_name' => $row->dish_name,
+                        'quantity' => (int) $row->quantity,
+                    ])
+                    ->values()
+                    ->all();
+
+                unset($order->dish_id, $order->dish_name, $order->quantity);
+
+                return $order;
+            })
+            ->values();
+    }
+
+    /* -------- Analytics: totals added up by the database -------- */
+
+    // Orders placed between two moments, added up per day, status and payment method. The size of
+    // the result follows the days in the range, not the number of orders.
+    public static function dailyTotals(string $startAt, string $endAt): Collection
+    {
+        return DB::table(self::TABLE)
+            ->leftJoin('payments', fn ($join) => $join->on('payments.order_id', '=', self::TABLE . '.order_id')
+                ->whereNull('payments.deleted_at'))
+            ->leftJoin('payment_methods', 'payment_methods.method_id', '=', 'payments.payment_method_id')
+            ->whereNull(self::TABLE . '.deleted_at')
+            ->whereBetween(self::TABLE . '.order_date', [$startAt, $endAt])
+            ->selectRaw('DATE(orders.order_date) as day, orders.order_status, payment_methods.method_name, COUNT(*) as order_count, SUM(orders.total_amount) as amount')
+            ->groupByRaw('DATE(orders.order_date), orders.order_status, payment_methods.method_name')
+            ->get();
+    }
+
+    // How many orders held 1 plate, 2 plates and so on (cancelled ones left out).
+    public static function plateCounts(string $startAt, string $endAt): Collection
+    {
+        $perOrder = DB::table(self::TABLE)
+            ->join('order_items', fn ($join) => $join->on('order_items.order_id', '=', self::TABLE . '.order_id')
+                ->whereNull('order_items.deleted_at'))
+            ->whereNull(self::TABLE . '.deleted_at')
+            ->where(self::TABLE . '.order_status', '!=', 'cancelled')
+            ->whereBetween(self::TABLE . '.order_date', [$startAt, $endAt])
+            ->groupBy(self::TABLE . '.order_id')
+            ->selectRaw('SUM(order_items.quantity) as plates');
+
+        return DB::query()->fromSub($perOrder, 'baskets')
+            ->selectRaw('plates, COUNT(*) as order_count')
+            ->groupBy('plates')
+            ->get();
+    }
+
+    // The cancelled orders placed in the range, added up by who called them off: the customer,
+    // staff, or not recorded (cancelled before orders kept that).
+    public static function cancelledTotals(string $startAt, string $endAt): Collection
+    {
+        $plates = DB::table('order_items')
+            ->selectRaw('coalesce(sum(quantity), 0)')
+            ->whereColumn('order_items.order_id', self::TABLE . '.order_id')
+            ->whereNull('order_items.deleted_at');
+
+        $cancelled = DB::table(self::TABLE)
+            ->whereNull('deleted_at')
+            ->where('order_status', 'cancelled')
+            ->whereBetween('order_date', [$startAt, $endAt])
+            ->selectRaw("CASE WHEN cancelled_by IS NULL THEN 'unknown' WHEN cancelled_by = user_id THEN 'customer' ELSE 'staff' END as who, total_amount")
+            ->selectSub($plates, 'plates');
+
+        return DB::query()->fromSub($cancelled, 'cancelled')
+            ->selectRaw('who, COUNT(*) as order_count, SUM(total_amount) as amount, SUM(plates) as plates')
+            ->groupBy('who')
+            ->get();
+    }
+
+    // The reasons staff typed most often for the cancelled orders of the range.
+    public static function cancelReasons(string $startAt, string $endAt, int $limit): Collection
+    {
+        return DB::table(self::TABLE)
+            ->whereNull('deleted_at')
+            ->where('order_status', 'cancelled')
+            ->whereNotNull('cancel_reason')
+            ->whereBetween('order_date', [$startAt, $endAt])
+            ->selectRaw('cancel_reason, COUNT(*) as order_count')
+            ->groupBy('cancel_reason')
+            ->orderByDesc('order_count')
+            ->orderBy('cancel_reason')
+            ->limit($limit)
+            ->get();
+    }
+
+    // Per order session held between two days: orders (cancelled left out) and completed sales.
+    public static function totalsBySession(string $fromDate, string $toDate): Collection
+    {
+        return DB::table(self::TABLE)
+            ->join('order_sessions', 'order_sessions.session_id', '=', self::TABLE . '.session_id')
+            ->whereNull(self::TABLE . '.deleted_at')
+            ->whereNull('order_sessions.deleted_at')
+            ->whereDate('order_sessions.order_date', '>=', $fromDate)
+            ->whereDate('order_sessions.order_date', '<=', $toDate)
+            ->where(self::TABLE . '.order_status', '!=', 'cancelled')
+            ->selectRaw("orders.session_id, COUNT(*) as order_count, SUM(CASE WHEN orders.order_status = 'completed' THEN orders.total_amount ELSE 0 END) as sales")
+            ->groupBy(self::TABLE . '.session_id')
+            ->get()
+            ->keyBy('session_id');
+    }
+
+    // Orders (cancelled left out) per day and hour of the day they were placed.
+    public static function hourlyCounts(string $startAt, string $endAt): Collection
+    {
+        $hour = Sql::hour('orders.order_date');
+
+        return self::placedKept($startAt, $endAt)
+            ->selectRaw('DATE(orders.order_date) as day, ' . $hour . ' as hour_of_day, COUNT(*) as order_count')
+            ->groupByRaw('DATE(orders.order_date), ' . $hour)
+            ->get();
+    }
+
+    // The customers who ordered in the range, added up by how many orders each placed in it
+    // (1, 2-3, 4-9, 10+) and whether their first order ever falls in the range (new).
+    public static function customerFrequency(string $startAt, string $endAt): Collection
+    {
+        $inRange = self::placedKept($startAt, $endAt)->selectRaw('orders.user_id, COUNT(*) as range_orders')->groupBy(self::TABLE . '.user_id');
+
+        $first = DB::table(self::TABLE)
+            ->whereNull('deleted_at')
+            ->where('order_status', '!=', 'cancelled')
+            ->selectRaw('user_id, MIN(order_date) as first_at')
+            ->groupBy('user_id');
+
+        $each = DB::query()
+            ->fromSub($inRange, 'in_range')
+            ->joinSub($first, 'ever', 'ever.user_id', '=', 'in_range.user_id')
+            ->selectRaw('CASE WHEN in_range.range_orders = 1 THEN 1 WHEN in_range.range_orders <= 3 THEN 2 WHEN in_range.range_orders <= 9 THEN 4 ELSE 10 END as bucket, CASE WHEN ever.first_at >= ? THEN 1 ELSE 0 END as is_new, in_range.range_orders', [$startAt]);
+
+        return DB::query()->fromSub($each, 'each_customer')
+            ->selectRaw('bucket, is_new, COUNT(*) as customers, SUM(range_orders) as order_count')
+            ->groupBy('bucket', 'is_new')
+            ->get();
+    }
+
+    // For each cohort [key => [startAt, endAt]]: who ordered in it, and how many of them ordered
+    // again within $days of their first order in it. One statement for all the cohorts.
+    public static function repeatCohorts(array $cohorts, int $days): Collection
+    {
+        $query = null;
+
+        foreach ($cohorts as $key => [$startAt, $endAt]) {
+            $first = self::placedKept($startAt, $endAt)->selectRaw('orders.user_id, MIN(orders.order_date) as first_at')->groupBy(self::TABLE . '.user_id');
+
+            $cohort = DB::query()->fromSub($first, 'cohort')->selectRaw(
+                '? as cohort_key, COUNT(*) as customers, SUM(CASE WHEN EXISTS (SELECT 1 FROM orders AS again WHERE again.user_id = cohort.user_id'
+                . " AND again.deleted_at IS NULL AND again.order_status <> 'cancelled' AND again.order_date > cohort.first_at"
+                . ' AND again.order_date <= ' . Sql::plusDays('cohort.first_at', $days) . ') THEN 1 ELSE 0 END) as returned',
+                [$key]
+            );
+
+            $query = $query === null ? $cohort : $query->unionAll($cohort);
+        }
+
+        return $query === null ? collect() : $query->get()->keyBy('cohort_key');
+    }
+
+    // Customers whose LAST order falls between $since and $before: they used to order and
+    // stopped. Those who ordered most come first. Deleted accounts are left out.
+    public static function lapsedCustomers(string $since, string $before, int $limit): array
+    {
+        $lapsed = fn () => DB::table(self::TABLE)
+            ->join('users', 'users.id', '=', self::TABLE . '.user_id')
+            ->whereNull('users.deleted_at')
+            ->whereNull(self::TABLE . '.deleted_at')
+            ->where(self::TABLE . '.order_status', '!=', 'cancelled')
+            ->groupBy('users.id', 'users.first_name', 'users.last_name')
+            ->havingRaw('MAX(orders.order_date) < ? AND MAX(orders.order_date) >= ?', [$before, $since])
+            ->selectRaw(User::fullNameSql('users') . ' as customer_name, COUNT(*) as order_count, MAX(orders.order_date) as last_at');
+
+        return [
+            'total' => DB::query()->fromSub($lapsed(), 'lapsed')->count(),
+            'rows' => $lapsed()->orderByDesc('order_count')->orderByDesc('last_at')->limit($limit)->get(),
+        ];
+    }
+
+    // The customers with the most completed sales in the range, with their company.
+    public static function topCustomers(string $startAt, string $endAt, int $limit): Collection
+    {
+        return self::placedKept($startAt, $endAt)
+            ->join('users', 'users.id', '=', self::TABLE . '.user_id')
+            ->leftJoin('companies', 'companies.company_id', '=', 'users.company_id')
+            ->where(self::TABLE . '.order_status', 'completed')
+            ->groupBy('users.id', 'users.first_name', 'users.last_name', 'companies.company_name')
+            ->selectRaw(User::fullNameSql('users') . ' as customer_name, companies.company_name, COUNT(*) as order_count, SUM(orders.total_amount) as sales')
+            ->orderByDesc('sales')
+            ->orderByDesc('order_count')
+            ->limit($limit)
+            ->get();
+    }
+
+    // Orders, completed sales and distinct customers per company: the company each person has
+    // NOW (an order does not keep the one they had).
+    public static function totalsByCompany(string $startAt, string $endAt): Collection
+    {
+        return self::placedKept($startAt, $endAt)
+            ->join('users', 'users.id', '=', self::TABLE . '.user_id')
+            ->leftJoin('companies', 'companies.company_id', '=', 'users.company_id')
+            ->groupBy('companies.company_id', 'companies.company_name')
+            ->selectRaw("companies.company_name, COUNT(*) as order_count, SUM(CASE WHEN orders.order_status = 'completed' THEN orders.total_amount ELSE 0 END) as sales, COUNT(DISTINCT orders.user_id) as customers")
+            ->get();
+    }
+
+    // The range's orders that carry a discount, added up by the discount's name, its review state
+    // and the order's status. Totals only: no customer is read.
+    public static function discountTotals(string $startAt, string $endAt): Collection
+    {
+        return DB::table(self::TABLE)
+            ->whereNull('deleted_at')
+            ->whereBetween('order_date', [$startAt, $endAt])
+            ->where('discount_status', '!=', 'none')
+            ->selectRaw('discount_name, discount_status, order_status, COUNT(*) as order_count, SUM(discount_amount) as amount')
+            ->groupBy('discount_name', 'discount_status', 'order_status')
+            ->get();
+    }
+
+    // How long the discounts decided in the range waited, from the order to the decision, in
+    // bands of minutes (see Payment::reviewBands()).
+    public static function discountReviewTimes(string $startAt, string $endAt): Collection
+    {
+        return Payment::reviewBands(DB::table(self::TABLE)
+            ->whereNull('deleted_at')
+            ->where('order_status', '!=', 'cancelled')
+            ->whereIn('discount_status', ['approved', 'rejected'])
+            ->whereBetween('discount_decided_at', [$startAt, $endAt])
+            ->selectRaw(Sql::minutesBetween('order_date', 'discount_decided_at') . ' as minutes'));
+    }
+
+    // The orders placed in the range that were not cancelled.
+    protected static function placedKept(string $startAt, string $endAt): Builder
+    {
+        return DB::table(self::TABLE)
+            ->whereNull(self::TABLE . '.deleted_at')
+            ->where(self::TABLE . '.order_status', '!=', 'cancelled')
+            ->whereBetween(self::TABLE . '.order_date', [$startAt, $endAt]);
+    }
+
     // The orders of one session, with the customer, the payment and the lines,
     // for the orders list of the session page.
     public static function ofSession(int $sessionId): array
@@ -101,6 +443,7 @@ class Order extends Model
             ->leftJoin('payments', 'payments.order_id', '=', self::TABLE . '.order_id')
             ->leftJoin('payment_methods', 'payment_methods.method_id', '=', 'payments.payment_method_id')
             ->leftJoin('users as verifiers', 'verifiers.id', '=', 'payments.verified_by')
+            ->leftJoin('users as cancellers', 'cancellers.id', '=', self::TABLE . '.cancelled_by')
             ->whereNull(self::TABLE . '.deleted_at');
     }
 
@@ -127,6 +470,10 @@ class Order extends Model
             'payments.verified_at',
             'payment_methods.method_name',
             DB::raw(User::fullNameSql('verifiers') . ' as verified_by_name'),
+            // Staff only (the customer's popup is built from userListQuery, which has none of these).
+            self::TABLE . '.cancelled_at',
+            self::TABLE . '.cancel_reason',
+            DB::raw(User::fullNameSql('cancellers') . ' as cancelled_by_name'),
         ];
     }
 
@@ -588,6 +935,17 @@ class Order extends Model
             ->value('order_status');
     }
 
+    // Whether someone still has an order waiting to be completed or cancelled (their
+    // account cannot be closed by themselves until then, see ProfileController::destroy).
+    public static function userHasPending(int $userId): bool
+    {
+        return DB::table(self::TABLE)
+            ->where('user_id', $userId)
+            ->where('order_status', 'pending')
+            ->whereNull('deleted_at')
+            ->exists();
+    }
+
     // Check whether a live order exists.
     public static function existsById(int $orderId): bool
     {
@@ -636,17 +994,27 @@ class Order extends Model
         ]);
     }
 
-    // Set the order status; returns the number of changed rows.
-    public static function updateStatus(int $orderId, string $status): int
+    // Set the order status; returns the number of changed rows. Completing and cancelling also
+    // stamp when it happened (the analytics read it); a cancel records who did it and, when
+    // staff typed one, why. $actorId and $reason only matter to a cancel.
+    public static function updateStatus(int $orderId, string $status, ?int $actorId = null, ?string $reason = null): int
     {
+        $now = now();
+
+        $closing = match ($status) {
+            'completed' => ['completed_at' => $now],
+            'cancelled' => ['cancelled_at' => $now, 'cancelled_by' => $actorId, 'cancel_reason' => $reason],
+            default => [],
+        };
+
         return DB::table(self::TABLE)
             ->where('order_id', $orderId)
             ->whereNull('deleted_at')
-            ->update([
+            ->update($closing + [
                 'order_status' => $status,
                 // A cancelled order is closed, so it leaves the live lists.
                 'is_active' => $status === 'cancelled' ? 0 : 1,
-                'updated_at' => now(),
+                'updated_at' => $now,
             ]);
     }
 

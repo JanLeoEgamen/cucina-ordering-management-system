@@ -301,9 +301,13 @@ class OrderController extends Controller implements HasMiddleware
     // payment that was still waiting is rejected with the reason, so it can no
     // longer be verified. A payment that was already verified means money was
     // received: that decision has to be undone first, on purpose.
-    public function cancel($id)
+    public function cancel(Request $request, $id)
     {
-        return $this->cancelOrder((int) $id, false);
+        // Why it was called off: optional, kept on the order for the reports. The customer is
+        // not shown it.
+        $validated = $request->validate(['reason' => ['nullable', 'string', 'max:500']]);
+
+        return $this->cancelOrder((int) $id, false, $validated['reason'] ?? null);
     }
 
     // A customer cancels their OWN pending order, when System Configuration allows it. The same
@@ -326,8 +330,9 @@ class OrderController extends Controller implements HasMiddleware
         return $this->cancelOrder($orderId, true);
     }
 
-    // The one cancel: staff's ($byCustomer false) and the customer's own.
-    protected function cancelOrder(int $orderId, bool $byCustomer)
+    // The one cancel: staff's ($byCustomer false) and the customer's own. Either way the order
+    // records who cancelled it; $reason is only ever what staff typed.
+    protected function cancelOrder(int $orderId, bool $byCustomer, ?string $reason = null)
     {
         $status = Order::statusOf($orderId);
 
@@ -345,7 +350,7 @@ class OrderController extends Controller implements HasMiddleware
             return $this->errorResponse($this->verifiedRefusal($byCustomer), 422);
         }
 
-        $refused = DB::transaction(function () use ($orderId, $byCustomer) {
+        $refused = DB::transaction(function () use ($orderId, $byCustomer, $reason) {
             // Lock the order and judge again: two people pressing Cancel at the
             // same moment must not both give the stock back (that would put
             // plates on the menu that were never cooked).
@@ -371,7 +376,7 @@ class OrderController extends Controller implements HasMiddleware
                 Order::updatePaymentStatus($orderId, 'rejected');
             }
 
-            Order::updateStatus($orderId, 'cancelled');
+            Order::updateStatus($orderId, 'cancelled', (int) auth()->id(), $reason);
 
             return null;
         });
@@ -747,6 +752,11 @@ class OrderController extends Controller implements HasMiddleware
 
             if (! $dish) {
                 return $this->errorResponse('One of the dishes is no longer on the menu.', 422);
+            }
+
+            // Saved before a price was required.
+            if ((float) $dish->price <= 0) {
+                return $this->stockShortResponse($session, $dish->dish_name . ' has no price yet, so it cannot be ordered. Please remove it from your cart.');
             }
 
             if ($dish->available_stock < 1) {

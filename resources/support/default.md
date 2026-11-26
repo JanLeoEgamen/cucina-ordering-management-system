@@ -28,7 +28,7 @@ Welcome to the help page of {app_name}. Here are the answers to what people ask 
 
 **How do I change my name, company, email or password?** Open **Profile** in the account menu at the top right.
 
-**How do I delete my account?** At the bottom of **Profile** choose **Delete Account** and confirm with your password. You will be signed out and the account can no longer be used. The shop keeps its record of past orders.
+**How do I delete my account?** At the bottom of **Profile** choose **Delete Account** and confirm with your password. You will be signed out and the account can no longer be used. Its details and your past orders are kept, and the same email address cannot be used to register again. While you have a pending order the account cannot be deleted: wait until it is completed or cancelled.
 
 ## Still need help?
 

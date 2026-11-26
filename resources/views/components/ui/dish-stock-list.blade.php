@@ -28,6 +28,8 @@
     'dishes',
     // false for a session with no stock (pre-order sessions): the same picker, without the number boxes.
     'stock' => true,
+    // How tall the scrolling list may grow (the Add Session modal sizes it by the window).
+    'height' => 'max-h-64',
 ])
 
 @php
@@ -164,7 +166,7 @@
         </span>
     </div>
 
-    <div class="max-h-64 divide-y divide-gray-100 overflow-y-auto rounded-b-lg dark:divide-gray-700/70">
+    <div class="{{ $height }} divide-y divide-gray-100 overflow-y-auto rounded-b-lg dark:divide-gray-700/70">
         @forelse ($dishes as $dish)
             <div x-show="isShown({{ $dish->dish_id }})"
                  x-bind:class="picked.includes({{ $dish->dish_id }}) ? '' : 'opacity-55'"

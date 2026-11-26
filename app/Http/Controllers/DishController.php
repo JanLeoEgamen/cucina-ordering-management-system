@@ -256,7 +256,9 @@ class DishController extends Controller implements HasMiddleware
             'description' => ['nullable', 'string'],
             'image' => ['nullable', 'file', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:2048'],
             'remove_image' => ['boolean'],
-            'price' => ['required', 'numeric', 'min:0'],
+            // Never free: an order at 0.00 could ask for a proof of payment of nothing (a 100%
+            // discount is the way to give food away).
+            'price' => ['required', 'numeric', 'min:0.01'],
             'calories' => ['nullable', 'integer', 'min:0'],
             'main_ingredients' => ['nullable', 'string'],
             'is_active' => ['required', 'boolean'],

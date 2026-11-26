@@ -271,7 +271,7 @@ class DishImport
         );
         self::validation($sheet, $range('includes_rice'), DataValidation::TYPE_LIST, '"Yes,No"', null, 'Pick Yes or No.');
         self::validation($sheet, $range('is_active'), DataValidation::TYPE_LIST, '"Yes,No"', null, 'Pick Yes or No.');
-        self::validation($sheet, $range('price'), DataValidation::TYPE_DECIMAL, '0', '99999999.99', 'The price must be a number of 0 or more.');
+        self::validation($sheet, $range('price'), DataValidation::TYPE_DECIMAL, '0.01', '99999999.99', 'The price must be at least 0.01.');
         self::validation($sheet, $range('calories'), DataValidation::TYPE_WHOLE, '0', '100000', 'Calories must be a whole number of 0 or more.');
     }
 
@@ -716,7 +716,7 @@ class DishImport
             'main_ingredients' => $values['main_ingredients'] === '' ? null : $values['main_ingredients'],
         ], [
             'dish_name' => ['required', 'string', 'max:255'],
-            'price' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+            'price' => ['required', 'numeric', 'min:0.01', 'max:99999999.99'],
             'description' => ['nullable', 'string', 'max:255'],
             'calories' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'main_ingredients' => ['nullable', 'string', 'max:255'],
