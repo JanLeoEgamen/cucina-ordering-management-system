@@ -40,11 +40,11 @@
                 <input type="hidden" name="range" value="{{ Period::CUSTOM }}">
                 <label class="text-xs font-semibold text-gray-500 dark:text-gray-400">
                     {{ __('From') }}
-                    <input type="date" name="from" required value="{{ $period->fromDate() }}" max="{{ now()->toDateString() }}" class="{{ $field }}">
+                    <input type="date" name="from" required data-menu-size="sm" value="{{ $period->fromDate() }}" max="{{ now()->toDateString() }}" class="{{ $field }}">
                 </label>
                 <label class="text-xs font-semibold text-gray-500 dark:text-gray-400">
                     {{ __('To') }}
-                    <input type="date" name="to" required value="{{ $period->toDate() }}" max="{{ now()->toDateString() }}" class="{{ $field }}">
+                    <input type="date" name="to" required data-menu-size="sm" value="{{ $period->toDate() }}" max="{{ now()->toDateString() }}" class="{{ $field }}">
                 </label>
                 <button type="submit" class="{{ $pill }} {{ $period->key === Period::CUSTOM ? $on : $off }}">{{ __('Apply') }}</button>
             </form>

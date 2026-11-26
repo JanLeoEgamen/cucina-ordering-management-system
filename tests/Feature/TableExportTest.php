@@ -56,6 +56,7 @@ class TableExportTest extends TestCase
         $this->assertStringContainsString('data-table-export="xlsx"', $html);
         $this->assertStringContainsString('data-table-export="pdf"', $html);
         $this->assertMatchesRegularExpression('/data-export-title="Orders [A-Z][a-z]{2} \d{1,2}, \d{4}"/', $html);
-        $this->assertGreaterThanOrEqual(2, substr_count($html, 'data-no-export'));
+        // Only the running number is left out: this table has no Actions column (a row opens its order).
+        $this->assertStringContainsString('<th scope="col" data-no-export', $html);
     }
 }

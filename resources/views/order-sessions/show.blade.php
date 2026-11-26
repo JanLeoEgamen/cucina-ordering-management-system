@@ -93,11 +93,18 @@
                         {{ __('Dishes and Stock') }}
                         <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium tabular-nums text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ count($session->dishes) }}</span>
                     </span>
-                    <svg class="h-4 w-4 flex-shrink-0 text-gray-400 transition-transform duration-200" x-bind:class="open ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                    <svg class="h-4 w-4 flex-shrink-0 text-gray-400 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]" x-bind:class="open ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
                 </button>
             </h3>
 
-            <div id="session-dishes-panel" x-show="open" x-cloak class="overflow-x-auto border-t border-gray-200 dark:border-gray-700">
+            {{-- Opens and closes by growing its grid row (0fr <-> 1fr), the one way to animate to a
+                 height nobody knows, so the orders below glide instead of jumping. Closed it is
+                 `inert` (not reachable by keyboard or screen reader). Reduced motion: app.css. --}}
+            <div id="session-dishes-panel" inert x-bind:inert="! open"
+                 class="grid grid-rows-[0fr] opacity-0 transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                 x-bind:class="{ 'grid-rows-[0fr] opacity-0': ! open, 'grid-rows-[1fr] opacity-100': open }">
+                <div class="min-h-0 overflow-hidden">
+                <div class="overflow-x-auto border-t border-gray-200 dark:border-gray-700">
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                     <thead>
                         <tr>
@@ -122,6 +129,8 @@
                         @endforelse
                     </tbody>
                 </table>
+                </div>
+                </div>
             </div>
         </section>
 
@@ -129,8 +138,8 @@
         <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
             {{-- Search, sort, filters and the view tabs (resources/js/ui/table-toolbar.js). --}}
             <x-ui.table-toolbar :export-title="__('Orders') . ' ' . $date" :title="__('Orders')" :views="['table', 'card']" :sorts="[
-                [__('Newest first'), 7, 'desc'],
-                [__('Oldest first'), 7, 'asc'],
+                [__('Newest first'), 8, 'desc'],
+                [__('Oldest first'), 8, 'asc'],
                 [__('Total: high to low'), 4, 'desc'],
                 [__('Total: low to high'), 4, 'asc'],
                 [__('Customer: A to Z'), 2, 'asc'],
@@ -165,10 +174,11 @@
                    data-no-method="{{ __('Cash on Pick up') }}"
                    data-items-label="{{ __('Items') }}"
                    data-customer-label="{{ __('Customer') }}"
-                   data-payment-label="{{ __('Payment') }}"
+                   data-method-label="{{ __('Payment Method') }}"
+                   data-payment-status-label="{{ __('Payment Status') }}"
                    data-placed-label="{{ __('Placed') }}"
-                   data-view-label="{{ __('View') }}"
-                   class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                   data-open-label="{{ __('View order') }}"
+                   class="dt-compact min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead class="bg-gray-50/70 dark:bg-gray-900/40">
                     <tr>
                         <th scope="col" data-no-export class="{{ $th }} w-12">#</th>
@@ -176,10 +186,10 @@
                         <th scope="col" class="{{ $th }}">{{ __('Customer') }}</th>
                         <th scope="col" class="{{ $th }} hidden md:table-cell">{{ __('Items') }}</th>
                         <th scope="col" class="{{ $th }} text-right">{{ __('Total') }}</th>
-                        <th scope="col" class="{{ $th }} hidden sm:table-cell">{{ __('Payment') }}</th>
-                        <th scope="col" class="{{ $th }}">{{ __('Status') }}</th>
+                        <th scope="col" class="{{ $th }} hidden sm:table-cell">{{ __('Payment Method') }}</th>
+                        <th scope="col" class="{{ $th }} hidden sm:table-cell">{{ __('Payment Status') }}</th>
+                        <th scope="col" class="{{ $th }}">{{ __('Order Status') }}</th>
                         <th scope="col" class="{{ $th }} hidden lg:table-cell">{{ __('Placed') }}</th>
-                        <th scope="col" data-no-export class="{{ $th }} text-right">{{ __('Actions') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 bg-white dark:divide-gray-700 dark:bg-gray-800"></tbody>

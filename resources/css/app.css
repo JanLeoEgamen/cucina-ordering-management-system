@@ -396,6 +396,17 @@ html.dark {
     @apply bg-gray-50 dark:bg-gray-700/60;
 }
 
+/* A row that opens something when clicked (`row-clickable`, set by the page script): the pointer
+   says so, and the row's border firms up under the mouse or while something in it has focus. */
+.dt-container table.dataTable tbody tr.row-clickable {
+    cursor: pointer;
+}
+
+.dt-container table.dataTable tbody tr.row-clickable:hover td,
+.dt-container table.dataTable tbody tr.row-clickable:focus-within td {
+    @apply border-gray-300 dark:border-gray-500;
+}
+
 /* The search box: a pill with a magnifier inside, and no label beside it (the
    placeholder is set in each page script). */
 .dt-container .dt-search label {

@@ -7,16 +7,17 @@
  * `data-*` attributes, so nothing is hard coded here.
  *
  * Flow:
- *   #create-order-session        -> reset the create form, open its drawer
+ *   #create-order-session        -> the three step "Add Session" modal (ui/session-wizard.js)
  *   [data-view-mode]             -> table, card grid or month calendar
  *   View                         -> a plain link to the session page (order-session-show.js)
  *   [data-row-action=edit]       -> GET the session, fill the edit form, open it
  *   [data-row-action=end]        -> confirmation, then POST .../end
  *   [data-row-action=delete]     -> delete form points at the record, open modal
- *   form submit                  -> confirmation modal (copy from the form's data-*)
+ *   edit form submit             -> confirmation modal (copy from the form's data-*)
  *   confirm                      -> send the form, toast, reload; failures keep the drawer open
  */
 import DataTable from 'datatables.net-dt';
+import { initSessionWizard } from '../ui/session-wizard';
 import { initTableToolbar } from '../ui/table-toolbar';
 import { showToast } from '../ui/toast';
 
@@ -592,25 +593,37 @@ const start = () => {
 
     /* ---- wiring ---------------------------------------------------------- */
 
+    // The window of another open session that clashes with this one, or null. Same rule as
+    // OrderSession::overlaps(), read from the rows the table holds: the server still decides.
+    const conflictOf = (date, startTime, endTime) => {
+        const other = table.rows().data().toArray().find((row) => String(row.order_date ?? '').slice(0, 10) === date
+            && statusOfRow(row) !== 'ended'
+            && startTime < shortTime(row.end_time)
+            && endTime > shortTime(row.start_time));
+
+        return other ? windowOf(other) : null;
+    };
+
+    // Creating is a three step modal (resources/js/ui/session-wizard.js).
+    const wizard = initSessionWizard({
+        form: createForm,
+        errors: createErrors,
+        send,
+        busy,
+        showErrors,
+        messages,
+        reset: resetForm,
+        conflictOf,
+        onCreated: (payload) => {
+            showToast(payload.message);
+            reload();
+        },
+    });
+
     createButton?.addEventListener('click', () => {
-        resetForm(createForm);
-
-        // A session is usually today: start the date off there.
-        if (createForm.elements['order_date']) {
-            createForm.elements['order_date'].value = new Date().toLocaleDateString('en-CA');
-        }
-
-        // The start and end time come from System Configuration (the form carries them).
-        if (createForm.elements['start_time'] && createForm.dataset.defaultStart) {
-            createForm.elements['start_time'].value = createForm.dataset.defaultStart;
-        }
-
-        if (createForm.elements['end_time'] && createForm.dataset.defaultEnd) {
-            createForm.elements['end_time'].value = createForm.dataset.defaultEnd;
-        }
-
-        showErrors(createErrors, []);
-        emit('open-drawer', createForm.dataset.drawer);
+        // Someone else may have added or ended a session since the page loaded.
+        table.ajax.reload(() => wizard.refresh(), false);
+        wizard.open();
     });
 
     // One click = one action: a button ignores further clicks for this long, so
@@ -703,26 +716,22 @@ const start = () => {
     let pendingForm = null;
     let saving = false;
 
-    [createForm, editForm].forEach((form) => {
-        const errors = form === createForm ? createErrors : editErrors;
+    editForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        showErrors(editErrors, []);
+        pendingForm = { form: editForm, errors: editErrors };
 
-        form.addEventListener('submit', (event) => {
-            event.preventDefault();
-            showErrors(errors, []);
-            pendingForm = { form, errors };
+        const subject = editForm.dataset.subjectField
+            ? String(editForm.elements[editForm.dataset.subjectField]?.value ?? '').trim()
+            : '';
 
-            const subject = form.dataset.subjectField
-                ? String(form.elements[form.dataset.subjectField]?.value ?? '').trim()
-                : '';
+        confirmTitle.textContent = editForm.dataset.confirmTitle ?? confirmTitle.textContent;
+        confirmMessage.textContent = editForm.dataset.confirmMessage ?? confirmMessage.textContent;
+        confirmButton.textContent = editForm.dataset.confirmLabel ?? confirmButton.textContent;
+        confirmSubject.textContent = subject === '' ? '' : prettyDate(subject);
+        confirmSubject.classList.toggle('hidden', subject === '');
 
-            confirmTitle.textContent = form.dataset.confirmTitle ?? confirmTitle.textContent;
-            confirmMessage.textContent = form.dataset.confirmMessage ?? confirmMessage.textContent;
-            confirmButton.textContent = form.dataset.confirmLabel ?? confirmButton.textContent;
-            confirmSubject.textContent = subject === '' ? '' : prettyDate(subject);
-            confirmSubject.classList.toggle('hidden', subject === '');
-
-            emit('open-modal', 'edit-confirmation-modal');
-        });
+        emit('open-modal', 'edit-confirmation-modal');
     });
 
     confirmButton.addEventListener('click', async () => {
@@ -756,7 +765,6 @@ const start = () => {
                 return;
             }
 
-            emit('close-drawer', createForm.dataset.drawer);
             emit('close-drawer', editForm.dataset.drawer);
             showToast(payload.message);
             reload();

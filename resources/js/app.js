@@ -37,9 +37,16 @@ import './ui/soft-nav';
  * same panel as the toolbar's sort menu, instead of the browser's list.
  */
 import { autoEnhanceSelects } from './ui/select-menu';
+// Every date input gets the matching calendar (resources/js/ui/date-picker.js).
+import { autoEnhanceDatePickers } from './ui/date-picker';
+
+const enhanceFields = () => {
+    autoEnhanceSelects();
+    autoEnhanceDatePickers();
+};
 
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', autoEnhanceSelects);
+    document.addEventListener('DOMContentLoaded', enhanceFields);
 } else {
-    autoEnhanceSelects();
+    enhanceFields();
 }

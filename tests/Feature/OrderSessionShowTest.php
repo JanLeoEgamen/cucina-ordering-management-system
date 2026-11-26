@@ -47,7 +47,8 @@ class OrderSessionShowTest extends TestCase
             ->assertOk()
             ->assertSee('id="session-orders-table"', false)
             ->assertSee('id="session-orders-cards"', false)
-            ->assertSee('Actions')
+            // No Actions column: a row opens its order.
+            ->assertSee('data-open-label="View order"', false)
             ->assertSee('id="order-details-items"', false)
             ->assertSee('Chicken Adobo')
             ->assertSee('aria-controls="session-dishes-panel"', false);
