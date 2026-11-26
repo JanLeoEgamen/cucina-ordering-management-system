@@ -33,6 +33,29 @@ is not listed below.
 - Users cannot delete their own account via `/users/{id}`.
 - Table-cell action buttons are rendered server-side only if the user holds the permission (UI hint only — the route middleware is the real gate).
 
+### Privilege rules (`App\Support\AccessGuard`)
+
+**Nobody gives, changes or takes away more access than they have.** A Super Admin is exempt, except for their own roles. The ordering permissions (`Role::CUSTOMER_PERMISSIONS`) count as held by everyone, because anyone gets them by registering.
+
+| Action | Rule | Refusal |
+|---|---|---|
+| Give a role (create / edit user) | You hold every permission in it. *Super Admin* only by a Super Admin, even if you hold every permission. | 422 on `roles` |
+| Edit or delete a user (name, **email, password**, roles) | The account has no permission you lack, by role or directly. A Super Admin account: only a Super Admin edits it, nobody deletes it. | 403 (422 for deleting a Super Admin) |
+| Your own account | Your roles never change, Super Admin included. Other details can. | 422 on `roles` |
+| Create / edit a role | You hold every permission you put in it. | 422 on `permissions` |
+| Edit or delete a role | You hold every permission it has **now** (so you cannot strip a stronger one). | 403 |
+| The *Customer* role (`Role::NAME_LOCKED`) | Nobody renames or deletes it: sign-ups get the role of that name. Its permissions stay editable. | 422 |
+
+- Through the app there is always a Super Admin left: only a Super Admin changes another one, nobody changes their own roles, and a Super Admin cannot be deleted. The console and the database are not bound by this.
+- By design, someone with `edit users` can still change the password of any account with **equal or less** access, customers included.
+- The hidden buttons, the role list in the user drawers and the disabled permission chips are hints; the checks above run on the server. A new way to write users, roles or their pivots must ask `AccessGuard` (`PrivilegeRulesTest`).
+
+### Seeded accounts
+
+- The owner comes from `SEED_OWNER_EMAIL` / `SEED_OWNER_PASSWORD` (`config/seed.php`). No email = no owner; no password = a random one printed once. **No real address or password is in the code.** The seeder reads `config()`, not `env()`, so cached config cannot silently drop them (run `config:cache` again after changing `.env`).
+- `test@example.com` / `password` (Super Admin) is created **only** when `APP_ENV` is `local` or `testing`. A server must run with `APP_ENV=production`.
+- Super Admin is given only to an account `UserSeeder` has just created. An address that already has an account is left untouched: registration does not prove who owns an email. `PermissionSeeder` gives no account any role.
+
 ### Permission catalogue
 
 | Area | Permissions |
@@ -122,20 +145,17 @@ Upgrading an existing database: migrations `2026_11_26_100100` and `2026_11_26_1
 ## Known weaknesses (tracked in known-issues.md)
 
 Reviewed 2026-11-11. Priority: **P0** fix before any real use · **P1** before go-live · **P2** next sprint · **P3** hygiene.
-All items are open. Functional and quality gaps are in [known-issues.md](known-issues.md).
+Items marked *Partly fixed* say what is still open; fully fixed items are removed (see [changelog.md](changelog.md)). Functional and quality gaps are in [known-issues.md](known-issues.md).
 
 | ID | Pri | Issue | Where | Fix |
 |---|---|---|---|---|
-| S1 | **P0** | Privilege escalation via users: `create users` / `edit users` can assign *Super Admin* to anyone, including yourself. | `UserController::validateUser`, `User::updateUser` | Only Super Admin assigns Super Admin; block editing own roles; limit assignable roles to those you hold. |
-| S2 | **P0** | Privilege escalation via roles: `edit roles` / `create roles` can add any permission to a role you hold. | `RoleController::update`, `validateRole` | Grant only permissions you hold; treat as admin-only; add tests. |
-| S3 | **P0** | Default credentials: seeded `test@example.com` / `password` is *Super Admin*, and so is `jleoegamen6@gmail.com` with the default password `Password123!` written in `UserSeeder` (override with `SEED_USER_PASSWORD`). | `DatabaseSeeder`, `UserSeeder`, `PermissionSeeder` | Seed only in `local`; credentials from env; force change on first login. |
+| S3 | **P0** | **Fixed in code** (see *Seeded accounts*). **Still open until done by hand on every database seeded before:** `test@example.com`, `jleoegamen6@gmail.com` and `janleoegamen6@bounty.com.ph` keep their accounts, roles and passwords. The old default passwords are in the git history, so treat them as public. There is no forced password change at first sign in (left out on purpose: there is no shared default any more). | existing databases | Confirm your team made each account, then change its password, or have another Super Admin remove its role and delete it; review everyone who holds *Super Admin*. |
 | S4 | **P1** | Payment proofs on the **public** disk: guessable `/storage/payments/...` URLs with no auth (financial/personal data). | `OrderController::store`, `Payment::proofUrl` | Private disk + authorised download route (owner or verifier). |
 | S5 | **P1** | **Partly fixed:** staff can now cancel a pending order (`cancel orders`), which gives its stock back. Still open: orders reserve stock instantly and stay `pending` until someone acts, and there is no quantity cap, per-user limit or automatic expiry, so one customer can still tie up a lot of stock. | `SessionDish::reserve`, `validateOrder`, `OrderController::cancel` | Per-line and per-user caps; pending timeout that cancels automatically. |
 | S6 | **P1** | **Fixed:** `POST /orders` is throttled to 10 / minute per user, `POST /register` to 5 / minute and 30 / hour per IP (named limiter `register` in `AppServiceProvider`; invalid attempts count; a 429 past the cap), login to 5 tries (Breeze). Still open: no CAPTCHA, so a script that rotates IPs is not stopped; behind a proxy the limit sees the client's IP only when `TRUSTED_PROXIES` is set, otherwise everyone shares the proxy's address and one burst blocks all sign-ups. | `routes/auth.php`, `AppServiceProvider`, `RegisteredUserController` | CAPTCHA if sign-up is public and abused. |
 | S7 | **P1** | **Fixed:** open `/register` (and the first Google sign-in) now assigns the minimal *Customer* role (`Role::CUSTOMER_PERMISSIONS`: menu, ordering, my orders, pre-order menu / orders). Still open: if `PermissionSeeder` has not run the role does not exist and the account stays role-less; accounts registered before the change have no role. | `routes/auth.php`, `RegisteredUserController`, `GoogleAuthController`, `User::giveCustomerRole` | Seed on deploy; give old accounts the role in the Users page. |
 | S8 | **P1** | Unsafe production defaults: `APP_DEBUG=true` in `.env.example`; `SESSION_SECURE_COOKIE` unset; `SESSION_ENCRYPT=false`. | `.env.example`, `config/session.php` | Prod: `APP_DEBUG=false`, `SESSION_SECURE_COOKIE=true`, `SESSION_ENCRYPT=true`, HTTPS only. |
 | S9 | **P2** | `reference_number` is free text with no uniqueness: one transfer can "pay" many orders. | `validateOrder`, `payments` | Unique per method + check at verification. |
-| S10 | **P2** | **Fixed:** a Super Admin account cannot be deleted (`UserController::destroy` 422, `ProfileController::destroy` refuses, `User::deleteUser` returns false). Still open: an `edit users` holder can strip the Super Admin role first and then delete (see S1). | `User::isSuperAdmin`, `UserController::destroy` | Close with S1 (only a Super Admin edits a Super Admin's roles). |
 | S11 | **P2** | **Partly fixed:** `verify payments`, `reject payments` (reason required) and `undo payments` exist; a decision stamps the reviewer, a verified payment cannot be deleted. The audit trail now keeps every decision, undo and delete (who, when, the before / after), so history survives an undo there; the payment row itself still forgets the earlier reviewer and reason, and the order's own screen has no history panel. | `PaymentController` | Transition / delete log (see S12) so undo keeps history. |
 | S12 | **P2** | **Fixed:** an audit trail records every change, refusal and sign in / out, and optionally page views (see "Audit trail" above). Still open: it is append-only by code, not by the database (see known-issues A1). | `AuditTrail` middleware, `audit_logs` | DB-level protection (no UPDATE / DELETE grant for the app user) and a hash chain if tamper evidence is required. |
 | S13 | **P2** | Inconsistent password policy: register, reset and change password use `Password::defaults()` (8+ with a letter, a number and a special character), admin-created users only `min:8`. | `UserController::validateUser` | Use `Password::defaults()` everywhere. |
@@ -143,7 +163,6 @@ All items are open. Functional and quality gaps are in [known-issues.md](known-i
 | S15 | **P3** | No security headers / CSP; no `composer audit` / `npm audit` step. | `bootstrap/app.php` | Header middleware; audits in CI. |
 | S16 | **P3** | Controller-built HTML relies on `e()` discipline; one `{!! $icon !!}` in `notification.blade.php` (static today, safe). | `Controller.php`, `notification.blade.php` | Keep the `e()` rule; add an escaping test. |
 | S17 | **P3** | Uploads: allow-list and 2 MB cap are good, but no re-encoding or dimension limit. | Dish / PaymentMethod / Order controllers | Optional re-encode, cap dimensions. |
-| S18 | **P2** | `GET /users/{id}/edit` returns the whole `users` row: `User::findById()` is `DB::table('users')->first()`, so the JSON carries the **password hash** and `remember_token` (and `google_id`) to anyone holding `edit users`. The edit drawer never reads them. Found 2026-11-20 while adding companies; not changed there. | `User::findById`, `UserController::edit` | Select the columns the drawers need (or `unset` `password`, `remember_token`) and add a test that the JSON has neither. |
 
 ## Secrets & config
 

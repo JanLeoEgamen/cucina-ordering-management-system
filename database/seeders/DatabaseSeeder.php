@@ -3,9 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\PaymentMethod;
-use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
@@ -14,36 +12,10 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        User::firstOrCreate(
-            ['email' => 'test@example.com'],
-            ['first_name' => 'Test', 'last_name' => 'User', 'password' => bcrypt('password'), 'profile_completed_at' => now()]
-        );
-
-        // The admin account of the owner. The password is never kept in the repo:
-        // it is read from SEED_ADMIN_PASSWORD in .env, or generated and shown once
-        // when that is empty. An existing account is left as it is (its password
-        // may have been changed in the app).
-        $admin = User::firstOrCreate(
-            ['email' => 'janleoegamen6@bounty.com.ph'],
-            [
-                'first_name' => 'Admin',
-                'last_name' => 'Account',
-                'password' => bcrypt($password = env('SEED_ADMIN_PASSWORD') ?: Str::random(16)),
-                'profile_completed_at' => now(),
-            ]
-        );
-
-        if ($admin->wasRecentlyCreated && ! env('SEED_ADMIN_PASSWORD')) {
-            $this->command?->warn('Admin janleoegamen6@bounty.com.ph created with password: ' . $password . ' (shown once; set SEED_ADMIN_PASSWORD in .env to choose it)');
-        }
-
-        // Jan Leo Egamen's account (UserSeeder), before the permissions so that
-        // PermissionSeeder can give it the Super Admin role.
-        $this->call(UserSeeder::class);
-
-        // Permissions, and the Super Admin role on the accounts above: without
-        // it every gated page answers 403.
+        // Permissions and the Super Admin / Customer roles, then the first accounts (the owner
+        // from .env, and the developer login on a local setup).
         $this->call(PermissionSeeder::class);
+        $this->call(UserSeeder::class);
 
         // The methods the checkout offers. Without one there is nothing to pick
         // at checkout, so an order cannot be placed. Cash on Pick up is the only

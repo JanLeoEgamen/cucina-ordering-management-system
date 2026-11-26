@@ -237,20 +237,20 @@ A person's own in-app notifications; see [architecture.md](architecture.md) for 
 | Endpoint | Permission | Notes |
 |---|---|---|
 | `` `GET /roles` `` | `view roles` | Page / table feed. |
-| `` `POST /roles` `` | `create roles` | `name` (unique), `permissions[]` (ids that exist). |
-| `` `GET /roles/{id}/edit` `` | `edit roles` | JSON incl. assigned permissions. |
-| `` `PUT /roles/{id}` `` | `edit roles` | **422** for protected roles (`Role::PROTECTED` = *Super Admin*). |
-| `` `DELETE /roles/{id}` `` | `delete roles` | **422** if protected, or still assigned to users. |
+| `` `POST /roles` `` | `create roles` | `name` (unique), `permissions[]` (ids that exist). **422** on `permissions` for one you do not hold yourself (security.md, *Privilege rules*). |
+| `` `GET /roles/{id}/edit` `` | `edit roles` | JSON incl. assigned permissions, `is_protected` and `name_locked` (the name is read only). |
+| `` `PUT /roles/{id}` `` | `edit roles` | **422** for protected roles (`Role::PROTECTED` = *Super Admin*), for renaming *Customer* (`name`), and for a permission you do not hold (`permissions`). **403** when the role now holds one you do not. |
+| `` `DELETE /roles/{id}` `` | `delete roles` | **422** if protected, *Customer*, or still assigned to users. **403** when it holds a permission you do not. |
 
 ## Users
 
 | Endpoint | Permission | Notes |
 |---|---|---|
 | `` `GET /users` `` | `view users` | Page / table feed (with role chips). |
-| `` `POST /users` `` | `create users` | `first_name`, `last_name`, `company_id` (**required**: an active company, see *Companies*), `employee_id` (**required unless the company is Guest**, max 50; a Guest's is dropped), `email` (unique), `password` (≥8, `confirmed`), `roles[]` (≥1). |
-| `` `GET /users/{id}/edit` `` | `edit users` | JSON of one user (`first_name`, `last_name`, `company_id`, `company` = the company's name (null when none, e.g. an account that predates companies), `employee_id` (null for a Guest or an account that predates it), and `name` = full name) + role ids. The table feed rows carry the same fields. |
-| `` `PUT /users/{id}` `` | `edit users` | Password optional on update. `company_id` and `employee_id` (same rule as on create: required unless Guest, so editing an old account without one asks for it) are required here too; the user's **own** company stays valid even if it was switched off since (so renaming such a user does not fail), but nobody can be moved *into* an inactive or deleted one. |
-| `` `DELETE /users/{id}` `` | `delete users` | Soft delete; **422** when deleting your own account or any Super Admin account. |
+| `` `POST /users` `` | `create users` | `first_name`, `last_name`, `company_id` (**required**: an active company, see *Companies*), `employee_id` (**required unless the company is Guest**, max 50; a Guest's is dropped), `email` (unique), `password` (≥8, `confirmed`), `roles[]` (≥1). **422** on `roles` for a role with access you do not have (*Super Admin*: only a Super Admin). |
+| `` `GET /users/{id}/edit` `` | `edit users` | JSON of one user (`first_name`, `last_name`, `company_id`, `company` = the company's name (null when none, e.g. an account that predates companies), `employee_id` (null for a Guest or an account that predates it), and `name` = full name) + role ids. The table feed rows carry the same fields. Only these columns (+ `id`, `email`, role names): never the password hash, `remember_token` or `google_id`. |
+| `` `PUT /users/{id}` `` | `edit users` | Password optional on update. `company_id` and `employee_id` (same rule as on create: required unless Guest, so editing an old account without one asks for it) are required here too; the user's **own** company stays valid even if it was switched off since (so renaming such a user does not fail), but nobody can be moved *into* an inactive or deleted one. **403** when the account has access you do not. **422** on `roles` for changing your own, or giving a role with access you do not have. |
+| `` `DELETE /users/{id}` `` | `delete users` | Soft delete; **422** when deleting your own account or any Super Admin account; **403** when the account has access you do not. |
 
 ## Analytics — any `view analytics-…` permission (read only)
 

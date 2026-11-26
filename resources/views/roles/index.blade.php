@@ -79,7 +79,7 @@
                 <div>
                     <span class="{{ $label }}">{{ __('Permissions') }}</span>
                     <div class="mt-1">
-                        <x-ui.permission-picker name="permissions[]" :groups="$permissionGroups" />
+                        <x-ui.permission-picker name="permissions[]" :groups="$permissionGroups" :locked="$lockedPermissionIds" />
                     </div>
                 </div>
 
@@ -123,14 +123,16 @@
                     <label for="edit-role-name" class="{{ $label }}">{{ __('Role Name') }}</label>
                     <div class="mt-1">
                         <input type="text" name="name" id="edit-role-name" required
-                               class="{{ $input }}" placeholder="{{ __('Enter role name') }}">
+                               class="{{ $input }} read-only:cursor-not-allowed read-only:opacity-60" placeholder="{{ __('Enter role name') }}">
+                        {{-- Shown by resources/js/pages/roles.js for a role that cannot be renamed. --}}
+                        <p id="edit-role-name-locked" class="mt-1 hidden text-xs text-gray-500 dark:text-gray-400">{{ __('This role cannot be renamed: new sign-ups are given it.') }}</p>
                     </div>
                 </div>
 
                 <div>
                     <span class="{{ $label }}">{{ __('Permissions') }}</span>
                     <div class="mt-1">
-                        <x-ui.permission-picker name="permissions[]" :groups="$permissionGroups" />
+                        <x-ui.permission-picker name="permissions[]" :groups="$permissionGroups" :locked="$lockedPermissionIds" />
                     </div>
                 </div>
 

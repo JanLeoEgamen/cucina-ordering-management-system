@@ -113,6 +113,13 @@ class Role extends SpatieRole
         self::SUPER_ADMIN,
     ];
 
+    // Roles the app looks up by name: they can be edited, but never renamed or deleted.
+    // New sign-ups are given the role called Customer (User::giveCustomerRole), so whoever
+    // could free that name could decide what every stranger gets.
+    public const NAME_LOCKED = [
+        self::CUSTOMER,
+    ];
+
     // Table names, matching config/permission.php.
     protected const TABLE = 'roles';
 
@@ -175,8 +182,36 @@ class Role extends SpatieRole
         $role->permission_groups = self::groupsOf($role->permissions);
         $role->users_count = self::countUsers($roleId);
         $role->is_protected = self::isProtectedName($role->name);
+        // The edit drawer makes the name read only.
+        $role->name_locked = self::isNameLockedName($role->name);
 
         return $role;
+    }
+
+    // Every role's name and raw permission names, keyed by role id: what AccessGuard
+    // compares with the acting user's own.
+    public static function accessById(): array
+    {
+        return TableCache::remember([self::TABLE, self::PIVOT_ROLE, self::TABLE_PERMISSION], 'role.access', function () {
+            $permissions = DB::table(self::PIVOT_ROLE)
+                ->join(self::TABLE_PERMISSION, self::TABLE_PERMISSION . '.id', '=', self::PIVOT_ROLE . '.permission_id')
+                ->get([self::PIVOT_ROLE . '.role_id', self::TABLE_PERMISSION . '.name'])
+                ->groupBy('role_id');
+
+            return DB::table(self::TABLE)
+                ->get(['id', 'name'])
+                ->mapWithKeys(fn (object $role) => [(int) $role->id => [
+                    'name' => $role->name,
+                    'permissions' => $permissions->get($role->id, collect())->pluck('name')->all(),
+                ]])
+                ->all();
+        });
+    }
+
+    // Raw permission names keyed by id.
+    public static function permissionNamesById(): array
+    {
+        return TableCache::remember([self::TABLE_PERMISSION], 'role.permission_names_by_id', fn () => array_column(self::permissionOptionsRaw(), 'name', 'id'));
     }
 
     // Check whether the role exists (before updating or deleting it).
@@ -198,6 +233,19 @@ class Role extends SpatieRole
     public static function isProtectedName(string $name): bool
     {
         return in_array($name, self::PROTECTED, true);
+    }
+
+    // The role's name when it may not be renamed or deleted, else null.
+    public static function lockedName(int $roleId): ?string
+    {
+        $name = DB::table(self::TABLE)->where('id', $roleId)->value('name');
+
+        return $name !== null && self::isNameLockedName($name) ? $name : null;
+    }
+
+    public static function isNameLockedName(string $name): bool
+    {
+        return in_array($name, self::NAME_LOCKED, true);
     }
 
     // Check whether the role is still held by a live user.

@@ -1,7 +1,7 @@
 # Known issues, gaps & roadmap
 
 Living list. Add a row when you find a problem you do not fix in the same change; delete the row (and log it in
-[changelog.md](changelog.md)) when it is fixed. Security items (S1–S17) live in [security.md](security.md).
+[changelog.md](changelog.md)) when it is fixed. Security items (S numbers) live in [security.md](security.md).
 Priority: **P0** fix before any real use · **P1** before go-live · **P2** next sprint · **P3** hygiene. Last review: 2026-11-13.
 
 ## Functional gaps
@@ -44,7 +44,7 @@ Priority: **P0** fix before any real use · **P1** before go-live · **P2** next
 
 | ID | Pri | Gap |
 |---|---|---|
-| Q1 | **P1** | No tests for users, roles, payment methods, order sessions, menu/orders/my-orders — including privilege escalation (S1/S2), 403s, and the oversell guard. |
+| Q1 | **P1** | No tests for users, roles, payment methods, order sessions, menu/orders/my-orders — 403s, and the oversell guard (the privilege rules are covered by `PrivilegeRulesTest`). |
 | Q2 | **P1** | The Stop hook that enforces doc sync is not installed (`.claude/settings.json` write was denied; snippet in `docs/harness.md`). |
 | Q3 | **P2** | No CI pipeline (tests, `npm run build`, `composer audit`, `npm audit`). |
 | Q4 | **P2** | No backup/restore, deployment or production runbook. |
@@ -58,6 +58,6 @@ Priority: **P0** fix before any real use · **P1** before go-live · **P2** next
 
 ## Suggested order of work
 
-1. **S1, S2, S3** (P0) with tests.
+1. **S3** (P0): check the accounts on every database seeded before the fix (by hand, see security.md).
 2. **S5 + S11** (stock caps / expiry, decision history), then **S4** (private proofs).
 3. **S8, Q1, Q2**, then P2 and P3.

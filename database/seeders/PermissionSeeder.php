@@ -3,25 +3,17 @@
 namespace Database\Seeders;
 
 use App\Models\Role;
-use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\PermissionRegistrar;
 
 class PermissionSeeder extends Seeder
 {
-    // The accounts that get the Super Admin role when they exist (DatabaseSeeder and UserSeeder make them).
-    public const SUPER_ADMIN_EMAILS = [
-        'test@example.com',
-        'janleoegamen6@bounty.com.ph',
-        'jleoegamen6@gmail.com',
-    ];
-
     // Seed the permissions the app checks (App\Models\Role::PERMISSIONS) and the
     // two roles that come with the app: Super Admin (everything) and Customer
-    // (ordering only, see Role::CUSTOMER_PERMISSIONS). Super Admin is put on the
-    // account the app is used with. Run it again after adding a permission: the
-    // seeder is repeatable, and it re-syncs both roles each time.
+    // (ordering only, see Role::CUSTOMER_PERMISSIONS). Run it again after adding a
+    // permission: the seeder is repeatable, and it re-syncs both roles each time.
+    // It gives NO account a role: UserSeeder does, for the accounts it creates.
     public function run(): void
     {
         $now = now();
@@ -80,12 +72,5 @@ class PermissionSeeder extends Seeder
 
         // The pivots were written by hand, so the cache is dropped once more.
         $guard->forgetCachedPermissions();
-
-        // Only the accounts that exist: a fresh test database has no user yet.
-        $admins = DB::table('users')->whereIn('email', self::SUPER_ADMIN_EMAILS)->whereNull('deleted_at')->pluck('id');
-
-        foreach ($admins as $adminId) {
-            User::syncUserRoles((int) $adminId, [(int) $roleId]);
-        }
     }
 }

@@ -20,6 +20,7 @@ const start = () => {
     const deleteErrors = document.querySelector('#delete-modal-errors');
     const deleteButton = document.querySelector('#delete-modal-button');
     const viewErrors = document.querySelector('#view-role-errors');
+    const nameLockedHint = document.querySelector('#edit-role-name-locked');
     const viewName = document.querySelector('#view-role-name');
     const viewProtected = document.querySelector('#view-role-protected');
     const viewUsers = document.querySelector('#view-role-users');
@@ -385,6 +386,10 @@ const start = () => {
                 editForm.action = button.dataset.updateUrl;
                 fillForm(editForm, record);
                 fillPicker(editForm, record.permissions);
+
+                // Some roles keep their name (Role::NAME_LOCKED); the server refuses a rename too.
+                editForm.elements.name.readOnly = Boolean(record.name_locked);
+                nameLockedHint?.classList.toggle('hidden', ! record.name_locked);
                 showErrors(editErrors, []);
                 emit('open-drawer', editForm.dataset.drawer);
             } finally {

@@ -36,6 +36,7 @@ Route (routes/web.php, group: auth)
 2. **IDs in routes are raw ints** (`{id}` + `whereNumber`); controllers cast with `(int) $id`.
 3. **Responses** use `Controller::successResponse()` / `errorResponse()`; never invent another JSON shape.
 4. **Authorisation lives in the controller's `middleware()`**, one `permission:` entry per action.
+   **Handing out access** is also judged by `App\Support\AccessGuard`: nobody gives, changes or removes more than they have ([security.md](security.md#privilege-rules-appsupportaccessguard)). Any new write to users or roles must ask it.
 5. **Soft deletes + `is_active`** everywhere; reads filter `deleted_at IS NULL`.
 6. **Business rules in the controller + model, not the view.** Examples: protected roles/payment methods, "creator ends the session", "no delete while it has orders".
 7. **Money is `decimal(10,2)`**, line prices are copied into `order_items` at order time.
@@ -154,7 +155,8 @@ When the database is on another machine, **each query is a network round trip** 
 ```
 app/Http/Controllers/   one controller per resource + Auth/ + Controller.php (shared badges/responses)
 app/Models/             query-builder models (+ Role, User Eloquent)
-app/Support/            Theme (the colour theme as CSS variables: config/themes.php, picked in System Configuration), OrderNotifier (who is told what), AlaCarte (a plate without rice: rules, judging, the line split), DishImport (the dish Excel template and reading an upload), OrderDiscount (what an order with a discount needs: rules, the pick judged and the math, the private ID), GoogleChat (Chat API client), Audit (the audit trail's logic), SafeMarkdown (admin Markdown -> safe HTML), Dashboard (which widgets a user gets) + Dashboard/ (their data: MyWidgets, CounterWidgets, CheckWidgets)
+app/Support/            AccessGuard (nobody hands out more access than they have), Theme (the colour theme as CSS variables: config/themes.php, picked in System Configuration), OrderNotifier (who is told what), AlaCarte (a plate without rice: rules, judging, the line split), DishImport (the dish Excel template and reading an upload), OrderDiscount (what an order with a discount needs: rules, the pick judged and the math, the private ID), GoogleChat (Chat API client), Audit (the audit trail's logic), SafeMarkdown (admin Markdown -> safe HTML), Dashboard (which widgets a user gets) + Dashboard/ (their data: MyWidgets, CounterWidgets, CheckWidgets)
+config/seed.php         the owner account `db:seed` creates (from .env)
 config/dashboard.php    the dashboard's widgets, one permission each      config/analytics.php  the Analytics page's
 app/Support/Analytics.php + Analytics/   which analytics widgets a user gets; Period + Sales / Money / Kitchen data
 app/Console/Commands/   notifications:prune, audit:prune, users:give-customer-role

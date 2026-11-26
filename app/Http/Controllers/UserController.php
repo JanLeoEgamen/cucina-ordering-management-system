@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Company;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\AccessGuard;
+use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -13,6 +15,8 @@ use Yajra\DataTables\Facades\DataTables;
 
 class UserController extends Controller implements HasMiddleware
 {
+    private const BEYOND_YOUR_ACCESS = 'You cannot change this account: it has access that you do not have.';
+
     // Each method only runs with the matching permission.
     public static function middleware(): array
     {
@@ -27,6 +31,8 @@ class UserController extends Controller implements HasMiddleware
     // Display the page, and the table feed for its AJAX request.
     public function index(Request $request)
     {
+        $guard = AccessGuard::for($request->user());
+
         if ($request->ajax()) {
             return DataTables::collection(User::getAll())
                 ->skipPaging()
@@ -41,7 +47,7 @@ class UserController extends Controller implements HasMiddleware
                         . implode('', array_map(fn (string $name) => '<span class="inline-flex items-center rounded-md border border-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600 dark:border-gray-600 dark:text-gray-300">' . e($name) . '</span>', $names))
                         . '</span>';
                 })
-                ->addColumn('action', function (object $user) {
+                ->addColumn('action', function (object $user) use ($guard) {
                     $view = 'mx-0.5 rounded-full border border-gray-200 px-3 py-1.5 font-medium text-slate-600 dark:border-gray-600 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:text-slate-400 dark:hover:bg-slate-700/40 dark:hover:text-slate-200';
                     $edit = 'mx-0.5 rounded-full border border-gray-300 px-3 py-1.5 font-medium text-indigo-600 dark:border-gray-500 transition hover:bg-indigo-50 hover:text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-200';
                     $delete = 'mx-0.5 rounded-full border border-red-200 px-3 py-1.5 font-medium text-red-600 dark:border-red-900 transition hover:bg-red-50 hover:text-red-900 focus:outline-none focus:ring-2 focus:ring-red-300 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:text-red-200';
@@ -59,7 +65,10 @@ class UserController extends Controller implements HasMiddleware
                             . ' class="' . $view . '">' . e(__('View')) . '</button>';
                     }
 
-                    if (auth()->user()->can('edit users')) {
+                    // No Edit or Delete on an account with more access than yours.
+                    $manageable = $guard->coversUser((int) $user->id);
+
+                    if (auth()->user()->can('edit users') && $manageable) {
                         $buttons .= '<button type="button" data-row-action="edit"'
                             . ' data-id="' . $user->id . '"'
                             . ' data-loading-label="' . e(__('Loading...')) . '"'
@@ -69,7 +78,7 @@ class UserController extends Controller implements HasMiddleware
                     }
 
                     // No Delete button on a Super Admin row: destroy() would refuse it anyway.
-                    if (auth()->user()->can('delete users') && ! in_array(Role::SUPER_ADMIN, $user->role_names ?? [], true)) {
+                    if (auth()->user()->can('delete users') && $manageable && ! in_array(Role::SUPER_ADMIN, $user->role_names ?? [], true)) {
                         $buttons .= '<button type="button" data-row-action="delete"'
                             . ' data-id="' . $user->id . '"'
                             . ' data-delete-url="' . e(route('users.destroy', $user->id)) . '"'
@@ -82,8 +91,12 @@ class UserController extends Controller implements HasMiddleware
                 ->toJson();
         }
 
+        $roleOptions = Role::options();
+
         return view('users.index', [
-            'roleOptions' => Role::options(),
+            // The table filter lists every role; the drawers only those you may give.
+            'roleOptions' => $roleOptions,
+            'grantableRoles' => $guard->grantableRoles($roleOptions),
             'companyOptions' => Company::allOptions(),
         ]);
     }
@@ -118,7 +131,7 @@ class UserController extends Controller implements HasMiddleware
             ],
             // Required while creating, optional while editing.
             'password' => [$userId ? 'nullable' : 'required', 'string', 'min:8', 'confirmed'],
-            'roles' => ['required', 'array', 'min:1'],
+            'roles' => ['required', 'array', 'min:1', $this->rolesRule($request)],
             'roles.*' => ['integer', 'exists:roles,id'],
         ], [
             'roles.required' => 'Pick at least one role.',
@@ -126,7 +139,37 @@ class UserController extends Controller implements HasMiddleware
         ]);
     }
 
+    // Which roles may be posted: your own never change, and for anyone else only roles
+    // whose access you have yourself (AccessGuard).
+    protected function rolesRule(Request $request): Closure
+    {
+        return function (string $attribute, mixed $roleIds, Closure $fail) use ($request) {
+            $userId = (int) $request->route('id');
+
+            if ($userId === (int) $request->user()->id) {
+                $current = User::roleIdsOfUser($userId);
+
+                if (array_diff($roleIds, $current) !== [] || array_diff($current, $roleIds) !== []) {
+                    $fail(__('You cannot change your own roles. Ask another administrator.'));
+                }
+
+                return;
+            }
+
+            $guard = AccessGuard::for($request->user());
+
+            foreach ($roleIds as $roleId) {
+                if (! $guard->coversRole($roleId)) {
+                    $fail(__('You can only give a role whose access you have yourself.'));
+
+                    return;
+                }
+            }
+        };
+    }
+
     // Get one user, for the edit and view drawers.
+
     public function edit($id)
     {
         $user = User::findById((int) $id);
@@ -156,6 +199,11 @@ class UserController extends Controller implements HasMiddleware
             return $this->errorResponse('User not found.', 404);
         }
 
+        // Before validating: this also protects the password and the email.
+        if (! AccessGuard::for($request->user())->coversUser((int) $id)) {
+            return $this->errorResponse(self::BEYOND_YOUR_ACCESS, 403);
+        }
+
         $validated = $this->validateUser($request);
         $validated['employee_id'] = Company::employeeIdFor((int) $validated['company_id'], $validated['employee_id'] ?? null);
 
@@ -178,6 +226,10 @@ class UserController extends Controller implements HasMiddleware
         // A Super Admin is never deleted, by anyone: it is the account that can fix everything else.
         if (User::isSuperAdmin((int) $id)) {
             return $this->errorResponse('A Super Admin account cannot be deleted.', 422);
+        }
+
+        if (! AccessGuard::for($request->user())->coversUser((int) $id)) {
+            return $this->errorResponse(self::BEYOND_YOUR_ACCESS, 403);
         }
 
         User::deleteUser((int) $id);

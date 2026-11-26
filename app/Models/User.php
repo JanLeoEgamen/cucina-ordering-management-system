@@ -176,13 +176,14 @@ class User extends Authenticatable
             });
     }
 
-    // Get one user with their roles, for the edit and view drawers.
+    // Get one user with their roles, for the edit and view drawers. The row is sent to the
+    // browser as it is, so the columns are listed: never the password hash or remember_token.
     public static function findById(int $userId): ?object
     {
         $user = DB::table(self::TABLE)
             ->where('id', $userId)
             ->whereNull('deleted_at')
-            ->first();
+            ->first(['id', 'first_name', 'last_name', 'company_id', 'employee_id', 'email']);
 
         if (! $user) {
             return null;
@@ -235,6 +236,29 @@ class User extends Authenticatable
             ->get([self::PIVOT . '.model_id', 'roles.name'])
             ->groupBy('model_id')
             ->map(fn (Collection $rows) => $rows->pluck('name')->all());
+    }
+
+    // Role ids of every user, and the permissions given to an account itself (outside any
+    // role), both keyed by user id: AccessGuard asks them for each row of the users table.
+    public static function roleIdMap(): array
+    {
+        return TableCache::remember([self::PIVOT], 'user.role_ids', fn () => DB::table(self::PIVOT)
+            ->where('model_type', self::class)
+            ->get(['model_id', 'role_id'])
+            ->groupBy('model_id')
+            ->map(fn (Collection $rows) => $rows->map(fn (object $row) => (int) $row->role_id)->all())
+            ->all());
+    }
+
+    public static function directPermissionMap(): array
+    {
+        return TableCache::remember(['model_has_permissions', 'permissions'], 'user.direct_permissions', fn () => DB::table('model_has_permissions')
+            ->join('permissions', 'permissions.id', '=', 'model_has_permissions.permission_id')
+            ->where('model_has_permissions.model_type', self::class)
+            ->get(['model_has_permissions.model_id', 'permissions.name'])
+            ->groupBy('model_id')
+            ->map(fn (Collection $rows) => $rows->pluck('name')->all())
+            ->all());
     }
 
     // Ids of one user's roles, for the checkboxes in the edit drawer.
