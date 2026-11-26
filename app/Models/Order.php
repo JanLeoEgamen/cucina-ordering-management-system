@@ -935,6 +935,17 @@ class Order extends Model
             ->value('order_status');
     }
 
+    // Whether someone still has an order waiting to be completed or cancelled (their
+    // account cannot be closed by themselves until then, see ProfileController::destroy).
+    public static function userHasPending(int $userId): bool
+    {
+        return DB::table(self::TABLE)
+            ->where('user_id', $userId)
+            ->where('order_status', 'pending')
+            ->whereNull('deleted_at')
+            ->exists();
+    }
+
     // Check whether a live order exists.
     public static function existsById(int $orderId): bool
     {

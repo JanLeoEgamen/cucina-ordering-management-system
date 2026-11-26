@@ -30,7 +30,7 @@ is not listed below.
 - Pre-ordering: `POST /pre-orders` is throttled (10/min per user), takes a per-customer cache lock and an idempotency key, prices every line from the database at the time of the order (the page's prices are only compared, never trusted), and refuses a dish that is not on the live session's pre-order menu. The size of an order is bounded server-side by the limits in System Configuration (`edit settings`): not under the minimum, not over the maximum, both read fresh on every order. The proof of payment is an image ≤2 MB stored on the `public` disk and deleted when the order is not written. `My Pre-Orders` reads only `user_id = the signed-in user`.
 - Row-level rule: only the creator of a pre-order session can end it (`PreOrderSessionController::canEnd`), on top of `end pre-order-sessions`. A pre-order session with orders cannot be deleted. The pre-order session title is typed by staff and printed in the table feed: DataTables escapes it (it is not a raw column).
 - **Dashboard widgets** (`config/dashboard.php`): each graph / list / number card has its own permission, checked **twice**: `@can` in the view decides what is drawn, and `App\Support\Dashboard::widgetsFor()` is the gate for the data (a widget the user may not see is not in the view data and its query never runs). A widget never grants a page: a line that links to a page also needs that page's permission (`requires` in the registry and `@can` in the partial), so `view dashboard-attention` alone shows nothing. Any new widget or widget feed must read through that same gate.
-- Users cannot delete their own account via `/users/{id}`.
+- Users cannot delete their own account via `/users/{id}`. On the Profile page (`DELETE /profile`, current password) closing the account is a **soft delete** that drops its roles, as the Users page does: the row (name, email, company, `google_id`) and the orders stay, and the email cannot register again. The page and the support FAQ say so; there is **no erasure** of personal data yet (known-issues F27). Refused for a Super Admin and while the person has a pending order.
 - Table-cell action buttons are rendered server-side only if the user holds the permission (UI hint only — the route middleware is the real gate).
 
 ### Privilege rules (`App\Support\AccessGuard`)
@@ -63,7 +63,7 @@ is not listed below.
 | Dishes | `view dishes`, `create dishes`, `edit dishes`, `delete dishes` |
 | Dish types (managed from the Dish Masterlist's Manage Types drawer; the drawer and its script load only with `view dish-types`) | `view dish-types`, `create dish-types`, `edit dish-types`, `delete dish-types` |
 | Payment methods | `view payment-methods`, `create payment-methods`, `edit payment-methods`, `delete payment-methods` |
-| Payments | `view payments`, `verify payments`, `reject payments`, `undo payments`, `delete payments` |
+| Payments | `view payments` (the list and the **Proof of Payment Gallery**, `GET /payments/proofs`: customer names, reference numbers and every uploaded proof; the pictures are still public-disk files, see S4), `verify payments`, `reject payments`, `undo payments`, `delete payments` |
 | Order sessions | `view order-sessions`, `create order-sessions`, `edit order-sessions`, `delete order-sessions`, `end order-sessions` |
 | Ordering | `view menu`, `create orders`, `view my orders`, `view orders`, `complete orders`, `cancel orders` |
 

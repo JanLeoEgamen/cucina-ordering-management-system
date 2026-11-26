@@ -754,6 +754,11 @@ class OrderController extends Controller implements HasMiddleware
                 return $this->errorResponse('One of the dishes is no longer on the menu.', 422);
             }
 
+            // Saved before a price was required.
+            if ((float) $dish->price <= 0) {
+                return $this->stockShortResponse($session, $dish->dish_name . ' has no price yet, so it cannot be ordered. Please remove it from your cart.');
+            }
+
             if ($dish->available_stock < 1) {
                 return $this->stockShortResponse($session, $dish->dish_name . ' is sold out.');
             }

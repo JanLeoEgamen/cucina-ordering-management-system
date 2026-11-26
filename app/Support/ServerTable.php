@@ -22,7 +22,8 @@ class ServerTable
     // a known value is dropped, so a hand-made URL can only ever narrow the list.
     public static function filters(Request $request): array
     {
-        $day = fn (string $key) => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $request->input($key)) === 1 ? (string) $request->input($key) : '';
+        // `?from[]=x` is an array: casting it to text would answer 500.
+        $day = fn (string $key) => is_string($request->input($key)) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $request->input($key)) === 1 ? $request->input($key) : '';
 
         return [
             'status' => in_array($request->input('status'), ['pending', 'completed', 'cancelled', 'verified', 'rejected'], true) ? (string) $request->input('status') : '',

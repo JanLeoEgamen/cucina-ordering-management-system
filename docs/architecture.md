@@ -169,6 +169,7 @@ database/migrations/    schema            database/seeders/   starter data      
 resources/js/pages/     one module per page (default export `start`)   resources/js/ui/  shared UI, incl. soft-nav.js (page swap)   resources/views/   Blade   resources/legal/  built-in text of the legal pages   resources/support/  built-in FAQ of the support page
 routes/web.php          all app routes    routes/auth.php    Breeze routes
 tests/Feature/          feature tests     tests/TestCase.php helpers superAdmin() / userWith()
+tests/Browser/          Playwright browser tests on a throwaway database (npm run test:browser)     playwright.config.js
 docs/                   project docs      scripts/harness.php docs-drift + test harness   scripts/profile-endpoints.php ms + queries per endpoint
 ```
 

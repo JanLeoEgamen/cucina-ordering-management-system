@@ -147,7 +147,7 @@
                     <div class="mt-1">
                         <div class="relative">
                             <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400">₱</span>
-                            <input type="number" name="price" id="create-price" step="0.01" min="0" required
+                            <input type="number" name="price" id="create-price" step="0.01" min="0.01" required
                                    class="{{ $input }} pl-8" placeholder="0.00">
                         </div>
                     </div>
@@ -493,7 +493,7 @@
                     <div class="mt-1">
                         <div class="relative">
                             <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400">₱</span>
-                            <input type="number" name="price" id="edit-price" step="0.01" min="0" required
+                            <input type="number" name="price" id="edit-price" step="0.01" min="0.01" required
                                    class="{{ $input }} pl-8" placeholder="0.00">
                         </div>
                     </div>

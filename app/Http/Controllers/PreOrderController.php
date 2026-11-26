@@ -209,6 +209,11 @@ class PreOrderController extends Controller implements HasMiddleware
                 return $this->reviewResponse($session, 'One of the dishes is no longer on the pre-order menu.');
             }
 
+            // Saved before a price was required.
+            if ((float) $dish->price <= 0) {
+                return $this->reviewResponse($session, $dish->dish_name . ' has no price yet, so it cannot be ordered. Please remove it from your pre-order.');
+            }
+
             // One line per kind of plate: with rice at the dish's price, without at the price less the
             // rice. Cents, not floats: 3 x 0.10 must be 0.30 and not 0.30000000000000004.
             foreach (AlaCarte::lines((float) $dish->price, (int) $quantity, $withoutRice[(int) $preOrderSessionDishId] ?? 0, $rice) as $split) {

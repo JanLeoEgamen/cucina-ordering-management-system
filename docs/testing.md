@@ -1,9 +1,10 @@
 # Testing
 
 ```
-php artisan test                      # all (baseline 2026-11-26: 1048 passed)
+php artisan test                      # all (baseline 2026-11-26: 1069 passed)
 php artisan test --filter=DishTest    # one class
 php scripts/harness.php               # docs drift check + full suite
+npm run test:browser                  # builds the assets, then the browser tests (not part of the harness)
 ```
 
 - PHPUnit 11, SQLite in-memory (`phpunit.xml`), `RefreshDatabase` per class.
@@ -14,6 +15,22 @@ php scripts/harness.php               # docs drift check + full suite
   - `superAdmin()` — user with every permission (seeds `PermissionSeeder`).
   - `userWith('view dishes', ...)` — user with exactly those permissions; use it for **403** cases.
 - Factories exist for every model in `database/factories/`.
+
+## Browser tests (Playwright)
+
+`npm run test:browser` (`playwright.config.js`, specs in `tests/Browser/`) drives an installed **Chrome** (`BROWSER_CHANNEL=msedge` for Edge; no browser is downloaded) for what only a browser can show. Run it after changing `soft-nav.js`, `menu.js`, `pre-order-menu.js`, the Users / Roles pages or a page module's start / cleanup. **Nothing runs it by itself** (no CI, Q3; not in the harness): about 1.5 minutes, port 8137 (`BROWSER_TEST_PORT`).
+
+- **Safety:** `support/serve.mjs` makes a `cucina-browser-run` folder in the system temp folder (or under `BROWSER_TEST_BASE`) that it empties at the start, with its own SQLite database, storage (cache, sessions, logs, uploads) and app key, and serves the app with PHP's built-in server. Every PHP entry point gets the app from `support/app.php`, which **stops** unless the app really resolved to that database, cache and storage. `.env` values it does not set (name, timezone ...) still apply. A running dev server is fine (the tests use the built assets).
+- Data: `support/setup.php` (`migrate:fresh --seed`, a customer, a user manager, two priced dishes, ala carte on, one live session and one live pre-order session). `support/helper.php` changes the rice price "as someone else" and reads the saved order back. Every test fails on an uncaught page error or a page module that did not start.
+- A new test should be seen to fail once (break the behaviour, run, restore).
+
+| Spec | Covers |
+|---|---|
+| `soft-navigation.spec.js` | sidebar swaps without a reload, Back / Forward; listeners of a left page are gone and one click sends one request; the menu's stock poll stops |
+| `ala-carte.spec.js` | both menus' "Without rice" controls (bounds, clamping, totals), a rice price changed under an open page (menu: live poll; pre-order: refusal, then retry), the saved order's lines and total |
+| `access-rules.spec.js` | the Roles and Users pages for a non Super Admin manager: locked permission chips with Select all / View only, the Customer name, hidden buttons, the offered roles |
+
+**Not covered:** scroll restore and the full-load fallbacks of soft navigation, other pages' modules, a refused *menu* order resetting its rice steppers, bank payments with a proof, phone width and dark mode.
 
 ## Coverage today
 
@@ -54,12 +71,15 @@ php scripts/harness.php               # docs drift check + full suite
 | Completing an order: cash verifies on completion, bank needs a verified payment, cash cannot be verified/rejected by hand, no undo after completion, feed buttons per method | `OrderCompleteTest` |
 | Cancelling an order: releases stock once, rejects a pending payment, blocked by a verified payment until undone, pending orders only, cancelled order's payment frozen, feed + button per permission | `OrderCancelTest` |
 | Payments page: permissions, row buttons + decision URLs, verify, reject (reason required), undo (clears reviewer + reason, mirrors the order), delete rules, customer sees the reason, nav link, filter controls + the fields the filters read | `PaymentTest` |
+| Proof of Payment Gallery: permission, link from Payments, only live payments with a proof, the fields sent, method / date filters (whole days), bad query values, method choices, server paging, empty | `ProofOfPaymentGalleryTest` |
 | Fixing a rejected payment: new proof (back to pending, reviewer / reason cleared, old picture deleted, reference kept or replaced, plates untouched, image required), switch to cash (pending cash payment, no proof, then staff complete it), cash unavailable / inactive refused, only a pending order with a rejected payment, double tap, cancelled / completed refused, owner-only (404), `create orders` (403), refused upload not kept, the My Orders panel per state and permission | `RejectedPaymentFixTest` |
 | Notifications: every event (session published: everyone with `view menu` but the publisher, placed, verified, rejected + reason, completed, cancelled, new proof, switched to cash, sold out) for the customer and the watchers, own-action exclusion, customer-also-watcher once, deleted watcher, replay does not notify twice, a failing notification never fails the order, one INSERT for everyone, the feed (count + newest id, only newer, own rows only, no-store, `recent=1` gives the latest 6 newest first with read state and the poll never reads the list), the top right corner (bell panel + account menu with Profile / Log Out once per bar, none left in the sidebar), the page (own, newest first, numbered pages with "Showing x–y of z", total counts only my rows, no controls for a single page, a page past the end redirects to the last, empty), open (marks read once, local links only, 404 for others), read-all, guests, the bell markup, order cards scroll targets; the watchers setting (page, save / change / empty, absent key, unknown or deleted user, 403 without `edit settings`, damaged value, takes effect at once); prune command + schedule; the three indexes | `NotificationTest` |
 | New dish alerts: the picked users are told on the Add Dish form (title, price, types, who added it, link only with `view dishes`), the person who added it and the ordinary watchers are not, nobody picked = no rows, a switched-off dish says so, a refused form / an edit / the Excel import tell nobody, the email and Google Chat copies follow the alert's OWN two switches (in-app only by default, the order notification switches neither send nor block it, no Chat key = no chat job, switches saved / left alone / `edit settings` needed), the settings list (page marks the picked, save / change / empty, a caller that sends none changes nothing, unknown / deleted user 422, `edit settings` needed, damaged value = nobody) | `NewDishAlertTest` |
 | Email copy of notifications: off by default (bell still works), on = customer and watcher mailed in their own words with an absolute link, the email says exactly what the bell says, own action not mailed, sold out to watchers only, a mail failure never fails the order or duplicates the bell rows, one bad address does not stop the rest, not retried, one extra job on the notifications queue, the switch (needs `edit settings`, stored, left alone when omitted, validated), the log-mailer warning | `NotificationEmailTest` |
 | Notification queue: placing an order pushes ONE job on the `notifications` queue and writes nothing itself, the sold-out job only when a dish reached zero, queue name from config, running the job writes the rows, 3 tries + backoff + the `failed()` log, a failing job never fails the order, a failed sold-out run can be retried. The test queue is `sync` (jobs run inside the request) | `NotificationQueueTest` |
 | Auth / profile (Breeze) | `tests/Feature/Auth/*`, `ProfileTest` |
+| Deleting your own account: the warnings say it is kept, roles are dropped, a pending order blocks it (closed, removed and other people's orders do not) | `AccountDeletionTest` |
+| No free dish: form (create / edit), import and its Excel rule, an old 0.00 dish cannot be ordered or pre-ordered | `DishPriceRuleTest` |
 | Customer role on sign-up (form and Google; adds without replacing, idempotent, works before the roles are seeded) | `Auth/RegistrationTest`, `Auth/GoogleAuthTest` |
 | Customer cancels their own order (off by default, switch read every request, stock released once, verified / completed / cancelled refused, other customer's order 404, permission, button only where it applies, notification words, audit name) and the switch in System Configuration | `CustomerCancelTest`, `SettingTest` |
 | Dashboard widgets (registry complete and its permissions exist, seen only with the widget AND its page permission, no payment query otherwise, not in the Customer role, Roles page chips, the upgrade migration grants it to roles with `view payments` only and does nothing on an empty database) | `DashboardWidgetTest` |

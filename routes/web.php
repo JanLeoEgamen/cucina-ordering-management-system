@@ -87,6 +87,7 @@ Route::middleware(['auth', 'profile.complete'])->group(function () {
 
     // Payments: every payment of every order. {id} is the order id.
     Route::get('/payments', [PaymentController::class, 'index'])->name('payments.index');
+    Route::get('/payments/proofs', [PaymentController::class, 'proofs'])->name('payments.proofs');
     Route::post('/payments/{id}/verify', [PaymentController::class, 'verify'])
         ->whereNumber('id')->name('payments.verify');
     Route::post('/payments/{id}/reject', [PaymentController::class, 'reject'])

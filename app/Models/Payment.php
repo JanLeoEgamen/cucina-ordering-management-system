@@ -97,6 +97,55 @@ class Payment extends Model
         );
     }
 
+    // Proofs on one page of the Proof of Payment Gallery.
+    public const GALLERY_PAGE_SIZE = 24;
+
+    // ONE PAGE of the gallery: the live payments that carry a proof picture, newest payment
+    // first. `$filters` is ServerTable::filters(); only the method and the dates are used. A page
+    // past the end (the list shrank) is answered with the last one.
+    public static function proofPage(array $filters, int $page): array
+    {
+        $narrowed = fn () => self::staffNarrowed(self::withProof(self::listQuery()), [], ['status' => '', 'session' => 0] + $filters);
+
+        $total = $narrowed()->count();
+        $lastPage = max(1, (int) ceil($total / self::GALLERY_PAGE_SIZE));
+        $page = min(max(1, $page), $lastPage);
+
+        $rows = $total === 0 ? collect() : $narrowed()
+            ->orderByDesc(self::TABLE . '.created_at')
+            ->orderByDesc(self::TABLE . '.order_id')
+            ->forPage($page, self::GALLERY_PAGE_SIZE)
+            ->get()
+            // No order lines (hydrate()): the gallery does not show them.
+            ->each(fn (object $payment) => $payment->proof_url = self::proofUrl($payment->proof_of_payment));
+
+        return ['rows' => $rows, 'total' => $total, 'page' => $page, 'last_page' => $lastPage];
+    }
+
+    // The methods the gallery's filter offers: the ones at least one proof was paid with,
+    // switched off and deleted methods included (their proofs are still in the gallery).
+    public static function proofMethodOptions(): array
+    {
+        return TableCache::remember(['payments', 'orders', 'payment_methods'], 'payment.proof_methods', fn () => self::withProof(DB::table(self::TABLE))
+            ->join('orders', 'orders.order_id', '=', self::TABLE . '.order_id')
+            ->join('payment_methods', 'payment_methods.method_id', '=', self::TABLE . '.payment_method_id')
+            ->whereNull(self::TABLE . '.deleted_at')
+            ->whereNull('orders.deleted_at')
+            ->distinct()
+            ->orderBy('payment_methods.method_name')
+            ->get(['payment_methods.method_id', 'payment_methods.method_name'])
+            ->map(fn (object $method) => ['id' => (int) $method->method_id, 'name' => $method->method_name])
+            ->all());
+    }
+
+    // Only the payments that carry a proof picture.
+    protected static function withProof($query)
+    {
+        return $query
+            ->whereNotNull(self::TABLE . '.proof_of_payment')
+            ->where(self::TABLE . '.proof_of_payment', '!=', '');
+    }
+
     // For the analytics: money verified between two moments, added up per day, method and the
     // person who verified it (for cash that is whoever completed the order).
     public static function collectedBetween(string $startAt, string $endAt): Collection

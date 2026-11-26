@@ -5,7 +5,7 @@
         </h2>
 
         <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            {{ __('Once your account is deleted, all of its resources and data will be permanently deleted. Before deleting your account, please download any data or information that you wish to retain.') }}
+            {{ __('Deleting your account closes it: you will no longer be able to sign in. Your account details and order history are kept, and your email address cannot be used to register again. You cannot delete your account while you have a pending order.') }}
         </p>
     </header>
 
@@ -24,7 +24,7 @@
             </h2>
 
             <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                {{ __('Once your account is deleted, all of its resources and data will be permanently deleted. Please enter your password to confirm you would like to permanently delete your account.') }}
+                {{ __('You will be signed out and will not be able to sign in again. Your account details and order history are kept. Enter your password to confirm.') }}
             </p>
 
             <div class="mt-6">

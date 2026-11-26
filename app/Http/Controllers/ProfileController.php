@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Company;
+use App\Models\Order;
 use App\Models\Setting;
 use App\Models\User;
 use App\Support\GoogleChat;
@@ -108,9 +109,17 @@ class ProfileController extends Controller
             return Redirect::route('profile.edit')->withErrors(['password' => 'A Super Admin account cannot be deleted.'], 'userDeletion');
         }
 
+        // A pending order still holds plates and may be waiting for its money, so the account
+        // stays until staff (or the customer, where allowed) have closed it. Pre-orders are not
+        // counted: nothing can complete or cancel one yet (known-issues D2).
+        if (Order::userHasPending((int) $user->id)) {
+            return Redirect::route('profile.edit')->withErrors(['password' => 'You have a pending order. You can delete your account after it is completed or cancelled.'], 'userDeletion');
+        }
+
         Auth::logout();
 
-        $user->delete();
+        // The same soft delete as the Users page: it also drops the account's roles.
+        User::deleteUser((int) $user->id);
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
