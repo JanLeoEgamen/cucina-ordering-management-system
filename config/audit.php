@@ -38,6 +38,8 @@ return [
      */
     'always_log' => [
         'audit-logs.export',
+        // Analytics CSVs can name customers.
+        'analytics.export',
     ],
 
     /*
@@ -90,6 +92,7 @@ return [
         'roles.update' => 'Edited a role',
         'roles.destroy' => 'Deleted a role',
         'dishes.store' => 'Created a dish',
+        'analytics.export' => 'Exported an analytics report',
         'dishes.import' => 'Imported dishes from Excel',
         'dishes.import.template' => 'Downloaded the dish import template',
         'dishes.update' => 'Edited a dish',

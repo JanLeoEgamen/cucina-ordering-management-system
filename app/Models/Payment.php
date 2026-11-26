@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\ServerTable;
+use App\Support\Sql;
 use App\Support\TableCache;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -96,22 +97,121 @@ class Payment extends Model
         );
     }
 
-    // How many payments are waiting for a decision (for the dashboard).
-    public static function pendingCount(): int
-    {
-        return TableCache::remember(['payments', 'orders'], 'payment.pending_count', fn () => self::loadPendingCount());
-    }
-
-    // The query behind pendingCount().
-    protected static function loadPendingCount(): int
+    // For the analytics: money verified between two moments, added up per day, method and the
+    // person who verified it (for cash that is whoever completed the order).
+    public static function collectedBetween(string $startAt, string $endAt): Collection
     {
         return DB::table(self::TABLE)
             ->join('orders', 'orders.order_id', '=', self::TABLE . '.order_id')
+            ->leftJoin('payment_methods', 'payment_methods.method_id', '=', self::TABLE . '.payment_method_id')
+            ->leftJoin('users as verifiers', 'verifiers.id', '=', self::TABLE . '.verified_by')
             ->whereNull(self::TABLE . '.deleted_at')
             ->whereNull('orders.deleted_at')
-            ->where('orders.order_status', 'pending')
-            ->where(self::TABLE . '.payment_status', 'pending')
-            ->count();
+            ->where(self::TABLE . '.payment_status', 'verified')
+            ->whereBetween(self::TABLE . '.verified_at', [$startAt, $endAt])
+            ->selectRaw('DATE(payments.verified_at) as day, payment_methods.method_name, payments.verified_by, '
+                . User::fullNameSql('verifiers') . ' as verifier_name, COUNT(*) as payment_count, SUM(payments.amount) as amount')
+            ->groupByRaw('DATE(payments.verified_at), payment_methods.method_name, payments.verified_by, verifiers.first_name, verifiers.last_name')
+            ->get();
+    }
+
+    // Reference numbers typed on more than one order, where at least one of those orders was
+    // placed in the range (the other may be any age: that is how an old proof is used again).
+    // Spaces and letter case are ignored, and very short entries ("NA", "-") are not looked at.
+    // Newest first, at most $limit of them.
+    public static function repeatedReferences(string $startAt, string $endAt, int $limit): array
+    {
+        $normal = "UPPER(REPLACE(payments.reference_number, ' ', ''))";
+
+        $live = fn () => DB::table(self::TABLE)
+            ->join('orders', 'orders.order_id', '=', self::TABLE . '.order_id')
+            ->whereNull(self::TABLE . '.deleted_at')
+            ->whereNull('orders.deleted_at')
+            ->whereNotNull(self::TABLE . '.reference_number')
+            ->whereRaw('LENGTH(' . $normal . ') >= 4');
+
+        // ONE pass over the payments, grouped by the cleaned number: kept when it is on two or
+        // more orders and at least one of them is in the range. Do not "narrow it first" with
+        // `cleaned IN (subquery)`: no index serves a cleaned value, so the database compares
+        // rows with rows (55 seconds at 30,000 orders on MariaDB, against a fraction of one).
+        $references = $live()
+            ->selectRaw($normal . ' as reference, MAX(orders.order_date) as newest')
+            ->groupByRaw($normal)
+            ->havingRaw('COUNT(*) > 1 AND SUM(CASE WHEN orders.order_date BETWEEN ? AND ? THEN 1 ELSE 0 END) > 0', [$startAt, $endAt])
+            ->orderByDesc('newest')
+            ->limit($limit + 1)
+            ->get()
+            ->pluck('reference')
+            ->all();
+
+        if ($references === []) {
+            return ['groups' => collect(), 'more' => false];
+        }
+
+        $shown = array_slice($references, 0, $limit);
+
+        $orders = $live()
+            ->join('users', 'users.id', '=', 'orders.user_id')
+            ->leftJoin('payment_methods', 'payment_methods.method_id', '=', self::TABLE . '.payment_method_id')
+            ->whereIn(DB::raw($normal), $shown)
+            ->orderByDesc('orders.order_date')
+            ->selectRaw($normal . ' as reference, orders.order_id, orders.order_number, orders.order_date, orders.order_status, orders.user_id, '
+                . User::fullNameSql('users') . ' as customer_name, payments.amount, payments.payment_status, payment_methods.method_name')
+            ->get()
+            ->groupBy('reference');
+
+        return [
+            'groups' => collect($shown)->mapWithKeys(fn (string $reference) => [$reference => $orders->get($reference, collect())]),
+            'more' => count($references) > $limit,
+        ];
+    }
+
+    // How long the bank / e-wallet payments decided in the range waited for their review, from
+    // the payment's creation to the decision. Cancelled orders are left out: cancelling stamps
+    // a pending payment as rejected, which is not a review. A resent proof keeps the first
+    // creation time, so its wait reads long.
+    public static function reviewTimes(string $startAt, string $endAt): Collection
+    {
+        return self::reviewBands(DB::table(self::TABLE)
+            ->join('orders', 'orders.order_id', '=', self::TABLE . '.order_id')
+            ->join('payment_methods', 'payment_methods.method_id', '=', self::TABLE . '.payment_method_id')
+            ->whereNull(self::TABLE . '.deleted_at')
+            ->whereNull('orders.deleted_at')
+            ->where('orders.order_status', '!=', 'cancelled')
+            ->where('payment_methods.method_name', '!=', PaymentMethod::CASH_ON_PICKUP)
+            ->whereBetween(self::TABLE . '.verified_at', [$startAt, $endAt])
+            ->selectRaw(Sql::minutesBetween('payments.created_at', 'payments.verified_at') . ' as minutes'));
+    }
+
+    // A query of waits (one `minutes` column) added up in bands: 1 = up to 5 minutes, 2 = up to
+    // 15, 3 = up to an hour, 4 = longer. Each with how many, their total and the longest.
+    public static function reviewBands($waits): Collection
+    {
+        $banded = DB::query()->fromSub($waits, 'waits')
+            ->selectRaw('CASE WHEN minutes <= 5 THEN 1 WHEN minutes <= 15 THEN 2 WHEN minutes <= 60 THEN 3 ELSE 4 END as band, minutes');
+
+        return DB::query()->fromSub($banded, 'banded')
+            ->selectRaw('band, COUNT(*) as decisions, SUM(minutes) as minutes, MAX(minutes) as longest')
+            ->groupBy('band')
+            ->get()
+            ->keyBy('band');
+    }
+
+    // The money verified (collected) on any of the given days (Y-m-d), for the dashboard: when
+    // it was verified and how much. The days are passed in, so the cache never depends on the clock.
+    public static function verifiedOnDays(array $days): Collection
+    {
+        return TableCache::remember(['payments', 'orders'], 'dashboard.verified.' . implode('.', $days), fn () => DB::table(self::TABLE)
+            ->join('orders', 'orders.order_id', '=', self::TABLE . '.order_id')
+            ->whereNull(self::TABLE . '.deleted_at')
+            ->whereNull('orders.deleted_at')
+            ->where(self::TABLE . '.payment_status', 'verified')
+            ->where(function ($any) use ($days) {
+                foreach ($days as $day) {
+                    $any->orWhereBetween(self::TABLE . '.verified_at', [$day . ' 00:00:00', $day . ' 23:59:59']);
+                }
+            })
+            ->get([self::TABLE . '.verified_at', self::TABLE . '.amount']));
     }
 
     // The status of a live payment, or null when there is none.

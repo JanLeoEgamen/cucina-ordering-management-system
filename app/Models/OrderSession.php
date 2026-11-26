@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Memo;
 use App\Support\TableCache;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -54,13 +55,15 @@ class OrderSession extends Model
     public static function getAll(): Collection
     {
         // Only the rows are cached with their tables: the status depends on the clock, so it is
-        // worked out on every call.
-        return TableCache::remember(['order_sessions', 'session_dishes', 'orders', 'users'], 'order_session.all', fn () => self::loadRows())
+        // worked out on every call. Inside a read-only pass (Memo: the dashboard, where live()
+        // is asked for many times) it is worked out once: with a year of sessions that is
+        // hundreds of dates to read each time.
+        return Memo::get('order_session.all', fn () => TableCache::remember(['order_sessions', 'session_dishes', 'orders', 'users'], 'order_session.all', fn () => self::loadRows())
             ->map(function (object $session) {
                 $session->status = self::statusOf($session);
 
                 return $session;
-            });
+            }));
     }
 
     // The query behind getAll().

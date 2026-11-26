@@ -116,6 +116,20 @@
                 <span class="sidebar-label">{{ __('Dashboard') }}</span>
             </a>
 
+            {{-- Analytics: any `view analytics-…` permission that leaves at least one widget to show --}}
+            @canany(\App\Support\Analytics::permissions())
+                @if (\App\Support\Analytics::tabsFor(auth()->user()) !== [])
+                    <a href="{{ route('analytics.index') }}"
+                       @click="open = false"
+                       title="{{ __('Analytics') }}"
+                       @if (request()->routeIs('analytics.*')) aria-current="page" @endif
+                       class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('analytics.*') ? 'bg-accent text-accent-on shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white' }}">
+                        <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 20V10m6 10V4m6 16v-7m4 7H2" /></svg>
+                        <span class="sidebar-label">{{ __('Analytics') }}</span>
+                    </a>
+                @endif
+            @endcanany
+
             {{-- Ordering --}}
             @canany(['view menu', 'view my orders', 'view pre-order-menu', 'view my pre-orders'])
                 <div class="pt-3" data-nav-group="ordering" @if (request()->routeIs('menu.*', 'my-orders.*', 'pre-order-menu.*', 'my-pre-orders.*')) data-has-active @endif>

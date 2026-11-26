@@ -77,6 +77,14 @@
             </div>
         </dl>
 
+        {{-- Who called the order off, when and why. Staff only: shown when the data has `cancelled_at`,
+             which a customer's own popup never does. Orders cancelled before this was recorded have none. --}}
+        <div id="order-details-cancelled" class="mt-5 hidden rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-700/20">
+            <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Cancelled') }}</h4>
+            <p id="order-details-cancelled-by" class="mt-1 text-sm text-gray-600 dark:text-gray-300"></p>
+            <p id="order-details-cancel-reason" class="mt-2 hidden whitespace-pre-line break-words text-sm text-gray-900 dark:text-white"></p>
+        </div>
+
         {{-- The discount the order was placed with (hidden when it has none). Staff also get the ID the
              customer sent, through a guarded URL; the customer's own popup never has that key. --}}
         <div id="order-details-discount" class="mt-5 hidden rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-700/20">
@@ -140,6 +148,7 @@
                         data-title="{{ __('Confirm Cancel') }}"
                         data-message="{{ __('Are you sure you want to cancel this order? Its dishes go back on the menu, and a payment that is still pending is rejected.') }}"
                         data-label="{{ __('Cancel Order') }}"
+                        data-placeholder="{{ __('Reason (optional). Kept for staff records; the customer does not see it.') }}"
                         class="hidden rounded-full border border-red-300 bg-white px-5 py-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-4 focus:ring-red-200 dark:border-red-800 dark:bg-gray-800 dark:text-red-400 dark:hover:bg-red-900/20 dark:focus:ring-red-900">
                     {{ __('Cancel Order') }}
                 </button>
@@ -215,12 +224,13 @@
     {{-- Inline confirmation for Complete / Cancel Order / Verify Payment / Reject Payment: the
          footer above is swapped for this bar (resources/js/ui/order-popup.js), so no second modal
          stacks on the details. Its text and the colour of the go button come from the clicked
-         button. Reject also shows the reason box (the customer reads it on their orders). --}}
+         button. The reason box shows for a rejection (required, the customer reads it) and for
+         Cancel Order (optional, staff records only). --}}
     <div id="order-details-confirm" role="alertdialog" aria-labelledby="order-details-confirm-text"
          class="hidden animate-fade-in flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-900/40">
         <p id="order-details-confirm-text" class="min-w-0 flex-1 basis-64 text-sm font-medium text-gray-900 dark:text-white"></p>
 
-        @canany(['reject payments', 'review discounts'])
+        @canany(['reject payments', 'review discounts', 'cancel orders'])
             <div id="order-details-confirm-reason" class="hidden basis-full">
                 <label for="order-reject-reason" class="sr-only">{{ __('Reason') }}</label>
                 <textarea id="order-reject-reason" rows="3" maxlength="500" required

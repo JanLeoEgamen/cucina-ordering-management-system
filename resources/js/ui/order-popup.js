@@ -8,7 +8,7 @@
  * Its markup is <x-ui.order-popup />. It fills the details from the row the page's table
  * already holds, so opening costs no request. Complete Order, Cancel Order, Verify Payment
  * and Reject Payment are all confirmed INSIDE the popup (the footer swaps for a confirm bar;
- * Reject's bar also holds the reason box, which is required). After a successful action the popup closes
+ * Reject's bar also holds the reason box, which is required; Cancel's holds it as optional). After a successful action the popup closes
  * and `onChange(kind)` runs, kind being 'complete' | 'cancel' | 'verify' | 'reject' | 'ready': the
  * page decides what to refresh (cancelling gives stock back, so the session page reloads).
  */
@@ -19,7 +19,11 @@ export const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
 }[character]));
 
-export const money = (value) => '₱' + Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// The table feed sends its text HTML-escaped. For text that goes into textContent it has to be
+// decoded first; parsing a detached document runs nothing and loads nothing.
+const decodeEntities = (value) => new DOMParser().parseFromString(String(value ?? ''), 'text/html').documentElement.textContent;
+
+export const money =(value) => '₱' + Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // 2026-11-10 14:05:00 -> Nov 10, 2:05 PM
 export const prettyDateTime = (value) => {
@@ -112,6 +116,8 @@ export function initOrderPopup({ onChange = () => {} } = {}) {
 
     // The two decisions that need a written reason (the customer reads it).
     const needsReasonKinds = ['reject', 'discount-reject'];
+    // The ones that show the reason box. Cancel's is optional and only kept for staff records.
+    const reasonKinds = [...needsReasonKinds, 'cancel'];
 
     let inline = null; // { url, kind: 'verify' | 'complete' | 'cancel' | 'reject' | 'ready' | 'discount-approve' | 'discount-reject' }
 
@@ -149,14 +155,16 @@ export function initOrderPopup({ onChange = () => {} } = {}) {
         confirmGo.textContent = button.dataset.label;
         confirmGo.className = 'rounded-full px-5 py-2.5 text-sm font-medium text-white transition focus:outline-none focus:ring-4 ' + goStyles[kind];
 
-        // Only the two rejections ask for a reason; it starts empty every time. The words that
-        // say what the reason is for come from the clicked button.
+        // The reason box starts empty every time. The words that say what the reason is for
+        // come from the clicked button.
         const needsReason = needsReasonKinds.includes(kind) && !!rejectReason;
+        const showsReason = reasonKinds.includes(kind) && !!rejectReason;
 
-        reasonBox?.classList.toggle('hidden', !needsReason);
+        reasonBox?.classList.toggle('hidden', !showsReason);
 
-        if (needsReason) {
+        if (showsReason) {
             rejectReason.value = '';
+            rejectReason.required = needsReason;
             rejectReason.dataset.requiredNow = button.dataset.required ?? '';
             rejectReason.dataset.defaultPlaceholder ??= rejectReason.placeholder;
             rejectReason.placeholder = button.dataset.placeholder ?? rejectReason.dataset.defaultPlaceholder;
@@ -202,6 +210,12 @@ export function initOrderPopup({ onChange = () => {} } = {}) {
             }
 
             fields.reason = reason;
+        } else if (kind === 'cancel') {
+            const reason = (rejectReason?.value ?? '').trim();
+
+            if (reason !== '') {
+                fields.reason = reason;
+            }
         }
 
         const label = confirmGo.textContent;
@@ -266,6 +280,23 @@ export function initOrderPopup({ onChange = () => {} } = {}) {
 
         byId('order-details-status').innerHTML = order.status_badge ?? '';
         byId('order-details-payment').innerHTML = order.payment_badge ?? '';
+
+        // A cancelled order says who, when and (when staff typed one) why.
+        byId('order-details-cancelled')?.classList.toggle('hidden', !order.cancelled_at);
+
+        if (order.cancelled_at) {
+            const who = decodeEntities(order.cancelled_by_name);
+            const reason = decodeEntities(order.cancel_reason);
+
+            fillText('order-details-cancelled-by', [who, prettyDateTime(order.cancelled_at)].filter(Boolean).join(' · '));
+
+            const line = byId('order-details-cancel-reason');
+
+            if (line) {
+                line.textContent = reason;
+                line.classList.toggle('hidden', !reason);
+            }
+        }
 
         // Which session it was placed in, with a link to it (the Orders page lists orders of every session).
         const sessionLink = byId('order-details-session');

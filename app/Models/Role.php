@@ -34,6 +34,30 @@ class Role extends SpatieRole
         'view discounts', 'create discounts', 'edit discounts', 'delete discounts', 'review discounts',
         'view settings', 'edit settings',
         'view audit-logs',
+        // One per dashboard widget (config/dashboard.php).
+        'view dashboard-attention', 'view dashboard-today', 'view dashboard-live-session',
+        'view dashboard-cash-expected', 'view dashboard-unclaimed',
+        'view dashboard-my-orders', 'view dashboard-my-pickup', 'view dashboard-my-usual',
+        'view dashboard-my-favorites', 'view dashboard-my-spending', 'view dashboard-popular-dishes',
+        'view dashboard-system-health', 'view dashboard-setup-checklist',
+        // One per widget of the Analytics page (config/analytics.php).
+        'view analytics-sales-summary', 'view analytics-sales-trend', 'view analytics-order-status',
+        'view analytics-payment-methods', 'view analytics-basket-size', 'view analytics-cancelled-value',
+        'view analytics-collections', 'view analytics-duplicate-references', 'view analytics-money-held',
+        'view analytics-dish-sales', 'view analytics-sell-through', 'view analytics-sellout-speed',
+        'view analytics-rice', 'view analytics-session-scorecard',
+        'view analytics-order-times', 'view analytics-discounts', 'view analytics-review-time',
+        'view analytics-prep-suggestions', 'view analytics-weekday-demand', 'view analytics-bring-back',
+        'view analytics-menu-fatigue', 'view analytics-new-dish-performance', 'view analytics-pairings',
+        'view analytics-customers', 'view analytics-repeat-rate', 'view analytics-never-ordered',
+        'view analytics-companies', 'view analytics-company-participation',
+        'view analytics-lapsed-customers', 'view analytics-top-customers',
+        // Taking any analytics widget out as a CSV, on top of the permission of that widget.
+        // (No apostrophes in this list: scripts/harness.php reads every quoted word in it.)
+        'export analytics',
+        // The later dashboard widgets.
+        'view dashboard-insights', 'view dashboard-security', 'view dashboard-my-sellout-alert',
+        'view dashboard-my-new-dishes', 'view dashboard-my-discounts',
     ];
 
     // How the roles page groups the permissions: section => the resources in it
@@ -47,6 +71,11 @@ class Role extends SpatieRole
             'pre-order-sessions', 'pre-order-menu', 'pre-orders', 'my pre-orders', 'pre-order-payments',
         ],
         'Administration' => ['roles', 'users', 'companies', 'settings', 'audit-logs'],
+        // The rows named by the widgets of config/dashboard.php and config/analytics.php.
+        'Dashboard and analytics' => [
+            'dashboard', 'my dashboard', 'system checks', 'sales analytics', 'money analytics', 'kitchen analytics',
+            'customer analytics', 'analytics',
+        ],
     ];
 
     // The seeded role that holds every permission.
@@ -65,6 +94,16 @@ class Role extends SpatieRole
         'view pre-order-menu',
         'create pre-orders',
         'view my pre-orders',
+        // The dashboard widgets about their own orders, and the anonymous popular list.
+        'view dashboard-my-orders',
+        'view dashboard-my-pickup',
+        'view dashboard-my-usual',
+        'view dashboard-my-favorites',
+        'view dashboard-my-spending',
+        'view dashboard-popular-dishes',
+        'view dashboard-my-sellout-alert',
+        'view dashboard-my-new-dishes',
+        'view dashboard-my-discounts',
     ];
 
     // Protected roles: they cannot be edited or deleted from the app. Add a
@@ -210,7 +249,9 @@ class Role extends SpatieRole
     // (View, Create, Edit ...). Built from the permission NAMES, "<action>
     // <resource>", so a new permission lands in its resource's row with no change
     // here; only a brand new resource has to be given a section in
-    // PERMISSION_SECTIONS (until then it is listed under "Other").
+    // PERMISSION_SECTIONS (until then it is listed under "Other"). A dashboard
+    // widget's permission is the exception: its row and its chip's label come from
+    // config/dashboard.php or config/analytics.php, so many widgets share one row.
     public static function permissionGroups(): array
     {
         return TableCache::remember(['permissions'], 'role.permission_groups', fn () => self::loadPermissionGroups());
@@ -230,11 +271,19 @@ class Role extends SpatieRole
         // section => resource => [permission, ...], in PERMISSIONS order.
         $tree = [];
 
+        $widgets = collect(config('dashboard.widgets'))->values()
+            ->concat(array_values(config('analytics.widgets')))
+            ->keyBy('permission');
+
         foreach (self::permissionOptionsRaw() as $permission) {
             [$action, $resource] = array_pad(explode(' ', $permission['name'], 2), 2, '');
 
             if ($resource === '') {
                 [$action, $resource] = ['', $action];
+            }
+
+            if ($widget = $widgets->get($permission['name'])) {
+                [$action, $resource] = [$widget['label'], $widget['row']];
             }
 
             $section = $sectionOf[$resource] ?? 'Other';

@@ -1,12 +1,15 @@
 # Testing
 
 ```
-php artisan test                      # all (baseline 2026-11-25: 903 passed)
+php artisan test                      # all (baseline 2026-11-26: 1020 passed)
 php artisan test --filter=DishTest    # one class
 php scripts/harness.php               # docs drift check + full suite
 ```
 
 - PHPUnit 11, SQLite in-memory (`phpunit.xml`), `RefreshDatabase` per class.
+- `phpunit.xml` raises `memory_limit` to 512M **for tests only**: the whole suite in one process passed 122 MB at 978 tests and crashed past PHP's default 128 MB.
+- SQLite cannot show MySQL / MariaDB differences (strict grouping, self-rewriting timestamps, query plans) **or speed**: for new analytics SQL, compare results and time it on a **throwaway** MariaDB database seeded with a large volume. Never `php artisan test` against one (it wipes it).
+- `tests/Concerns/SellsDishes` makes sample trade (sessions, stock, orders, payments) for the analytics tests.
 - Helpers in `tests/TestCase.php`:
   - `superAdmin()` — user with every permission (seeds `PermissionSeeder`).
   - `userWith('view dishes', ...)` — user with exactly those permissions; use it for **403** cases.
@@ -59,6 +62,14 @@ php scripts/harness.php               # docs drift check + full suite
 | Auth / profile (Breeze) | `tests/Feature/Auth/*`, `ProfileTest` |
 | Customer role on sign-up (form and Google; adds without replacing, idempotent, works before the roles are seeded) | `Auth/RegistrationTest`, `Auth/GoogleAuthTest` |
 | Customer cancels their own order (off by default, switch read every request, stock released once, verified / completed / cancelled refused, other customer's order 404, permission, button only where it applies, notification words, audit name) and the switch in System Configuration | `CustomerCancelTest`, `SettingTest` |
+| Dashboard widgets (registry complete and its permissions exist, seen only with the widget AND its page permission, no payment query otherwise, not in the Customer role, Roles page chips, the upgrade migration grants it to roles with `view payments` only and does nothing on an empty database) | `DashboardWidgetTest` |
+| Analytics page (date presets, comparisons, refused ranges; per-widget permissions and 403s; every tab renders empty and with data; the page-module marker sits outside `#page-root`; each widget's sums, including trend buckets, collections per person, repeated references, leftovers, sell-out time, rice; the upgrade migration; cache follows new orders) | `AnalyticsTest` |
+| Later analytics (order times, discounts, review times incl. exact band limits, prep suggestions and their floor, weekdays, bring back, fatigue, new dishes, pairings, customers), the CSV export (both permissions, 404 / 403, every widget exports, whole lists not leaking into the page cache, formula cells, audit entry), speed guards (no cache key from typed dates, no query run twice on a tab, shared rows forgotten after the page), upgrade migration | `AnalyticsInsightsTest` |
+| Smart insights (each rule, its minimum data and permission), sign-in security, sell-out alert, new-to-you, discounts widget | `DashboardInsightsTest` |
+| No migration may add a timestamp column the server could rewrite on update (SQLite cannot show the bug itself) | `TimestampColumnTest` |
+| Dashboard tabs (order, first one open, others cloaked, urgent cards outside the tabs, only the person's sections, no tab bar for one section, the "needs a look" dot and its rules). Parsed from the HTML: the **switching itself is Alpine and has no automated test**, so click the tabs after changing `dashboard.blade.php` | `DashboardTabsTest` |
+| Daily-use widgets (every widget drawn for a Super Admin, each one gone when its permission or its page permission is missing, every one has its `@can` in the view, no empty headings; personal widgets never show another person's rows; ranking and limits, pickup cash, favourites across rice lines, usual order, spending months and savings, popular needs 2 people; attention lines per permission and cash excluded, unclaimed order, cash total, today vs last week up to the same time, live stock states; job health without error text, setup gaps per permission; the upgrade migration; the cancel reason for staff only). Time is frozen with `travelTo` | `DashboardDailyWidgetsTest` |
+| Order closing columns (`completed_at`, `cancelled_at` / `by` / `reason`: stamped on complete and cancel, optional reason, over 500 refused with stock untouched, a customer's cancel takes no reason, refusals stamp nothing, the reason box for a cancel-only user) | `OrderClosingStampTest` |
 | Sign-up rate limit (5 a minute and 30 an hour per IP, invalid attempts count, another IP unaffected, window reopens) | `Auth/RegistrationTest` |
 | Complete-profile gate (redirect from gated pages, 403 for AJAX, prefilled form, required company, no overwrite, logout allowed, register / admin / migration set it) | `Auth/CompleteProfileTest` |
 | Cross-tab logout (server side of `session-guard.js`: signed-in pages carry `meta[name=login-url]` and flagged logout forms, signed-out pages do not, the stale tab's poll gets a 401 after logout; the JS itself is **not** tested, there is no browser test tool) | `Auth/CrossTabLogoutTest` |

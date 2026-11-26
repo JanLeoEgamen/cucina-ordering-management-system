@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PreOrderController;
 use App\Http\Controllers\PreOrderSessionController;
 use App\Http\Controllers\DishController;
@@ -20,8 +22,6 @@ use App\Http\Controllers\SettingController;
 use App\Http\Controllers\SupportController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WelcomeController;
-use App\Models\OrderSession;
-use App\Models\Payment;
 use Illuminate\Support\Facades\Route;
 
 // The public landing page.
@@ -35,17 +35,16 @@ Route::get('/support', SupportController::class)->name('support');
 Route::get('/privacy-policy', [LegalPageController::class, 'show'])->defaults('page', 'privacy-policy')->name('privacy-policy');
 Route::get('/terms-of-service', [LegalPageController::class, 'show'])->defaults('page', 'terms-of-service')->name('terms-of-service');
 
-Route::get('/dashboard', function () {
-    return view('dashboard', [
-        // The session that is running right now, and - for whoever checks the
-        // money - how many payments are waiting for a decision.
-        'live' => OrderSession::live(),
-        'pendingPayments' => auth()->user()->can('view payments') ? Payment::pendingCount() : null,
-    ]);
-})->middleware(['auth', 'profile.complete', 'verified'])->name('dashboard');
+Route::get('/dashboard', DashboardController::class)
+    ->middleware(['auth', 'profile.complete', 'verified'])->name('dashboard');
 
 // `profile.complete`: a user who signed up with Google is held on /complete-profile first.
 Route::middleware(['auth', 'profile.complete'])->group(function () {
+    // Analytics: history and trends. Any `view analytics-…` permission opens it.
+    Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics.index');
+    // One widget as a CSV (also needs `export analytics`).
+    Route::get('/analytics/export', [AnalyticsController::class, 'export'])->name('analytics.export');
+
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');

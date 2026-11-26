@@ -76,6 +76,70 @@ class User extends Authenticatable
 
     /* -------- Reads -------- */
 
+    // How many accounts are not set up properly, for the dashboard's setup checklist: with no
+    // role (they get 403 everywhere) and with no company (a Google sign-up still filling in its
+    // profile is not counted, it is asked for one there). One query, deleted accounts left out.
+    public static function setupGaps(): object
+    {
+        return TableCache::remember([self::TABLE, 'model_has_roles'], 'dashboard.user_gaps', function () {
+            $noRole = DB::table(self::TABLE)
+                ->selectRaw('count(*)')
+                ->whereNull('deleted_at')
+                ->whereNotExists(fn ($roles) => $roles->selectRaw('1')
+                    ->from('model_has_roles')
+                    ->whereColumn('model_has_roles.model_id', self::TABLE . '.id')
+                    ->where('model_has_roles.model_type', self::class));
+
+            $noCompany = DB::table(self::TABLE)
+                ->selectRaw('count(*)')
+                ->whereNull('deleted_at')
+                ->whereNull('company_id')
+                ->whereNotNull('profile_completed_at');
+
+            return DB::query()->selectSub($noRole, 'without_role')->selectSub($noCompany, 'without_company')->first();
+        });
+    }
+
+    // The live accounts that can place orders (a role of theirs holds `create orders`), added up
+    // per company: how many there are, and how many ordered between two moments.
+    public static function participationByCompany(string $startAt, string $endAt): Collection
+    {
+        $each = self::orderingAccounts()
+            ->leftJoin('companies', 'companies.company_id', '=', self::TABLE . '.company_id')
+            ->selectRaw('companies.company_id, companies.company_name, CASE WHEN EXISTS (SELECT 1 FROM orders WHERE orders.user_id = users.id'
+                . " AND orders.deleted_at IS NULL AND orders.order_status <> 'cancelled' AND orders.order_date BETWEEN ? AND ?) THEN 1 ELSE 0 END as ordered", [$startAt, $endAt]);
+
+        return DB::query()->fromSub($each, 'accounts')
+            ->selectRaw('company_name, COUNT(*) as registered, SUM(ordered) as ordering')
+            ->groupBy('company_id', 'company_name')
+            ->get();
+    }
+
+    // Of the accounts that can order: how many there are, how many never placed an order (that
+    // was not cancelled), and how many of those registered before $olderThan.
+    public static function neverOrdered(string $olderThan): object
+    {
+        $each = self::orderingAccounts()->selectRaw('CASE WHEN EXISTS (SELECT 1 FROM orders WHERE orders.user_id = users.id'
+            . " AND orders.deleted_at IS NULL AND orders.order_status <> 'cancelled') THEN 0 ELSE 1 END as never_ordered, users.created_at");
+
+        return DB::query()->fromSub($each, 'accounts')
+            ->selectRaw('COUNT(*) as accounts, COALESCE(SUM(never_ordered), 0) as never_count, COALESCE(SUM(CASE WHEN never_ordered = 1 AND created_at < ? THEN 1 ELSE 0 END), 0) as never_older', [$olderThan])
+            ->first();
+    }
+
+    protected static function orderingAccounts()
+    {
+        return DB::table(self::TABLE)
+            ->whereNull(self::TABLE . '.deleted_at')
+            ->whereExists(fn ($roles) => $roles->selectRaw('1')
+                ->from('model_has_roles')
+                ->join('role_has_permissions', 'role_has_permissions.role_id', '=', 'model_has_roles.role_id')
+                ->join('permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
+                ->whereColumn('model_has_roles.model_id', self::TABLE . '.id')
+                ->where('model_has_roles.model_type', self::class)
+                ->where('permissions.name', 'create orders'));
+    }
+
     // Get all live users with their role names, for the table feed.
     public static function getAll(): Collection
     {
